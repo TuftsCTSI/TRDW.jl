@@ -1,0 +1,12 @@
+name = "TRDW"
+uuid = "0719a0bd-20d8-4d8e-abe7-d82c18a4d09f"
+
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+Chain = "8be319e6-bccf-4806-a6f7-6fae938471bc"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
+ODBC = "be6f12e9-ca4f-5eb2-a339-a4f995cc0291"
+PlutoLinks = "0ff47ea0-7a50-410d-8455-4348d5de0420"
+PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
