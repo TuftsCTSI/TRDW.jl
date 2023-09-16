@@ -12,7 +12,7 @@ const wide_notebook_style = html"""
         main {
             margin: 0 auto;
             max-width: 2000px;
-            padding-right: calc(283px + 34px + 25px);
+            padding-right: 50px;
         }
     }
 </style>
@@ -28,7 +28,7 @@ function connect_to_databricks(; catalog = nothing, schema = nothing)
     DATABRICKS_SERVER_HOSTNAME = ENV["DATABRICKS_SERVER_HOSTNAME"]
     DATABRICKS_HTTP_PATH = ENV["DATABRICKS_HTTP_PATH"]
     DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
-    DATABRICKS_CATALOG = ENV["DATABRICKS_CATALOG"]
+    DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
 
     catalog = something(catalog, DATABRICKS_CATALOG)
     schema = get(ENV, "TRDW_SCHEMA", schema)
