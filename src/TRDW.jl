@@ -198,10 +198,12 @@ end
 @funsql restrict_by(q) =
     restrict_by(person_id, $q)
 
-@funsql restrict_by(column_name, q) =
-    join(
+@funsql restrict_by(column_name, q) = begin
+    left_join(
         subset => $q.filter(is_not_null($column_name)).group($column_name),
         $column_name == subset.$column_name)
+    filter(is_null($column_name) || is_not_null(subset.$column_name))
+end
 
 function temp_table!(etl, name, def)
     schema = etl.db.catalog[:person].schema
@@ -228,7 +230,23 @@ function zipfile(filename, db, pairs...)
     close(z)
 end
 
-function export_zip(filename, db, input_q)
+function export_zip(filename, db, input_q;
+                    visit_occurrence_q = @funsql(from(visit_occurrence)),
+                    visit_detail_q = @funsql(from(visit_detail)),
+                    condition_occurrence_q = @funsql(from(condition_occurrence)),
+                    drug_exposure_q = @funsql(from(drug_exposure)),
+                    procedure_occurrence_q = @funsql(from(procedure_occurrence)),
+                    device_exposure_q = @funsql(from(device_exposure)),
+                    measurement_q = @funsql(from(measurement)),
+                    observation_q = @funsql(from(observation)),
+                    death_q = @funsql(from(death)),
+                    note_q = @funsql(from(note)),
+                    note_nlp_q = @funsql(from(note_nlp)),
+                    specimen_q = @funsql(from(specimen)),
+                    drug_era_q = @funsql(from(drug_era)),
+                    dose_era_q = @funsql(from(dose_era)),
+                    condition_era_q = @funsql(from(condition_era)))
+
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
     suffix = Dates.format(Dates.now(), "yyyymmddHHMMSSZ")
     cohort_q =
@@ -250,62 +268,71 @@ function export_zip(filename, db, input_q)
         temp_table!(
             etl,
             "visit_occurrence_$suffix",
-            @funsql from(visit_occurrence).restrict_by($cohort_q))
+            @funsql $visit_occurrence_q.restrict_by($cohort_q))
     visit_detail_q =
         temp_table!(
             etl,
             "visit_detail_$suffix",
-            @funsql from(visit_detail).restrict_by($cohort_q))
+            @funsql begin
+                $visit_detail_q
+                restrict_by($cohort_q)
+                restrict_by(visit_occurrence_id, $visit_occurrence_q)
+            end)
+    restrict_q = @funsql begin
+        restrict_by($cohort_q)
+        restrict_by(visit_occurrence_id, $visit_occurrence_q)
+        restrict_by(visit_detail_id, $visit_detail_q)
+    end
     condition_occurrence_q =
         temp_table!(
             etl,
             "condition_occurrence_$suffix",
-            @funsql from(condition_occurrence).restrict_by($cohort_q))
+            @funsql $condition_occurrence_q.$restrict_q)
     drug_exposure_q =
         temp_table!(
             etl,
             "drug_exposure_$suffix",
-            @funsql from(drug_exposure).restrict_by($cohort_q))
+            @funsql $drug_exposure_q.$restrict_q)
     procedure_occurrence_q =
         temp_table!(
             etl,
             "procedure_occurrence_$suffix",
-            @funsql from(procedure_occurrence).restrict_by($cohort_q))
+            @funsql $procedure_occurrence_q.$restrict_q)
     device_exposure_q =
         temp_table!(
             etl,
             "device_exposure_$suffix",
-            @funsql from(device_exposure).restrict_by($cohort_q))
+            @funsql $device_exposure_q.$restrict_q)
     measurement_q =
         temp_table!(
             etl,
             "measurement_$suffix",
-            @funsql from(measurement).restrict_by($cohort_q))
+            @funsql $measurement_q.$restrict_q)
     observation_q =
         temp_table!(
             etl,
             "observation_$suffix",
-            @funsql from(observation).restrict_by($cohort_q))
+            @funsql $observation_q.$restrict_q)
     death_q =
         temp_table!(
             etl,
             "death_$suffix",
-            @funsql from(death).restrict_by($cohort_q))
+            @funsql $death_q.restrict_by($cohort_q))
     note_q =
         temp_table!(
             etl,
             "note_$suffix",
-            @funsql from(note).restrict_by($cohort_q))
+            @funsql $note_q.$restrict_q)
     note_nlp_q =
         temp_table!(
             etl,
             "note_nlp_$suffix",
-            @funsql from(note_nlp).restrict_by(note_id, $note_q))
+            @funsql $note_nlp_q.restrict_by(note_id, $note_q))
     specimen_q =
         temp_table!(
             etl,
             "specimen_$suffix",
-            @funsql from(specimen).restrict_by($cohort_q))
+            @funsql $specimen_q.restrict_by($cohort_q))
     provider_q =
         temp_table!(
             etl,
@@ -403,27 +430,27 @@ function export_zip(filename, db, input_q)
         temp_table!(
             etl,
             "drug_era_$suffix",
-            @funsql from(drug_era).restrict_by($cohort_q))
+            @funsql $drug_era_q.restrict_by($cohort_q))
     dose_era_q =
         temp_table!(
             etl,
             "dose_era_$suffix",
-            @funsql from(dose_era).restrict_by($cohort_q))
+            @funsql $dose_era_q.restrict_by($cohort_q))
     condition_era_q =
         temp_table!(
             etl,
             "condition_era_$suffix",
-            @funsql from(condition_era).restrict_by($cohort_q))
+            @funsql $condition_era_q.restrict_by($cohort_q))
     episode_q =
         temp_table!(
             etl,
             "episode_$suffix",
-            @funsql from(episode).restrict_by($cohort_q))
+            @funsql from(episode).filter(false))
     episode_event_q =
         temp_table!(
             etl,
             "episode_event_$suffix",
-            @funsql from(episode_event).restrict_by(episode_id, $episode_q))
+            @funsql from(episode_event).filter(false))
     metadata_q =
         temp_table!(
             etl,
