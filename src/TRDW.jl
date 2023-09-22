@@ -258,7 +258,11 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "person_$suffix",
-            @funsql from(person).restrict_by($cohort_q))
+            @funsql begin
+                from(person)
+                restrict_by($cohort_q)
+                define(location_id => int(missing))
+            end)
     observation_period_q =
         temp_table!(
             etl,
