@@ -667,7 +667,6 @@ function export_zip(filename, db, input_q;
         """
     end
     for stmt in etl.create_stmts
-        println(stmt)
         DBInterface.execute(db, stmt)
     end
     zipfile(
@@ -711,7 +710,6 @@ function export_zip(filename, db, input_q;
         "concept_ancestor.csv" => concept_ancestor_q,
         "mrn.csv" => mrn_q)
     for stmt in etl.drop_stmts
-        println(stmt)
         DBInterface.execute(db, stmt)
     end
 end
