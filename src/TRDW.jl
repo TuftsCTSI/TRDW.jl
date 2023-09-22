@@ -223,6 +223,7 @@ end
 function zipfile(filename, db, pairs...)
     z = ZipFile.Writer(filename)
     for (name, q) in pairs
+        q !== nothing || continue
         f = ZipFile.addfile(z, name)
         cr = DBInterface.execute(db, q)
         CSV.write(f, cr)
@@ -245,7 +246,9 @@ function export_zip(filename, db, input_q;
                     specimen_q = @funsql(from(specimen)),
                     drug_era_q = @funsql(from(drug_era)),
                     dose_era_q = @funsql(from(dose_era)),
-                    condition_era_q = @funsql(from(condition_era)))
+                    condition_era_q = @funsql(from(condition_era)),
+                    strip_dob = false,
+                    include_mrn = false)
 
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
     suffix = Dates.format(Dates.now(), "yyyymmddHHMMSSZ")
@@ -638,6 +641,31 @@ function export_zip(filename, db, input_q;
                     subset_2 => $concept_q,
                     descendant_concept_id == subset_2.concept_id)
             end)
+    if strip_dob
+        person_q = @funsql begin
+            $person_q
+            define(
+                month_of_birth => missing,
+                day_of_birth => missing,
+                birth_datetime => missing)
+        end
+    end
+    mrn_q = nothing
+    if include_mrn
+        schema = db.catalog[:person].schema
+        mrn_q = """
+        SELECT
+          p.person_id,
+          gp.system_epic_mrn mrn
+        FROM `$schema`.`person_$suffix` p
+        LEFT JOIN `person_map`.`person_map` pm ON p.person_id = pm.person_id
+        LEFT JOIN (
+          SELECT DISTINCT
+            system_epic_id,
+            system_epic_mrn
+          FROM `hive_metastore`.`global`.`patient`) AS gp ON pm.person_source_value = gp.system_epic_id
+        """
+    end
     for stmt in etl.create_stmts
         println(stmt)
         DBInterface.execute(db, stmt)
@@ -680,7 +708,8 @@ function export_zip(filename, db, input_q;
         "concept.csv" => concept_q,
         "concept_synonym.csv" => concept_synonym_q,
         "concept_relationship.csv" => concept_relationship_q,
-        "concept_ancestor.csv" => concept_ancestor_q)
+        "concept_ancestor.csv" => concept_ancestor_q,
+        "mrn.csv" => mrn_q)
     for stmt in etl.drop_stmts
         println(stmt)
         DBInterface.execute(db, stmt)
