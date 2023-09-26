@@ -225,8 +225,12 @@ function zipfile(filename, db, pairs...)
     for (name, q) in pairs
         q !== nothing || continue
         f = ZipFile.addfile(z, name)
-        cr = DBInterface.execute(db, q)
-        CSV.write(f, cr)
+        if q isa AbstractDataFrame
+            CSV.write(f, q)
+        else
+            cr = DBInterface.execute(db, q)
+            CSV.write(f, cr)
+        end
     end
     close(z)
 end
@@ -709,6 +713,230 @@ function export_zip(filename, db, input_q;
         "concept_relationship.csv" => concept_relationship_q,
         "concept_ancestor.csv" => concept_ancestor_q,
         "mrn.csv" => mrn_q)
+    for stmt in etl.drop_stmts
+        DBInterface.execute(db, stmt)
+    end
+end
+
+function export_denormalized_zip(filename, db, input_q;
+                                 visit_occurrence_q = @funsql(from(visit_occurrence)),
+                                 visit_detail_q = @funsql(from(visit_detail)),
+                                 condition_occurrence_q = @funsql(from(condition_occurrence)),
+                                 drug_exposure_q = @funsql(from(drug_exposure)),
+                                 procedure_occurrence_q = @funsql(from(procedure_occurrence)),
+                                 device_exposure_q = @funsql(from(device_exposure)),
+                                 measurement_q = @funsql(from(measurement)),
+                                 observation_q = @funsql(from(observation)),
+                                 death_q = @funsql(from(death)),
+                                 note_q = @funsql(from(note)),
+                                 specimen_q = @funsql(from(specimen)))
+
+    etl = (db = db, create_stmts = String[], drop_stmts = String[])
+    suffix = Dates.format(Dates.now(), "yyyymmddHHMMSSZ")
+    cohort_q =
+        temp_table!(
+            etl,
+            "cohort_$suffix",
+            @funsql $input_q.filter(is_not_null(person_id)).group(person_id))
+    person_q =
+        temp_table!(
+            etl,
+            "person_$suffix",
+            @funsql begin
+                from(person)
+                restrict_by($cohort_q)
+            end)
+    visit_occurrence_q =
+        temp_table!(
+            etl,
+            "visit_occurrence_$suffix",
+            @funsql $visit_occurrence_q.restrict_by($cohort_q))
+    visit_detail_q =
+        temp_table!(
+            etl,
+            "visit_detail_$suffix",
+            @funsql begin
+                $visit_detail_q
+                restrict_by($cohort_q)
+                restrict_by(visit_occurrence_id, $visit_occurrence_q)
+            end)
+    restrict_q = @funsql begin
+        restrict_by($cohort_q)
+        restrict_by(visit_occurrence_id, $visit_occurrence_q)
+        restrict_by(visit_detail_id, $visit_detail_q)
+    end
+    condition_occurrence_q = @funsql $condition_occurrence_q.$restrict_q
+    drug_exposure_q = @funsql $drug_exposure_q.$restrict_q
+    procedure_occurrence_q = @funsql $procedure_occurrence_q.$restrict_q
+    device_exposure_q = @funsql $device_exposure_q.$restrict_q
+    measurement_q = @funsql $measurement_q.$restrict_q
+    observation_q = @funsql $observation_q.$restrict_q
+    death_q = @funsql $death_q.restrict_by($cohort_q)
+    note_q = @funsql $note_q.$restrict_q
+    specimen_q = @funsql $specimen_q.restrict_by($cohort_q)
+    q = @funsql begin
+        append(
+            begin
+                $visit_occurrence_q
+                define(
+                    event_type => "visit_occurrence",
+                    event_id => visit_occurrence_id,
+                    start_date => visit_start_date,
+                    start_datetime => visit_start_datetime,
+                    end_date => visit_end_date,
+                    end_datetime => visit_end_datetime,
+                    concept_id => visit_concept_id,
+                    source_value => visit_source_value)
+            end,
+            begin
+                $visit_detail_q
+                define(
+                    event_type => "visit_detail",
+                    event_id => visit_detail_id,
+                    start_date => visit_detail_start_date,
+                    start_datetime => visit_detail_start_datetime,
+                    end_date => visit_detail_end_date,
+                    end_datetime => visit_detail_end_datetime,
+                    concept_id => visit_detail_concept_id,
+                    source_value => visit_detail_source_value)
+            end,
+            begin
+                $condition_occurrence_q
+                define(
+                    event_type => "condition_occurrence",
+                    event_id => condition_occurrence_id,
+                    start_date => condition_start_date,
+                    start_datetime => condition_start_datetime,
+                    end_date => condition_end_date,
+                    end_datetime => condition_end_datetime,
+                    concept_id => condition_concept_id,
+                    source_value => condition_source_value)
+            end,
+            begin
+                $drug_exposure_q
+                define(
+                    event_type => "drug_exposure",
+                    event_id => drug_exposure_id,
+                    start_date => drug_exposure_start_date,
+                    start_datetime => drug_exposure_start_datetime,
+                    end_date => drug_exposure_end_date,
+                    end_datetime => drug_exposure_end_datetime,
+                    concept_id => drug_concept_id,
+                    source_value => drug_source_value)
+            end,
+            begin
+                $procedure_occurrence_q
+                define(
+                    event_type => "procedure_occurrence",
+                    event_id => procedure_occurrence_id,
+                    start_date => procedure_date,
+                    start_datetime => procedure_datetime,
+                    end_date => procedure_end_date,
+                    end_datetime => procedure_end_datetime,
+                    concept_id => procedure_concept_id,
+                    source_value => procedure_source_value)
+            end,
+            begin
+                $device_exposure_q
+                define(
+                    event_type => "device_exposure",
+                    event_id => device_exposure_id,
+                    start_date => device_exposure_start_date,
+                    start_datetime => device_exposure_start_datetime,
+                    end_date => device_exposure_end_date,
+                    end_datetime => device_exposure_end_datetime,
+                    concept_id => device_concept_id,
+                    source_value => device_source_value)
+            end,
+            begin
+                $measurement_q
+                define(
+                    event_type => "measurement",
+                    event_id => measurement_id,
+                    start_date => measurement_date,
+                    start_datetime => measurement_datetime,
+                    end_date => measurement_date,
+                    end_datetime => measurement_datetime,
+                    concept_id => measurement_concept_id,
+                    source_value => measurement_source_value)
+            end,
+            begin
+                $observation_q
+                define(
+                    event_type => "observation",
+                    event_id => observation_id,
+                    start_date => observation_date,
+                    start_datetime => observation_datetime,
+                    end_date => observation_date,
+                    end_datetime => observation_datetime,
+                    concept_id => observation_concept_id,
+                    source_value => observation_source_value)
+            end,
+            begin
+                $death_q
+                define(
+                    event_type => "death",
+                    event_id => int(missing),
+                    visit_occurrence_id => int(missing),
+                    start_date => death_date,
+                    start_datetime => death_datetime,
+                    end_date => death_date,
+                    end_datetime => death_datetime,
+                    concept_id => cause_concept_id,
+                    source_value => cause_source_value)
+            end,
+            begin
+                $note_q
+                define(
+                    event_type => "note",
+                    event_id => note_id,
+                    start_date => note_date,
+                    start_datetime => note_datetime,
+                    end_date => note_date,
+                    end_datetime => note_datetime,
+                    concept_id => note_class_concept_id,
+                    source_value => note_source_value)
+            end,
+            begin
+                $specimen_q
+                define(
+                    event_type => "specimen",
+                    event_id => specimen_id,
+                    visit_occurrence_id => int(missing),
+                    start_date => specimen_date,
+                    start_datetime => specimen_datetime,
+                    end_date => specimen_date,
+                    end_datetime => specimen_datetime,
+                    concept_id => specimen_concept_id,
+                    source_value => specimen_source_value)
+            end)
+        join(person => $person_q, person_id == person.person_id)
+        join(concept => from(concept), concept_id == concept.concept_id)
+        order(person_id, start_datetime, event_type, event_id)
+        select(
+            person_id,
+            event_type,
+            event_id,
+            visit_occurrence_id,
+            start_date,
+            start_datetime,
+            end_date,
+            end_datetime,
+            age => `datediff(YEAR, ?, ?)`(person.birth_datetime, start_datetime),
+            concept_id,
+            concept.concept_name,
+            source_value)
+    end
+    for stmt in etl.create_stmts
+        DBInterface.execute(db, stmt)
+    end
+    df = DBInterface.execute(db, q) |> DataFrame
+    ps = ["$(key.person_id).csv" => subdf
+          for (key, subdf) in pairs(groupby(df, :person_id))]
+    zipfile(
+        filename,
+        db,
+        ps...)
     for stmt in etl.drop_stmts
         DBInterface.execute(db, stmt)
     end
