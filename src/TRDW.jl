@@ -226,10 +226,10 @@ function zipfile(filename, db, pairs...)
         q !== nothing || continue
         f = ZipFile.addfile(z, name)
         if q isa AbstractDataFrame
-            CSV.write(f, q)
+            CSV.write(f, q; bufsize = 2^23)
         else
             cr = DBInterface.execute(db, q)
-            CSV.write(f, cr)
+            CSV.write(f, cr; bufsize = 2^23)
         end
     end
     close(z)
@@ -245,13 +245,13 @@ function export_zip(filename, db, input_q;
                     measurement_q = @funsql(from(measurement)),
                     observation_q = @funsql(from(observation)),
                     death_q = @funsql(from(death)),
-                    note_q = @funsql(from(note)),
+                    note_q = @funsql(from(note).define(note_text=>"")),
                     note_nlp_q = @funsql(from(note_nlp)),
                     specimen_q = @funsql(from(specimen)),
                     drug_era_q = @funsql(from(drug_era)),
                     dose_era_q = @funsql(from(dose_era)),
                     condition_era_q = @funsql(from(condition_era)),
-                    strip_dob = false,
+                    include_dob = false,
                     include_mrn = false)
 
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
@@ -645,7 +645,7 @@ function export_zip(filename, db, input_q;
                     subset_2 => $concept_q,
                     descendant_concept_id == subset_2.concept_id)
             end)
-    if strip_dob
+    if !include_dob
         person_q = @funsql begin
             $person_q
             define(
@@ -658,16 +658,21 @@ function export_zip(filename, db, input_q;
     if include_mrn
         schema = db.catalog[:person].schema
         mrn_q = """
+
         SELECT
           p.person_id,
-          gp.system_epic_mrn mrn
+	  array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
+	  array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
         FROM `$schema`.`person_$suffix` p
         LEFT JOIN `person_map`.`person_map` pm ON p.person_id = pm.person_id
         LEFT JOIN (
           SELECT DISTINCT
             system_epic_id,
-            system_epic_mrn
-          FROM `hive_metastore`.`global`.`patient`) AS gp ON pm.person_source_value = gp.system_epic_id
+            system_epic_mrn,
+            system_tuftssoarian_mrn
+          FROM `hive_metastore`.`global`.`patient`) AS gp
+            ON pm.person_source_value = gp.system_epic_id
+	GROUP BY p.person_id
         """
     end
     for stmt in etl.create_stmts
@@ -712,7 +717,7 @@ function export_zip(filename, db, input_q;
         "concept_synonym.csv" => concept_synonym_q,
         "concept_relationship.csv" => concept_relationship_q,
         "concept_ancestor.csv" => concept_ancestor_q,
-        "mrn.csv" => mrn_q)
+        "keyfile.csv" => mrn_q)
     for stmt in etl.drop_stmts
         DBInterface.execute(db, stmt)
     end
@@ -729,7 +734,8 @@ function export_denormalized_zip(filename, db, input_q;
                                  observation_q = @funsql(from(observation)),
                                  death_q = @funsql(from(death)),
                                  note_q = @funsql(from(note)),
-                                 specimen_q = @funsql(from(specimen)))
+                                 specimen_q = @funsql(from(specimen)),
+                                 utilize_dob = false)
 
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
     suffix = Dates.format(Dates.now(), "yyyymmddHHMMSSZ")
@@ -774,6 +780,10 @@ function export_denormalized_zip(filename, db, input_q;
     death_q = @funsql $death_q.restrict_by($cohort_q)
     note_q = @funsql $note_q.$restrict_q
     specimen_q = @funsql $specimen_q.restrict_by($cohort_q)
+    age_q = @funsql `datediff(YEAR, ?, ?)`(person.birth_datetime, start_date)
+    if !utilize_dob
+        age_q = @funsql year(start_date) - person.year_of_birth
+    end
     q = @funsql begin
         append(
             begin
@@ -918,11 +928,9 @@ function export_denormalized_zip(filename, db, input_q;
             event_type,
             event_id,
             visit_occurrence_id,
-            start_date,
-            start_datetime,
-            end_date,
-            end_datetime,
-            age => `datediff(YEAR, ?, ?)`(person.birth_datetime, start_datetime),
+            starting => ifnull(start_datetime, start_date),
+            ending => ifnull(end_datetime, end_date),
+            age => case($age_q > 90, 90, $age_q),
             concept_id,
             concept.concept_name,
             source_value)
