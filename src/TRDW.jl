@@ -224,7 +224,7 @@ function zipfile(filename, db, pairs...)
     z = ZipFile.Writer(filename)
     for (name, q) in pairs
         q !== nothing || continue
-        f = ZipFile.addfile(z, name)
+        f = ZipFile.addfile(z, name; method=ZipFile.Deflate)
         if q isa AbstractDataFrame
             CSV.write(f, q; bufsize = 2^23)
         else
