@@ -245,7 +245,7 @@ function export_zip(filename, db, input_q;
                     measurement_q = @funsql(from(measurement)),
                     observation_q = @funsql(from(observation)),
                     death_q = @funsql(from(death)),
-                    note_q = @funsql(from(note).define(note_text=>"")),
+                    note_q = @funsql(from(note)),
                     note_nlp_q = @funsql(from(note_nlp)),
                     specimen_q = @funsql(from(specimen)),
                     drug_era_q = @funsql(from(drug_era)),
@@ -269,6 +269,7 @@ function export_zip(filename, db, input_q;
                 from(person)
                 restrict_by($cohort_q)
                 define(location_id => int(missing))
+                define(person_source_value => "")
             end)
     observation_period_q =
         temp_table!(
@@ -318,7 +319,10 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "measurement_$suffix",
-            @funsql $measurement_q.$restrict_q)
+            @funsql begin
+                $measurement_q.$restrict_q
+                define(value_source_value => "")
+            end)
     observation_q =
         temp_table!(
             etl,
@@ -333,7 +337,10 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "note_$suffix",
-            @funsql $note_q.$restrict_q)
+            @funsql begin
+                $note_q.$restrict_q
+                define(note_text => "")
+            end)
     note_nlp_q =
         temp_table!(
             etl,
@@ -661,8 +668,8 @@ function export_zip(filename, db, input_q;
 
         SELECT
           p.person_id,
-	  array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
-	  array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
+          array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
+          array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
         FROM `$schema`.`person_$suffix` p
         LEFT JOIN `person_map`.`person_map` pm ON p.person_id = pm.person_id
         LEFT JOIN (
@@ -672,7 +679,7 @@ function export_zip(filename, db, input_q;
             system_tuftssoarian_mrn
           FROM `hive_metastore`.`global`.`patient`) AS gp
             ON pm.person_source_value = gp.system_epic_id
-	GROUP BY p.person_id
+        GROUP BY p.person_id
         """
     end
     for stmt in etl.create_stmts
