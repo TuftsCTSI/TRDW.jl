@@ -327,7 +327,10 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "observation_$suffix",
-            @funsql $observation_q.$restrict_q)
+            @funsql begin
+                $observation_q.$restrict_q
+                define(value_as_string => "")
+            end)
     death_q =
         temp_table!(
             etl,
@@ -345,7 +348,10 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "note_nlp_$suffix",
-            @funsql $note_nlp_q.restrict_by(note_id, $note_q))
+            @funsql begin
+                $note_nlp_q.restrict_by(note_id, $note_q)
+                define(snippet => "")
+            end)
     specimen_q =
         temp_table!(
             etl,
