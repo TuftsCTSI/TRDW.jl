@@ -235,6 +235,152 @@ function zipfile(filename, db, pairs...)
     close(z)
 end
 
+const NOOP = @funsql define()
+
+struct OMOP_Transform
+    condition_era::FunSQL.SQLNode
+    condition_occurrence::FunSQL.SQLNode
+    death::FunSQL.SQLNode
+    device_exposure::FunSQL.SQLNode
+    dose_era::FunSQL.SQLNode
+    drug_era::FunSQL.SQLNode
+    drug_exposure::FunSQL.SQLNode
+    measurement::FunSQL.SQLNode
+    note::FunSQL.SQLNode
+    note_nlp::FunSQL.SQLNode
+    observation::FunSQL.SQLNode
+    person::FunSQL.SQLNode
+    procedure_occurrence::FunSQL.SQLNode
+    specimen::FunSQL.SQLNode
+    visit_detail::FunSQL.SQLNode
+    visit_occurrence::FunSQL.SQLNode
+
+    OMOP_Transform(;
+        condition_era = NOOP,
+        condition_occurrence = NOOP,
+        death = NOOP,
+        device_exposure = NOOP,
+        dose_era = NOOP,
+        drug_era = NOOP,
+        drug_exposure = NOOP,
+        measurement = NOOP,
+        note = NOOP,
+        note_nlp = NOOP,
+        observation = NOOP,
+        person = NOOP,
+        procedure_occurrence = NOOP,
+        specimen = NOOP,
+        visit_detail = NOOP,
+        visit_occurrence = NOOP) =
+            new(condition_era,
+                condition_occurrence,
+                death,
+                device_exposure,
+                dose_era,
+                drug_era,
+                drug_exposure,
+                measurement,
+                note,
+                note_nlp,
+                observation,
+                person,
+                procedure_occurrence,
+                specimen,
+                visit_detail,
+                visit_occurrence)
+end
+
+(rhs::OMOP_Transform)(lhs::OMOP_Transform)=
+    OMOP_Transform(;
+        condition_era = lhs.condition_era |> rhs.condition_era,
+        condition_occurrence = lhs.condition_occurrence |> rhs.condition_occurrence,
+        death = lhs.death |> rhs.death,
+        device_exposure = lhs.device_exposure |> rhs.device_exposure,
+        dose_era = lhs.dose_era |> rhs.dose_era,
+        drug_era = lhs.drug_era |> rhs.drug_era,
+        drug_exposure = lhs.drug_exposure |> rhs.drug_exposure,
+        measurement = lhs.measurement |> rhs.measurement,
+        note = lhs.note |> rhs.note,
+        note_nlp = lhs.note_nlp |> rhs.note_nlp,
+        observation = lhs.observation |> rhs.observation,
+        person = lhs.person |> rhs.person,
+        procedure_occurrence = lhs.procedure_occurrence |> rhs.procedure_occurrence,
+        specimen = lhs.specimen |> rhs.specimen,
+        visit_detail = lhs.visit_detail |> rhs.visit_detail,
+        visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence)
+
+struct OMOP_Queries
+    condition_era::FunSQL.SQLNode
+    condition_occurrence::FunSQL.SQLNode
+    death::FunSQL.SQLNode
+    device_exposure::FunSQL.SQLNode
+    dose_era::FunSQL.SQLNode
+    drug_era::FunSQL.SQLNode
+    drug_exposure::FunSQL.SQLNode
+    measurement::FunSQL.SQLNode
+    note::FunSQL.SQLNode
+    note_nlp::FunSQL.SQLNode
+    observation::FunSQL.SQLNode
+    person::FunSQL.SQLNode
+    procedure_occurrence::FunSQL.SQLNode
+    specimen::FunSQL.SQLNode
+    visit_detail::FunSQL.SQLNode
+    visit_occurrence::FunSQL.SQLNode
+
+    OMOP_Queries(;
+        condition_era = @funsql(from(condition_era)),
+        condition_occurrence = @funsql(from(condition_occurrence)),
+        death = @funsql(from(death)),
+        device_exposure = @funsql(from(device_exposure)),
+        dose_era = @funsql(from(dose_era)),
+        drug_era = @funsql(from(drug_era)),
+        drug_exposure = @funsql(from(drug_exposure)),
+        measurement = @funsql(from(measurement)),
+        note = @funsql(from(note)),
+        note_nlp = @funsql(from(note_nlp)),
+        observation = @funsql(from(observation)),
+        person = @funsql(from(person)),
+        procedure_occurrence = @funsql(from(procedure_occurrence)),
+        specimen = @funsql(from(specimen)),
+        visit_detail = @funsql(from(visit_detail)),
+        visit_occurrence = @funsql(from(visit_occurrence))) =
+            new(condition_era,
+                condition_occurrence,
+                death,
+                device_exposure,
+                dose_era,
+                drug_era,
+                drug_exposure,
+                measurement,
+                note,
+                note_nlp,
+                observation,
+                person,
+                procedure_occurrence,
+                specimen,
+                visit_detail,
+                visit_occurrence)
+end
+
+(rhs::OMOP_Transform)(lhs::OMOP_Queries)=
+    OMOP_Queries(;
+        condition_era = lhs.condition_era |> rhs.condition_era,
+        condition_occurrence = lhs.condition_occurrence |> rhs.condition_occurrence,
+        death = lhs.death |> rhs.death,
+        device_exposure = lhs.device_exposure |> rhs.device_exposure,
+        dose_era = lhs.dose_era |> rhs.dose_era,
+        drug_era = lhs.drug_era |> rhs.drug_era,
+        drug_exposure = lhs.drug_exposure |> rhs.drug_exposure,
+        measurement = lhs.measurement |> rhs.measurement,
+        note = lhs.note |> rhs.note,
+        note_nlp = lhs.note_nlp |> rhs.note_nlp,
+        observation = lhs.observation |> rhs.observation,
+        person = lhs.person |> rhs.person,
+        procedure_occurrence = lhs.procedure_occurrence |> rhs.procedure_occurrence,
+        specimen = lhs.specimen |> rhs.specimen,
+        visit_detail = lhs.visit_detail |> rhs.visit_detail,
+        visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence)
+
 function export_zip(filename, db, input_q;
                     visit_occurrence_q = @funsql(from(visit_occurrence)),
                     visit_detail_q = @funsql(from(visit_detail)),
@@ -671,7 +817,6 @@ function export_zip(filename, db, input_q;
     if include_mrn
         schema = db.catalog[:person].schema
         mrn_q = """
-
         SELECT
           p.person_id,
           array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
