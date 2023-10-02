@@ -220,6 +220,22 @@ function temp_table!(etl, name, def)
     return FunSQL.From(t)
 end
 
+function cleanup!(db)
+    schema = db.catalog[:person].schema
+    #TODO: fixme with proper regex
+    sql = """
+        SELECT "DROP TABLE ctsi.$schema." || table_name AS query
+        FROM information_schema.tables 
+        WHERE table_catalog = 'ctsi' 
+          AND table_schema = '$schema' 
+          AND table_name like '%_2023%'
+          AND table_name like '%z'
+    """
+    for query in collect(row.query for row in DBInterface.execute(db, sql))
+        DBInterface.execute(db, query)
+    end
+end
+
 function zipfile(filename, db, pairs...)
     z = ZipFile.Writer(filename)
     for (name, q) in pairs
@@ -237,7 +253,9 @@ end
 
 const NOOP = @funsql define()
 
-struct OMOP_Transform
+abstract type OMOP_QuerySet end
+
+struct OMOP_Transform <: OMOP_QuerySet
     condition_era::FunSQL.SQLNode
     condition_occurrence::FunSQL.SQLNode
     death::FunSQL.SQLNode
@@ -290,26 +308,7 @@ struct OMOP_Transform
                 visit_occurrence)
 end
 
-(rhs::OMOP_Transform)(lhs::OMOP_Transform)=
-    OMOP_Transform(;
-        condition_era = lhs.condition_era |> rhs.condition_era,
-        condition_occurrence = lhs.condition_occurrence |> rhs.condition_occurrence,
-        death = lhs.death |> rhs.death,
-        device_exposure = lhs.device_exposure |> rhs.device_exposure,
-        dose_era = lhs.dose_era |> rhs.dose_era,
-        drug_era = lhs.drug_era |> rhs.drug_era,
-        drug_exposure = lhs.drug_exposure |> rhs.drug_exposure,
-        measurement = lhs.measurement |> rhs.measurement,
-        note = lhs.note |> rhs.note,
-        note_nlp = lhs.note_nlp |> rhs.note_nlp,
-        observation = lhs.observation |> rhs.observation,
-        person = lhs.person |> rhs.person,
-        procedure_occurrence = lhs.procedure_occurrence |> rhs.procedure_occurrence,
-        specimen = lhs.specimen |> rhs.specimen,
-        visit_detail = lhs.visit_detail |> rhs.visit_detail,
-        visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence)
-
-struct OMOP_Queries
+struct OMOP_Queries <: OMOP_QuerySet
     condition_era::FunSQL.SQLNode
     condition_occurrence::FunSQL.SQLNode
     death::FunSQL.SQLNode
@@ -362,8 +361,9 @@ struct OMOP_Queries
                 visit_occurrence)
 end
 
-(rhs::OMOP_Transform)(lhs::OMOP_Queries)=
-    OMOP_Queries(;
+
+function (rhs::OMOP_Transform)(lhs::T)::T where {T<:OMOP_QuerySet}
+    T(;
         condition_era = lhs.condition_era |> rhs.condition_era,
         condition_occurrence = lhs.condition_occurrence |> rhs.condition_occurrence,
         death = lhs.death |> rhs.death,
@@ -380,26 +380,42 @@ end
         specimen = lhs.specimen |> rhs.specimen,
         visit_detail = lhs.visit_detail |> rhs.visit_detail,
         visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence)
+end
 
-function export_zip(filename, db, input_q;
-                    visit_occurrence_q = @funsql(from(visit_occurrence)),
-                    visit_detail_q = @funsql(from(visit_detail)),
-                    condition_occurrence_q = @funsql(from(condition_occurrence)),
-                    drug_exposure_q = @funsql(from(drug_exposure)),
-                    procedure_occurrence_q = @funsql(from(procedure_occurrence)),
-                    device_exposure_q = @funsql(from(device_exposure)),
-                    measurement_q = @funsql(from(measurement)),
-                    observation_q = @funsql(from(observation)),
-                    death_q = @funsql(from(death)),
-                    note_q = @funsql(from(note)),
-                    note_nlp_q = @funsql(from(note_nlp)),
-                    specimen_q = @funsql(from(specimen)),
-                    drug_era_q = @funsql(from(drug_era)),
-                    dose_era_q = @funsql(from(dose_era)),
-                    condition_era_q = @funsql(from(condition_era)),
+strip_person_dob(base) = 
+    base |> OMOP_Transform(;
+        person = @funsql(begin
+            define(month_of_birth => int(missing),
+                   day_of_birth => int(missing),
+                   birth_datetime => timestamp(missing))
+        end))
+
+strip_text_fields(base) =
+    base |> OMOP_Transform(;
+        person = @funsql(begin
+            define(location_id => int(missing),
+                   person_source_value => string(missing))
+        end),
+        measurement = @funsql(begin
+            define(value_source_value => string(missing))
+        end),
+        observation = @funsql(begin
+            define(value_as_string => string(missing))
+        end),
+        note = @funsql(begin
+            define(note_text => string(missing))
+        end),
+        note_nlp = @funsql(begin
+            define(snippet => string(missing))
+        end))
+
+function export_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
+                    queries::OMOP_Queries = OMOP_Queries(),
+                    include_txt = false,
                     include_dob = false,
                     include_mrn = false)
-
+    queries = include_txt ? queries : strip_text_fields(queries)
+    queries = include_dob ? queries : strip_person_dob(queries)
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
     suffix = Dates.format(Dates.now(), "yyyymmddHHMMSSZ")
     cohort_q =
@@ -411,12 +427,7 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "person_$suffix",
-            @funsql begin
-                from(person)
-                restrict_by($cohort_q)
-                define(location_id => int(missing))
-                define(person_source_value => "")
-            end)
+            @funsql $(queries.person).restrict_by($cohort_q))
     observation_period_q =
         temp_table!(
             etl,
@@ -426,13 +437,13 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "visit_occurrence_$suffix",
-            @funsql $visit_occurrence_q.restrict_by($cohort_q))
+            @funsql $(queries.visit_occurrence).restrict_by($cohort_q))
     visit_detail_q =
         temp_table!(
             etl,
             "visit_detail_$suffix",
             @funsql begin
-                $visit_detail_q
+                $(queries.visit_detail)
                 restrict_by($cohort_q)
                 restrict_by(visit_occurrence_id, $visit_occurrence_q)
             end)
@@ -445,64 +456,52 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "condition_occurrence_$suffix",
-            @funsql $condition_occurrence_q.$restrict_q)
+            @funsql $(queries.condition_occurrence).$restrict_q)
     drug_exposure_q =
         temp_table!(
             etl,
             "drug_exposure_$suffix",
-            @funsql $drug_exposure_q.$restrict_q)
+            @funsql $(queries.drug_exposure).$restrict_q)
     procedure_occurrence_q =
         temp_table!(
             etl,
             "procedure_occurrence_$suffix",
-            @funsql $procedure_occurrence_q.$restrict_q)
+            @funsql $(queries.procedure_occurrence).$restrict_q)
     device_exposure_q =
         temp_table!(
             etl,
             "device_exposure_$suffix",
-            @funsql $device_exposure_q.$restrict_q)
+            @funsql $(queries.device_exposure).$restrict_q)
     measurement_q =
         temp_table!(
             etl,
             "measurement_$suffix",
-            @funsql begin
-                $measurement_q.$restrict_q
-                define(value_source_value => "")
-            end)
+            @funsql $(queries.measurement).$restrict_q)
     observation_q =
         temp_table!(
             etl,
             "observation_$suffix",
-            @funsql begin
-                $observation_q.$restrict_q
-                define(value_as_string => "")
-            end)
+            @funsql $(queries.observation).$restrict_q)
     death_q =
         temp_table!(
             etl,
             "death_$suffix",
-            @funsql $death_q.restrict_by($cohort_q))
+            @funsql $(queries.death).restrict_by($cohort_q))
     note_q =
         temp_table!(
             etl,
             "note_$suffix",
-            @funsql begin
-                $note_q.$restrict_q
-                define(note_text => "")
-            end)
+            @funsql $(queries.note).$restrict_q)
     note_nlp_q =
         temp_table!(
             etl,
             "note_nlp_$suffix",
-            @funsql begin
-                $note_nlp_q.restrict_by(note_id, $note_q)
-                define(snippet => "")
-            end)
+            @funsql $(queries.note_nlp).restrict_by(note_id, $note_q))
     specimen_q =
         temp_table!(
             etl,
             "specimen_$suffix",
-            @funsql $specimen_q.restrict_by($cohort_q))
+            @funsql $(queries.specimen).restrict_by($cohort_q))
     provider_q =
         temp_table!(
             etl,
@@ -600,17 +599,17 @@ function export_zip(filename, db, input_q;
         temp_table!(
             etl,
             "drug_era_$suffix",
-            @funsql $drug_era_q.restrict_by($cohort_q))
+            @funsql $(queries.drug_era).restrict_by($cohort_q))
     dose_era_q =
         temp_table!(
             etl,
             "dose_era_$suffix",
-            @funsql $dose_era_q.restrict_by($cohort_q))
+            @funsql $(queries.dose_era).restrict_by($cohort_q))
     condition_era_q =
         temp_table!(
             etl,
             "condition_era_$suffix",
-            @funsql $condition_era_q.restrict_by($cohort_q))
+            @funsql $(queries.condition_era).restrict_by($cohort_q))
     episode_q =
         temp_table!(
             etl,
@@ -804,15 +803,6 @@ function export_zip(filename, db, input_q;
                     subset_2 => $concept_q,
                     descendant_concept_id == subset_2.concept_id)
             end)
-    if !include_dob
-        person_q = @funsql begin
-            $person_q
-            define(
-                month_of_birth => missing,
-                day_of_birth => missing,
-                birth_datetime => missing)
-        end
-    end
     mrn_q = nothing
     if include_mrn
         schema = db.catalog[:person].schema
@@ -881,18 +871,8 @@ function export_zip(filename, db, input_q;
     end
 end
 
-function export_denormalized_zip(filename, db, input_q;
-                                 visit_occurrence_q = @funsql(from(visit_occurrence)),
-                                 visit_detail_q = @funsql(from(visit_detail)),
-                                 condition_occurrence_q = @funsql(from(condition_occurrence)),
-                                 drug_exposure_q = @funsql(from(drug_exposure)),
-                                 procedure_occurrence_q = @funsql(from(procedure_occurrence)),
-                                 device_exposure_q = @funsql(from(device_exposure)),
-                                 measurement_q = @funsql(from(measurement)),
-                                 observation_q = @funsql(from(observation)),
-                                 death_q = @funsql(from(death)),
-                                 note_q = @funsql(from(note)),
-                                 specimen_q = @funsql(from(specimen)),
+function export_denormalized_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
+                                 queries::OMOP_Queries = OMOP_Queries(),
                                  utilize_dob = false)
 
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
@@ -906,38 +886,35 @@ function export_denormalized_zip(filename, db, input_q;
         temp_table!(
             etl,
             "person_$suffix",
-            @funsql begin
-                from(person)
-                restrict_by($cohort_q)
-            end)
+            @funsql $(queries.person).restrict_by($cohort_q))
     visit_occurrence_q =
         temp_table!(
             etl,
             "visit_occurrence_$suffix",
-            @funsql $visit_occurrence_q.restrict_by($cohort_q))
+            @funsql $(queries.visit_occurrence).restrict_by($cohort_q))
     visit_detail_q =
         temp_table!(
             etl,
             "visit_detail_$suffix",
             @funsql begin
-                $visit_detail_q
+                $(queries.visit_detail)
                 restrict_by($cohort_q)
-                restrict_by(visit_occurrence_id, $visit_occurrence_q)
+                restrict_by(visit_occurrence_id, $(queries.visit_occurrence))
             end)
     restrict_q = @funsql begin
         restrict_by($cohort_q)
         restrict_by(visit_occurrence_id, $visit_occurrence_q)
         restrict_by(visit_detail_id, $visit_detail_q)
     end
-    condition_occurrence_q = @funsql $condition_occurrence_q.$restrict_q
-    drug_exposure_q = @funsql $drug_exposure_q.$restrict_q
-    procedure_occurrence_q = @funsql $procedure_occurrence_q.$restrict_q
-    device_exposure_q = @funsql $device_exposure_q.$restrict_q
-    measurement_q = @funsql $measurement_q.$restrict_q
-    observation_q = @funsql $observation_q.$restrict_q
-    death_q = @funsql $death_q.restrict_by($cohort_q)
-    note_q = @funsql $note_q.$restrict_q
-    specimen_q = @funsql $specimen_q.restrict_by($cohort_q)
+    condition_occurrence_q = @funsql $(queries.condition_occurrence).$restrict_q
+    drug_exposure_q = @funsql $(queries.drug_exposure).$restrict_q
+    procedure_occurrence_q = @funsql $(queries.procedure_occurrence).$restrict_q
+    device_exposure_q = @funsql $(queries.device_exposure).$restrict_q
+    measurement_q = @funsql $(queries.measurement).$restrict_q
+    observation_q = @funsql $(queries.observation).$restrict_q
+    death_q = @funsql $(queries.death).restrict_by($cohort_q)
+    note_q = @funsql $(queries.note).$restrict_q
+    specimen_q = @funsql $(queries.specimen).restrict_by($cohort_q)
     age_q = @funsql `datediff(YEAR, ?, ?)`(person.birth_datetime, start_date)
     if !utilize_dob
         age_q = @funsql year(start_date) - person.year_of_birth
