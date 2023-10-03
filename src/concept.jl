@@ -13,7 +13,8 @@ concept() = begin
         concept.concept_class_id)
 end
 
-count_concepts(concept_id=concept_id) = begin
+count_concepts(name=nothing) = begin
+    define(concept_id => $(name == nothing ? :concept_id : Symbol("$(name)_concept_id")))
     group(concept_id)
     define(count => count[])
     join(c => from(concept), c.concept_id == concept_id)
@@ -21,26 +22,29 @@ count_concepts(concept_id=concept_id) = begin
     select(count, concept_id, c.vocabulary_id, c.concept_code, c.concept_name)
 end
 
-is_icd10_like(pats...) = 
-  and(` ILIKE `(vocabulary_id, "ICD10%"),
-      or($[@funsql(` ILIKE `(concept_code, $("$(pat)%"))) for pat in pats]...))
+with_concept(name, extension=nothing) =
+    join($name => begin
+      from(concept)
+      $(extension == nothing ? @funsql(define()) : extension)
+    end, $(Symbol("$(name)_concept_id")) == $name.concept_id)
 
-having_icd10_like(pats...) = 
-    filter(is_icd10_like($pats...))
+is_icd10(pats...; base=nothing) = begin
+  and(ilike($(FunSQL.Get(:vocabulary_id, over = base)), "ICD10%"),
+      or($[@funsql(ilike($(FunSQL.Get(:concept_code, over = base)),
+                         $("$(pat)%"))) for pat in pats]...))
+end
+
+having_icd10(pats...) =
+    filter(is_icd10($pats...))
 
 having_concept_id(ids...) =
 	filter(in(concept_id, $(ids...)))
 	
 having_snomed(codes...) = begin
-	filter(vocabulary_id == "SNOMED") 
+	filter(vocabulary_id == "SNOMED")
 	filter(in(concept_code, $(codes...)))
 end
 	
-having_icd10(codes...) = begin
-	filter(` ILIKE `(vocabulary_id, "ICD10%"))
-	filter(in(concept_code, $(codes...)))
-end
-
 concept_descendants() = begin
     as(base)
     join(
@@ -64,7 +68,7 @@ end
 concept_relatives(relationship_id) = begin
     as(base)
     join(
-        concept_relationship => 
+        concept_relationship =>
             from(concept_relationship).filter(relationship_id == $relationship_id),
         base.concept_id == concept_relationship.concept_id_1)
     join(
@@ -75,8 +79,8 @@ end
 concept_parents() = begin
     as(base)
     join(
-        concept_relationship => 
-            from(concept_relationship).filter(relationship_id == "Subsumes"), 
+        concept_relationship =>
+            from(concept_relationship).filter(relationship_id == "Subsumes"),
         base.concept_id == concept_relationship.concept_id_2)
     join(
         concept(),

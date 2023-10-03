@@ -1,5 +1,9 @@
 @funsql begin
 
+drug() = begin
+    from(drug_exposure)
+end
+
 correlated_drug(ids...) = begin
 	from(drug_exposure)
 	filter(person_id == :person_id)

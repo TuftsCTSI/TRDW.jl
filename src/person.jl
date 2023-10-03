@@ -8,11 +8,15 @@ person() = begin
 		person_id == soarian_person_map.person_id, optional=true)
     left_join(death => from(death),
 		person_id == death.person_id, optional=true)
+    left_join(death => from(death),
+		person_id == death.person_id, optional=true)
+    left_join(race => from(concept),
+		race_concept_id == race.concept_id, optional=true)
+    left_join(ethnicity => from(concept),
+		ethnicity_concept_id == ethnicity.concept_id, optional=true)
+    left_join(gender => from(concept),
+		gender_concept_id == gender.concept_id, optional=true)
 	define(
-		gender =>
-			gender_concept_id == 8507 ? "M" :
-			gender_concept_id == 8532 ? "F" :
-			missing,
 	    soarian_mrn => soarian_person_map.soarian_mrn,
         epic_pat_id => person_map.person_source_value,
 		deceased => death.death_date
