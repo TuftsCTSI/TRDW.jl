@@ -8,8 +8,6 @@ person() = begin
 		person_id == soarian_person_map.person_id, optional=true)
     left_join(death => from(death),
 		person_id == death.person_id, optional=true)
-    left_join(death => from(death),
-		person_id == death.person_id, optional=true)
     left_join(race => from(concept),
 		race_concept_id == race.concept_id, optional=true)
     left_join(ethnicity => from(concept),
@@ -51,6 +49,24 @@ stratify_by_age() = begin
     group(age)
     order(age)
     select(count[], age)
+end
+
+stratify_by_race() = begin
+    join(p => person(), p.person_id == person_id)
+    filter(p.race_concept_id > 0 )
+    group(race => p.race.concept_name)
+    filter(count[]>9)
+    order(count[].desc())
+    select(count[], race)
+end
+
+stratify_by_ethnicity() = begin
+    join(p => person(), p.person_id == person_id)
+    filter(p.ethnicity_concept_id > 0 )
+    group(ethnicity => p.ethnicity.concept_name)
+    filter(count[]>9)
+    order(count[].desc())
+    select(count[], ethnicity)
 end
 
 end
