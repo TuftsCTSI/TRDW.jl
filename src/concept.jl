@@ -1,4 +1,6 @@
-@funsql concept() = begin
+@funsql begin
+
+concept() = begin
     from(concept)
     filter(is_null(invalid_reason))
     as(concept)
@@ -11,7 +13,20 @@
         concept.concept_class_id)
 end
 
-@funsql concept_descendants() = begin
+with_concept_id(ids...) =
+	filter(in(concept_id, $(ids...)))
+	
+with_snomed(codes...) = begin
+	filter(vocabulary_id == "SNOMED") 
+	filter(in(concept_code, $(codes...)))
+end
+	
+with_icd10(codes...) = begin
+	filter(` ILIKE `(vocabulary_id, "ICD10%"))
+	filter(in(concept_code, $(codes...)))
+end
+
+concept_descendants() = begin
     as(base)
     join(
         concept_ancestor => from(concept_ancestor),
@@ -21,7 +36,7 @@ end
         concept_ancestor.descendant_concept_id == concept_id)
 end
 
-@funsql concept_ancestors() = begin
+concept_ancestors() = begin
     as(base)
     join(
         concept_ancestor => from(concept_ancestor),
@@ -31,7 +46,7 @@ end
         concept_ancestor.ancestor_concept_id == concept_id)
 end
 
-@funsql concept_relatives(relationship_id) = begin
+concept_relatives(relationship_id) = begin
     as(base)
     join(
         concept_relationship => 
@@ -42,7 +57,7 @@ end
         concept_relationship.concept_id_2 == concept_id)
 end
 
-@funsql concept_parents() = begin
+concept_parents() = begin
     as(base)
     join(
         concept_parents => 
@@ -53,7 +68,8 @@ end
         concept_relationship.concept_id_1 == concept_id)
 end
 
-@funsql concept_children() = concept_relatives("Subsumes")
+concept_children() = concept_relatives("Subsumes")
 
-@funsql concept_siblings() = concept_parents().concept_children()
+concept_siblings() = concept_parents().concept_children()
 
+end

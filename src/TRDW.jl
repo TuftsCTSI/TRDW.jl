@@ -10,6 +10,7 @@ using CSV
 using ZipFile
 
 include("general.jl")
+include("helpers.jl")
 include("export.jl")
 include("omop.jl")
 
