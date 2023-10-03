@@ -37,4 +37,20 @@ filter_by_provider_specialty(name...) = begin
     end))
 end
 
+stratify_by_age() = begin
+    join(p => from(person), p.person_id == person_id)
+    define(age => 2023 - p.year_of_birth)
+    define(age => case(
+        age >= 80, "80+",
+        age >= 70, "70-79",
+        age >= 60, "60-69",
+        age >= 50, "50-59",
+        age >= 40, "40-49",
+        age >= 30, "30-39",
+        "29 or less"))
+    group(age)
+    order(age)
+    select(count[], age)
+end
+
 end
