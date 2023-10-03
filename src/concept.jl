@@ -13,15 +13,30 @@ concept() = begin
         concept.concept_class_id)
 end
 
-with_concept_id(ids...) =
+count_concepts(concept_id=concept_id) = begin
+    group(concept_id)
+    define(count => count[])
+    join(c => from(concept), c.concept_id == concept_id)
+    order(count.desc(), c.vocabulary_id, c.concept_code)
+    select(count, concept_id, c.vocabulary_id, c.concept_code, c.concept_name)
+end
+
+is_icd10_like(pats...) = 
+  and(` ILIKE `(vocabulary_id, "ICD10%"),
+      or($[@funsql(` ILIKE `(concept_code, $("$(pat)%"))) for pat in pats]...))
+
+having_icd10_like(pats...) = 
+    filter(is_icd10_like($pats...))
+
+having_concept_id(ids...) =
 	filter(in(concept_id, $(ids...)))
 	
-with_snomed(codes...) = begin
+having_snomed(codes...) = begin
 	filter(vocabulary_id == "SNOMED") 
 	filter(in(concept_code, $(codes...)))
 end
 	
-with_icd10(codes...) = begin
+having_icd10(codes...) = begin
 	filter(` ILIKE `(vocabulary_id, "ICD10%"))
 	filter(in(concept_code, $(codes...)))
 end
@@ -60,7 +75,7 @@ end
 concept_parents() = begin
     as(base)
     join(
-        concept_parents => 
+        concept_relationship => 
             from(concept_relationship).filter(relationship_id == "Subsumes"), 
         base.concept_id == concept_relationship.concept_id_2)
     join(

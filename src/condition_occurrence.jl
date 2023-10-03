@@ -1,5 +1,9 @@
 @funsql begin
 
+condition() = begin
+    from(condition_occurrence)
+end
+
 correlated_condition(ids...) = begin
 	from(condition_occurrence)
 	filter(person_id == :person_id)
