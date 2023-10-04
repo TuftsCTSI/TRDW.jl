@@ -21,8 +21,7 @@ with_visit_group(extension=nothing) =
 is_provider_specialty(args...) =
     in(provider_id, begin
         from(provider)
-        filter(in(specialty_concept_id,
-                  $([Integer(getfield(Specialty, x)) for x in args])...))
+        filter(is_specialty($args...))
         select(provider_id)
     end)
 

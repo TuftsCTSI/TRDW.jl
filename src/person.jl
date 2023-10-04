@@ -22,10 +22,20 @@ person() = begin
 end
 
 is_race(args...) =
-    in(race_concept_id, $([Integer(getfield(Race, x)) for x in args])...)
+    in(race_concept_id, begin
+        from(concept_ancestor)
+        filter(in(ancestor_concept_id,
+                  $([Integer(getfield(Race, x)) for x in args])...))
+        select(descendant_concept_id)
+    end)
 
 is_ethnicity(args...) =
-    in(ethnicity_concept_id, $([Integer(getfield(Ethnicity, x)) for x in args])...)
+    in(ethnicity_concept_id, begin
+        from(concept_ancestor)
+        filter(in(ancestor_concept_id,
+                  $([Integer(getfield(Ethnicity, x)) for x in args])...))
+        select(descendant_concept_id)
+    end)
 
 stratify_by_age() = begin
     join(p => from(person), p.person_id == person_id)
