@@ -18,4 +18,12 @@ with_visit_group(extension=nothing) =
       group(person_id)
     end, person_id == visit_group.person_id)
 
+is_provider_specialty(args...) =
+    in(provider_id, begin
+        from(provider)
+        filter(in(specialty_concept_id,
+                  $([Integer(getfield(Specialty, x)) for x in args])...))
+        select(provider_id)
+    end)
+
 end

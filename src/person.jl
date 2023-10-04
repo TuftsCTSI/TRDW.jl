@@ -21,19 +21,11 @@ person() = begin
 	)
 end
 
-# TODO: how to make this an error when it doesn't match?
-filter_by_provider_specialty(name...) = begin
-    filter(in(provider_id, begin
-        from(provider)
-        filter(in(specialty_concept_id, begin
-            concept()
-            filter(domain_id == "Provider" &&
-                 in(concept_name, $(name...)))
-            select(concept_id)
-        end))
-        select(provider_id)
-    end))
-end
+is_race(args...) =
+    in(race_concept_id, $([Integer(getfield(Race, x)) for x in args])...)
+
+is_ethnicity(args...) =
+    in(ethnicity_concept_id, $([Integer(getfield(Ethnicity, x)) for x in args])...)
 
 stratify_by_age() = begin
     join(p => from(person), p.person_id == person_id)
