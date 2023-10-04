@@ -13,6 +13,7 @@ include("general.jl")
 include("helpers.jl")
 include("export.jl")
 include("omop.jl")
+include("vocabulary.jl")
 
 include("concept.jl")
 include("condition_era.jl")
