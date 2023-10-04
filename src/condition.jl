@@ -4,6 +4,8 @@ condition() = begin
     from(condition_occurrence)
 end
 
+is_condition_status(args...) = in_category(condition_status, $ConditionStatus, $args)
+
 correlated_condition(ids...) = begin
 	from(condition_occurrence)
 	filter(person_id == :person_id)

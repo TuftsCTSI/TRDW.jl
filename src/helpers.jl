@@ -21,4 +21,12 @@ deduplicate(keys...) = begin
 	filter(deduplicate.row_number[] <= 1)
 end
 
+in_category(name, type, args) =
+    in($(Symbol("$(name)_concept_id")), begin
+        from(concept_ancestor)
+        filter(in(ancestor_concept_id,
+                  $([Integer(getfield(type, x)) for x in args])...))
+        select(descendant_concept_id)
+    end)
+
 end

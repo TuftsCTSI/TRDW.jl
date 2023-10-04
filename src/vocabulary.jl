@@ -1,16 +1,23 @@
-format_as_enum(q::FunSQL.SQLNode) = @funsql begin
+format_as_enum(q::FunSQL.SQLNode; descend=false) = @funsql begin
     from(concept)
     filter(standard_concept=="S")
     filter(is_null(invalid_reason))
     $q
     define(item => regexp_replace(concept_name, "[ \\,\\-\\/]+", "_"))
     define(item => ` split(?, ?)[0] `(item, "_\\("))
-    define(item => concat(lower(item), " = ", concept_id))
+    $(!descend ? @funsql(define(value => concept_id)) : @funsql(begin
+        join(ca => from(concept_ancestor), ca.ancestor_concept_id == concept_id)
+        group(concept_id, item)
+        define(middle=> array_join(collect_set[ca.descendant_concept_id], ","))
+        define(value=> concat("[", middle, "]"))
+    end))
+    define(item => concat(lower(item), " = ", value))
     order(item)
     select(item)
 end
-print_as_enum(db::FunSQL.SQLConnection, q::FunSQL.SQLNode) =
-    print("        " * join(TRDW.run(db, format_as_enum(q)).item, "\n        "))
+
+print_as_enum(db::FunSQL.SQLConnection, q::FunSQL.SQLNode; descend=false) =
+    print("        " * join(TRDW.run(db, format_as_enum(q; descend)).item, "\n        "))
 
 module Race
     # filter(domain_id == "Race").filter(concept_id<10000)
@@ -28,6 +35,34 @@ module Ethnicity
     @enum T begin
         hispanic_or_latino = 38003563
         not_hispanic_or_latino = 38003564
+    end
+end
+
+module ConditionStatus
+    # filter(domain_id == "Condition Status")
+    @enum T begin
+        admission_diagnosis = 32890
+        cause_of_death = 32891
+        condition_to_be_diagnosed_by_procedure = 32892
+        confirmed_diagnosis = 32893
+        contributory_cause_of_death = 32894
+        death_diagnosis = 32895
+        discharge_diagnosis = 32896
+        immediate_cause_of_death = 32897
+        postoperative_diagnosis = 32898
+        preliminary_diagnosis = 32899
+        preoperative_diagnosis = 32900
+        primary_admission_diagnosis = 32901
+        primary_diagnosis = 32902
+        primary_discharge_diagnosis = 32903
+        primary_referral_diagnosis = 32904
+        referral_diagnosis = 32905
+        resolved_condition = 32906
+        secondary_admission_diagnosis = 32907
+        secondary_diagnosis = 32908
+        secondary_discharge_diagnosis = 32909
+        secondary_referral_diagnosis = 32910
+        underlying_cause_of_death = 32911
     end
 end
 
