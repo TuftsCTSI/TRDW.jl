@@ -1,50 +1,49 @@
 @funsql begin
 
-concept() = begin
+concept(ids...) = begin
     from(concept)
     filter(is_null(invalid_reason))
-    as(concept)
-    define(
-        concept.concept_id,
-        concept.concept_code,
-        concept.concept_name,
-        concept.domain_id,
-        concept.vocabulary_id,
-        concept.concept_class_id)
+    $(length(ids) == 0 ? @funsql(define()) :
+      @funsql(filter(in(concept_id, $ids...))))
 end
+
+show_concept() =
+    select(concept_id, detail => concat(vocabulary_id, ":", concept_code, "|", concept_name))
+
+is_icd10(pats...; over=nothing) =
+    and(ilike($(FunSQL.Get(:vocabulary_id, over = over)), "ICD10%"),
+        or($[@funsql(ilike($(FunSQL.Get(:concept_code, over = over)),
+                           $("$(pat)%"))) for pat in pats]...))
+
+is_snomed(codes...; over=nothing) =
+    and($(FunSQL.Get(:vocabulary_id, over = over)) == "SNOMED",
+        in($(FunSQL.Get(:concept_code, over = over)), pats...))
 
 count_concepts(name=nothing) = begin
     define(concept_id => $(name == nothing ? :concept_id : Symbol("$(name)_concept_id")))
     group(concept_id)
     define(count => count[])
-    join(c => from(concept), c.concept_id == concept_id)
-    order(count.desc(), c.vocabulary_id, c.concept_code)
-    select(count, concept_id, c.vocabulary_id, c.concept_code, c.concept_name)
+    as(base)
+    join(concept(), concept_id == base.concept_id)
+    order(base.count.desc(), vocabulary_id, concept_code)
+    select(base.count, concept_id, vocabulary_id, concept_code, concept_name)
 end
-
+	
 with_concept(name, extension=nothing) =
     join($name => begin
-      from(concept)
-      $(extension == nothing ? @funsql(define()) : extension)
+        concept()
+        $(extension == nothing ? @funsql(define()) : extension)
     end, $(Symbol("$(name)_concept_id")) == $name.concept_id)
 
-is_icd10(pats...; base=nothing) = begin
-  and(ilike($(FunSQL.Get(:vocabulary_id, over = base)), "ICD10%"),
-      or($[@funsql(ilike($(FunSQL.Get(:concept_code, over = base)),
-                         $("$(pat)%"))) for pat in pats]...))
+join_concept(name, ids...; carry::Vector{Symbol}=[:person_id]) = begin
+    as(base)
+    join(begin
+        concept()
+        filter(is_descendant_concept(concept_id, $ids...))
+    end, $(Symbol("$(name)_concept_id")) == $name.concept_id)
+    define($([@funsql($n => base.$n) for n in carry]...))
 end
 
-having_icd10(pats...) =
-    filter(is_icd10($pats...))
-
-having_concept_id(ids...) =
-	filter(in(concept_id, $(ids...)))
-	
-having_snomed(codes...) = begin
-	filter(vocabulary_id == "SNOMED")
-	filter(in(concept_code, $(codes...)))
-end
-	
 concept_descendants() = begin
     as(base)
     join(

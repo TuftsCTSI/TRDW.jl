@@ -8,6 +8,15 @@ is_component_class(args...) = in_category(drug, $ComponentClass, $args)
 is_dose_form_group(args...) = in_category(drug, $DoseFormGroup, $args)
 is_ingredient(args...) = in_category(drug, $Ingredient, $args)
 
+join_drug(ids...; carry::Vector{Symbol}=[]) = begin
+    as(base)
+    join(begin
+        drug()
+        filter(is_descendant_concept(drug_concept_id, $ids...))
+    end, base.person_id == person_id)
+    define($([@funsql($n => base.$n) for n in carry]...))
+end
+
 correlated_drug(ids...) = begin
 	from(drug_exposure)
 	filter(person_id == :person_id)

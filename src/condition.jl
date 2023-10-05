@@ -6,6 +6,15 @@ end
 
 is_condition_status(args...) = in_category(condition_status, $ConditionStatus, $args)
 
+join_condition(ids...; carry::Vector{Symbol}=[]) = begin
+    as(base)
+    join(begin
+        condition()
+        filter(is_descendant_concept(condition_concept_id, $ids...))
+    end, base.person_id == person_id)
+    define($([@funsql($n => base.$n) for n in carry]...))
+end
+
 correlated_condition(ids...) = begin
 	from(condition_occurrence)
 	filter(person_id == :person_id)
