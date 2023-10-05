@@ -4,6 +4,8 @@ drug() = begin
     from(drug_exposure)
 end
 
+is_dose_form_group(args...) = in_category(drug, $DoseFormGroup, $args)
+
 correlated_drug(ids...) = begin
 	from(drug_exposure)
 	filter(person_id == :person_id)

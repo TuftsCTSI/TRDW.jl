@@ -1,7 +1,7 @@
 format_as_enum(q::FunSQL.SQLNode; descend=false) = @funsql begin
     from(concept)
-    filter(standard_concept=="S")
     filter(is_null(invalid_reason))
+    filter(in(standard_concept, "S", "C"))
     $q
     define(item => regexp_replace(concept_name, "[ \\,\\-\\/]+", "_"))
     define(item => ` split(?, ?)[0] `(item, "_\\("))
@@ -203,5 +203,57 @@ module Specialty
         trauma_surgery = 38004016
         urology = 38004474
         vascular_surgery = 38004496
+    end
+end
+
+module DoseFormGroup
+    # filter(concept_class_id == "Dose Form Group")
+    @enum T begin
+        buccal_product = 36244020
+        chewable_product = 36244035
+        crystal_product = 36244019
+        dental_product = 36217215
+        disintegrating_oral_product = 36244032
+        drug_implant_product = 36217219
+        flake_product = 36244036
+        granule_product = 36244027
+        inhalant_product = 36217207
+        injectable_product = 36217210
+        intraperitoneal_product = 36217221
+        intratracheal_product = 36248213
+        irrigation_product = 36217222
+        lozenge_product = 36244021
+        medicated_pad_or_tape = 36217208
+        mouthwash_product = 36244022
+        mucosal_product = 36217212
+        nasal_product = 36217213
+        ophthalmic_product = 36217218
+        oral_cream_product = 36244024
+        oral_film_product = 37498345
+        oral_foam_product = 36244028
+        oral_gel_product = 36244041
+        oral_liquid_product = 36217220
+        oral_ointment_product = 36244023
+        oral_paste_product = 36244029
+        oral_powder_product = 36244030
+        oral_product = 36217214
+        oral_spray_product = 36244037
+        otic_product = 36217217
+        paste_product = 36217223
+        pellet_product = 36244033
+        pill = 36217216
+        prefilled_applicator_product = 36217224
+        pudding_product = 36244038
+        pyelocalyceal_product = 1146249
+        rectal_product = 36217211
+        shampoo_product = 36244034
+        soap_product = 36244040
+        sublingual_product = 36244025
+        toothpaste_product = 36244026
+        topical_product = 36217206
+        transdermal_product = 36244042
+        urethral_product = 36217225
+        vaginal_product = 36217209
+        wafer_product = 36244031
     end
 end
