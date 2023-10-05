@@ -6,7 +6,7 @@ end
 
 is_condition_status(args...) = in_category(condition_status, $ConditionStatus, $args)
 
-join_condition(ids...; carry::Vector{Symbol}=[]) = begin
+join_condition(ids...; carry=[]) = begin
     as(base)
     join(begin
         condition()

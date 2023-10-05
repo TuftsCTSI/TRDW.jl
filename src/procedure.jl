@@ -4,7 +4,7 @@ procedure() = begin
     from(procedure_occurrence)
 end
 
-join_procedure(ids...; carry::Vector{Symbol}=[]) = begin
+join_procedure(ids...; carry=[]) = begin
     as(base)
     join(begin
         procedure()

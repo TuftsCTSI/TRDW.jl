@@ -14,7 +14,7 @@ is_provider_specialty(args...) =
 visit_date_overlaps(start, finish) =
     (visit_start_date <= date($finish) && date($start) <= visit_end_date)
 
-join_visit(ids...; carry::Vector{Symbol}=[]) = begin
+join_visit(ids...; carry=[]) = begin
     as(base)
     join(begin
         visit()

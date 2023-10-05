@@ -35,7 +35,7 @@ with_concept(name, extension=nothing) =
         $(extension == nothing ? @funsql(define()) : extension)
     end, $(Symbol("$(name)_concept_id")) == $name.concept_id)
 
-join_concept(name, ids...; carry::Vector{Symbol}=[:person_id]) = begin
+join_concept(name, ids...; carry=[:person_id]) = begin
     as(base)
     join(begin
         concept()
