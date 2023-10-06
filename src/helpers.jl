@@ -18,7 +18,7 @@ like_acronym(s, pats...) =
 
 deduplicate(keys...) = begin
 	partition($(keys...), order_by = [$(keys...)], name = deduplicate)
-	filter(deduplicate.row_number[] <= 1)
+	filter(deduplicate.row_number() <= 1)
 end
 
 in_category(name, type, args) =

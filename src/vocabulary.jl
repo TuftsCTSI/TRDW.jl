@@ -8,7 +8,7 @@ format_as_enum(q::FunSQL.SQLNode; descend=false) = @funsql begin
     $(!descend ? @funsql(define(value => concept_id)) : @funsql(begin
         join(ca => from(concept_ancestor), ca.ancestor_concept_id == concept_id)
         group(concept_id, item)
-        define(middle=> array_join(collect_set[ca.descendant_concept_id], ","))
+        define(middle=> array_join(collect_set(ca.descendant_concept_id), ","))
         define(value=> concat("[", middle, "]"))
     end))
     define(item => concat(lower(item), " = ", value))

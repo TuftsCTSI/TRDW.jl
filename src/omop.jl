@@ -9,6 +9,6 @@
 end
 
 # there are some lookups that are independent of table
-value_isa(ids...) = is_descendant_concept(value_as_concept_id, $ids...)
-qualifier_isa(ids...) = is_descendant_concept(qualifier_concept_id, $ids...)
-unit_isa(ids...) = is_descendant_concept(unit_concept_id, $ids...)
+@funsql value_isa(ids...) = is_descendant_concept(value_as_concept_id, $ids...)
+@funsql qualifier_isa(ids...) = is_descendant_concept(qualifier_concept_id, $ids...)
+@funsql unit_isa(ids...) = is_descendant_concept(unit_concept_id, $ids...)
