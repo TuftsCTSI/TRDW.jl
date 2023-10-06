@@ -8,6 +8,8 @@ is_component_class(args...) = in_category(drug, $ComponentClass, $args)
 is_dose_form_group(args...) = in_category(drug, $DoseFormGroup, $args)
 is_ingredient(args...) = in_category(drug, $Ingredient, $args)
 
+drug_isa(ids...) = is_descendant_concept(drug_concept_id, $ids...)
+
 join_drug(ids...; carry=[]) = begin
     as(base)
     join(begin

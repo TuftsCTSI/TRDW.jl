@@ -4,6 +4,9 @@ measurement() = begin
     from(measurement)
 end
 
+measurement_isa(ids...) = is_descendant_concept(measurement_concept_id, $ids...)
+measurement_type_isa(ids...) = is_descendant_concept(measurement_type_concept_id, $ids...)
+
 correlated_measurement(ids...) = begin
 	from(measurement)
 	filter(person_id == :person_id)

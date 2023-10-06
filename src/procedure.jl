@@ -4,6 +4,9 @@ procedure() = begin
     from(procedure_occurrence)
 end
 
+procedure_isa(ids...) = is_descendant_concept(procedure_concept_id, $ids...)
+procedure_type_isa(ids...) = is_descendant_concept(procedure_type_concept_id, $ids...)
+
 join_procedure(ids...; carry=[]) = begin
     as(base)
     join(begin

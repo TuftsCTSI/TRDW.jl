@@ -7,6 +7,20 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
+is_descendant_concept(concept_id, ids...) =
+    exists(begin
+        from(concept_ancestor)
+        filter(descendant_concept_id == :concept_id &&
+               in(ancestor_concept_id, $ids...))
+        bind(:concept_id => $concept_id)
+    end)
+
+isa(ids...; prefix=nothing) =
+    is_descendant_concept(
+        $(prefix == nothing ? @funsql(concept_id) :
+                            @funsql($(Symbol("$(prefix)_concept_id")))),
+        $ids...)
+
 show_concept() =
     select(concept_id, detail => concat(vocabulary_id, ":", concept_code, "|", concept_name))
 

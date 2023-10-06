@@ -6,6 +6,8 @@ end
 
 is_condition_status(args...) = in_category(condition_status, $ConditionStatus, $args)
 
+condition_isa(ids...) = is_descendant_concept(condition_concept_id, $ids...)
+
 join_condition(ids...; carry=[]) = begin
     as(base)
     join(begin

@@ -4,13 +4,6 @@ visit() = begin
     from(visit)
 end
 
-is_provider_specialty(args...) =
-    in(provider_id, begin
-        from(provider)
-        filter(is_specialty($args...))
-        select(provider_id)
-    end)
-
 visit_date_overlaps(start, finish) =
     (visit_start_date <= date($finish) && date($start) <= visit_end_date)
 
