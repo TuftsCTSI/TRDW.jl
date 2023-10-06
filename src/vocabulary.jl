@@ -379,6 +379,7 @@ module ComponentClass
         csf1r_inhibitor = 35807417
         cxcr4_inhibitor = 35807430
         cytokine = 35807228
+        cytotoxic_chemotherapeutic = 912052
         ddr_inhibitor = 35807418
         dendritic_cell_vaccine = 35807441
         deoxycytidine_analogue = 35807339
@@ -2872,3 +2873,10 @@ module Ingredient
         zonisamide = 744798
     end
 end
+
+ls_category(type, args) = [Integer(getfield(type, x)) for x in args]
+ingredient(args...) = ls_category(Ingredient, args)
+component_class(args...) = ls_category(ComponentClass, args)
+dose_form_group(args...) = ls_category(DoseFormGroup, args)
+race(args...) = ls_category(Race, args)
+ethnicity(args...) = ls_category(Ethnicity, args)

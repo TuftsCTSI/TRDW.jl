@@ -35,4 +35,13 @@ include("specimen.jl")
 include("visit_detail.jl")
 include("visit.jl")
 
+funsql_export() =
+    for name in Base.names(@__MODULE__, all = true)
+        if startswith(string(name), "funsql#")
+            @eval export $name
+        end
+    end
+
+funsql_export()
+
 end
