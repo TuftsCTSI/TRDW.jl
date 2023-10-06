@@ -36,7 +36,7 @@ is_snomed(codes...; over=nothing) =
 count_concept(name=nothing) = begin
     define(concept_id => $(name == nothing ? :concept_id : Symbol("$(name)_concept_id")))
     group(concept_id)
-    define(count => count())
+    define(count => count[])
     as(base)
     join(concept(), concept_id == base.concept_id)
     order(base.count.desc(), vocabulary_id, concept_code)
