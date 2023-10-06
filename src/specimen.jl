@@ -7,10 +7,21 @@ end
 specimen_isa(ids...) = is_descendant_concept(specimen_concept_id, $ids...)
 specimen_type_isa(ids...) = is_descendant_concept(specimen_type_concept_id, $ids...)
 
+join_specimen(ids...; carry=[]) = begin
+    as(base)
+    join(begin
+        specimen()
+        $(length(ids) == 0 ? @funsql(define()) :
+            @funsql filter(is_descendant_concept(specimen_concept_id, $ids...)))
+    end, base.person_id == person_id)
+    define($([@funsql($n => base.$n) for n in carry]...))
+end
+
 correlated_specimen(ids...) = begin
 	from(specimen)
 	filter(person_id == :person_id)
-	filter(is_descendant_concept(specimen_concept_id, $ids...))
+    $(length(ids) == 0 ? @funsql(define()) :
+        @funsql filter(is_descendant_concept(specimen_concept_id, $ids...)))
 	bind(:person_id => person_id )
 end
 

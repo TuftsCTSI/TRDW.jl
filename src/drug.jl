@@ -1,20 +1,21 @@
 @funsql begin
 
-drug() = begin
+drug_exposure() = begin
     from(drug_exposure)
 end
 
-is_component_class(args...) = in_category(drug, $ComponentClass, $args)
-is_dose_form_group(args...) = in_category(drug, $DoseFormGroup, $args)
-is_ingredient(args...) = in_category(drug, $Ingredient, $args)
+component_class_isa(args...) = in_category(drug_concept_id, $ComponentClass, $args)
+dose_form_group_isa(args...) = in_category(drug_concept_id, $DoseFormGroup, $args)
+ingredient_isa(args...) = in_category(drug_concept_id, $Ingredient, $args)
 
 drug_isa(ids...) = is_descendant_concept(drug_concept_id, $ids...)
 
 join_drug(ids...; carry=[]) = begin
     as(base)
     join(begin
-        drug()
-        filter(is_descendant_concept(drug_concept_id, $ids...))
+        drug_exposure()
+        $(length(ids) == 0 ? @funsql(define()) :
+            @funsql filter(is_descendant_concept(drug_concept_id, $ids...)))
     end, base.person_id == person_id)
     define($([@funsql($n => base.$n) for n in carry]...))
 end
@@ -22,7 +23,8 @@ end
 correlated_drug(ids...) = begin
 	from(drug_exposure)
 	filter(person_id == :person_id)
-	filter(is_descendant_concept(drug_concept_id, $ids...))
+    $(length(ids) == 0 ? @funsql(define()) :
+        @funsql filter(is_descendant_concept(drug_concept_id, $ids...)))
 	bind(:person_id => person_id )
 end
 

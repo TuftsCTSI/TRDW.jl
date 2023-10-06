@@ -1,7 +1,7 @@
 @funsql begin
 
-visit() = begin
-    from(visit)
+visit_occurrence() = begin
+    from(visit_occurrence)
 end
 
 visit_date_overlaps(start, finish) =
@@ -10,8 +10,9 @@ visit_date_overlaps(start, finish) =
 join_visit(ids...; carry=[]) = begin
     as(base)
     join(begin
-        visit()
-        filter(is_descendant_concept(visit_concept_id, $ids...))
+        visit_occurrence()
+        $(length(ids) == 0 ? @funsql(define()) :
+            @funsql filter(is_descendant_concept(visit_concept_id, $ids...)))
     end, base.person_id == person_id)
     define($([@funsql($n => base.$n) for n in carry]...))
 end
@@ -19,7 +20,8 @@ end
 correlated_visit(ids...) = begin
     from(visit_occurrence)
 	filter(person_id == :person_id)
-	filter(is_descendant_concept(visit_concept_id, $ids...))
+    $(length(ids) == 0 ? @funsql(define()) :
+        @funsql filter(is_descendant_concept(visit_concept_id, $ids...)))
 	bind(:person_id => person_id )
 end
 

@@ -33,7 +33,7 @@ is_snomed(codes...; over=nothing) =
     and($(FunSQL.Get(:vocabulary_id, over = over)) == "SNOMED",
         in($(FunSQL.Get(:concept_code, over = over)), pats...))
 
-count_concepts(name=nothing) = begin
+count_concept(name=nothing) = begin
     define(concept_id => $(name == nothing ? :concept_id : Symbol("$(name)_concept_id")))
     group(concept_id)
     define(count => count())
