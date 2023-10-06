@@ -11,7 +11,8 @@ join_procedure(ids...; carry=[]) = begin
     as(base)
     join(begin
         procedure_occurrence()
-        filter(is_descendant_concept(procedure_concept_id, $ids...))
+        $(length(ids) == 0 ? @funsql(define()) :
+            @funsql filter(is_descendant_concept(procedure_concept_id, $ids...)))
     end, base.person_id == person_id)
     define($([@funsql($n => base.$n) for n in carry]...))
 end
@@ -19,7 +20,8 @@ end
 correlated_procedure(ids...) = begin
     from(procedure_occurrence)
 	filter(person_id == :person_id)
-	filter(is_descendant_concept(procedure_concept_id, $ids...))
+    $(length(ids) == 0 ? @funsql(define()) :
+        @funsql filter(is_descendant_concept(procedure_concept_id, $ids...)))
 	bind(:person_id => person_id )
 end
 
