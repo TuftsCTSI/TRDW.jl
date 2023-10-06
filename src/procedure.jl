@@ -1,6 +1,6 @@
 @funsql begin
 
-procedure() = begin
+procedure_occurrence() = begin
     from(procedure_occurrence)
 end
 
@@ -10,7 +10,7 @@ procedure_type_isa(ids...) = is_descendant_concept(procedure_type_concept_id, $i
 join_procedure(ids...; carry=[]) = begin
     as(base)
     join(begin
-        procedure()
+        procedure_occurrence()
         filter(is_descendant_concept(procedure_concept_id, $ids...))
     end, base.person_id == person_id)
     define($([@funsql($n => base.$n) for n in carry]...))

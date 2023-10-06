@@ -1,17 +1,17 @@
 @funsql begin
 
-condition() = begin
+condition_occurrence() = begin
     from(condition_occurrence)
 end
 
-is_condition_status(args...) = in_category(condition_status, $ConditionStatus, $args)
+is_condition_status(args...) = in_category(condition_status_concept_id, $ConditionStatus, $args)
 
 condition_isa(ids...) = is_descendant_concept(condition_concept_id, $ids...)
 
 join_condition(ids...; carry=[]) = begin
     as(base)
     join(begin
-        condition()
+        condition_occurrence()
         filter(is_descendant_concept(condition_concept_id, $ids...))
     end, base.person_id == person_id)
     define($([@funsql($n => base.$n) for n in carry]...))
