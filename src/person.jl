@@ -21,9 +21,9 @@ person() = begin
 	)
 end
 
-race_isa(args...) = in_category(race_concept_id, $Race, $args)
+race_isa(args...) = in_vocabulary($Race, $args, race_concept_id)
 
-ethnicity_isa(args...) = in_category(ethnicity_concept_id, $Ethnicity, $args)
+ethnicity_isa(args...) = in_vocabulary($Ethnicity, $args, ethnicity_concept_id)
 
 stratify_by_age() = begin
     join(p => from(person), p.person_id == person_id)

@@ -4,7 +4,7 @@ provider() = begin
     from(provider)
 end
 
-specialty_isa(args...) = in_category(specialty_concept_id, $Specialty, $args)
+specialty_isa(args...) = in_vocabulary($Specialty, $args, specialty_concept_id)
 
 provider_specialty_isa(args...) =
     in(provider_id, begin

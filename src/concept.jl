@@ -53,8 +53,9 @@ join_concept(name, ids...; carry=[:person_id]) = begin
     as(base)
     join(begin
         concept()
-        filter(is_descendant_concept(concept_id, $ids...))
-    end, $(Symbol("$(name)_concept_id")) == $name.concept_id)
+        $(length(ids) == 0 ? @funsql(define()) :
+            @funsql filter(is_descendant_concept(concept_id, $ids...)))
+    end, base.$(Symbol("$(name)_concept_id")) == concept_id)
     define($([@funsql($n => base.$n) for n in carry]...))
 end
 

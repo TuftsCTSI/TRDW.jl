@@ -4,7 +4,8 @@ condition_occurrence() = begin
     from(condition_occurrence)
 end
 
-is_condition_status(args...) = in_category(condition_status_concept_id, $ConditionStatus, $args)
+is_condition_status(args...) =
+    in_vocabulary($ConditionStatus, $args, condition_status_concept_id)
 
 condition_isa(ids...) = is_descendant_concept(condition_concept_id, $ids...)
 
