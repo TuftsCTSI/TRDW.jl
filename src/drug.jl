@@ -4,9 +4,9 @@ drug_exposure() = begin
     from(drug_exposure)
 end
 
-component_class_isa(args...) = in_vocabulary($ComponentClass, $args, drug_concept_id)
-dose_form_group_isa(args...) = in_vocabulary($DoseFormGroup, $args, drug_concept_id)
-ingredient_isa(args...) = in_vocabulary($Ingredient, $args, drug_concept_id)
+component_class_isa(args...) = in_category($ComponentClass, $args, drug_concept_id)
+dose_form_group_isa(args...) = in_category($DoseFormGroup, $args, drug_concept_id)
+ingredient_isa(args...) = in_category($Ingredient, $args, drug_concept_id)
 
 drug_isa(ids...) = is_descendant_concept(drug_concept_id, $ids...)
 

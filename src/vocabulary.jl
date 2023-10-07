@@ -22,88 +22,115 @@ function load_concepts()
     return g_concepts
 end
 
-""" make a concept name into a valid lower-case variable name"""
-function normalize_concept_name(s::AbstractString)::Symbol
-    s = replace(lowercase(s), r"[ -]" => "_")
-    s = (s -> occursin(r"^\d", s) ? "_" * s : s)(s)
-    s = replace(s, r"_+" => "_")
-    s = replace(s, r"_$" => "")
-    return Symbol(s)
+normalize_concept_name(s::AbstractString) = replace(lowercase(s), r"[ -]" => "_")
+
+struct Vocabulary{T}
+    name::String
+    table::Dict{T, Tuple{Int64, String}}
+    
+    function Vocabulary{T}(name::String) where T
+        new{T}(name, Dict{T, Tuple{Int64, String}}())
+    end
 end
 
-""" mapping of normalized concept_name to the concept_id """
-struct ConceptLookup
-    name::Symbol
-    filter::Function
-    table::Dict{Symbol, Int64}
-
-    ConceptLookup(name::Symbol, filter::Function) =
-        new(name, filter, Dict{Symbol, Integer}())
+function read_concepts(name, rebuild, process)
+    filename = cache_filename(name)
+    if !isfile(filename) || rebuild
+        concepts = process(load_concepts())
+        mkpath(joinpath(CONCEPT_PATH))
+        CSV.write(filename, concepts)
+    end
+    CSV.read(filename, DataFrame)
 end
 
-function build_table(bucket::ConceptLookup; rebuild=false)
-    bname = getfield(bucket, :name)
-    table = getfield(bucket, :table)
+function load_vocabulary(vocabulary::Vocabulary{T}; rebuild=false) where {T}
+    name = getfield(vocabulary, :name)
+    table = getfield(vocabulary, :table)
     if isempty(table) || rebuild
-        filename = cache_filename(bname)
-        if !isfile(filename) || rebuild
-            concepts = load_concepts()
-            concepts = filter(getfield(bucket, :filter), concepts)
-            concepts = select(concepts, [:concept_name, :concept_id])
-            mkpath(joinpath(CONCEPT_PATH))
-            CSV.write(filename, concepts)
-            concepts = nothing
-        end
         empty!(table)
-        concepts = CSV.read(filename, DataFrame)
-        duplicates = Dict{Symbol, Vector{Int64}}()
+        concepts = read_concepts(name, rebuild,
+            concepts -> select(filter(row -> row.vocabulary_id == name, concepts),
+                               [:concept_id, :concept_code, :concept_name]))
         for row in eachrow(concepts)
-            key = normalize_concept_name(row.concept_name)
-            if haskey(duplicates, key)
-                push!(duplicates[key], row.concept_id)
-            elseif haskey(table, key)
-                duplicates[key] = [table[key]]
-                push!(duplicates[key], row.concept_id)
+            key = T(row.concept_code)
+            haskey(table, key) && @error "\nDuplicate $name:\n$key"
+            table[key] = (row.concept_id, normalize_concept_name(row.concept_name))
+        end
+    end
+end
+
+function lookup(vocabulary::Vocabulary{T}, key::T, check::String = "")::Int64 where {T}
+    load_vocabulary(vocabulary)
+    name = getfield(vocabulary, :name)
+    table = getfield(vocabulary, :table)
+    !haskey(table, key) && throw(ArgumentError("'$key' not found in $name"))
+    (concept_id, concept_name) = table[key]
+    startswith(concept_name, normalize_concept_name(check)) && return concept_id
+    throw(ArgumentError("'$key' in $name doesn't match '$check'"))
+end
+
+function (vocabulary::Vocabulary{T})(key::T, check::String = "") where T
+    lookup(vocabulary, key, check)
+end
+
+struct Category
+    name::String
+    table::Dict{Symbol, Int64}
+    filter::Function
+    
+    Category(name::String, filter::Function) = 
+        new(name, Dict{Symbol, Int64}(), filter)
+end
+
+function load_category(category::Category; rebuild=false)
+    name = getfield(category, :name)
+    table = getfield(category, :table)
+    if isempty(table) || rebuild
+        empty!(table)
+        concepts = read_concepts(name, rebuild, 
+            concepts -> select(filter(getfield(category, :filter), concepts),
+                               [:concept_id, :concept_name]))
+        duplicates = Set{Symbol}()
+        for row in eachrow(concepts)
+            key = row.concept_name
+            nothing == match(r"^[A-Za-z][\w\- ]*\w$", key) && continue
+            key = Symbol(normalize_concept_name(key))
+            key in duplicates && continue
+            if haskey(table, key)
+                push!(duplicates, key)
                 delete!(table, key)
-            else
-                table[key] = row.concept_id
+                continue
             end
-        end
-        if !isempty(duplicates)
-            dups = ["$id : $values" for (id, values) in duplicates]
-            dups = join(dups, "\n")
-            @warn("\nDuplicates in $bname:\n$dups")
+            table[key] = row.concept_id
         end
     end
 end
 
-function Base.fieldnames(bucket::ConceptLookup)
-    build_table(bucket)
-    return keys(getfield(bucket, :table))
+function Base.fieldnames(category::Category)
+    load_category(category)
+    return keys(getfield(category, :table))
 end
 
-function lookup(bucket::ConceptLookup, name::Symbol)::Int64
-    build_table(bucket)
-    bname = getfield(bucket, :name)
-    table = getfield(bucket, :table)
-    if haskey(table, name)
-        return table[name]
-    end
-    throw(ArgumentError("'$name' not found in ConceptLookup(:$(bname))"))
+function lookup(category::Category, key::Symbol)::Int64
+    load_category(category)
+    name = getfield(category, :name)
+    table = getfield(category, :table)
+    !haskey(table, key) && throw(ArgumentError("'$key' not found in $name"))
+    return table[key]
 end
 
-Base.getproperty(bucket::ConceptLookup, name::Symbol) = lookup(bucket, name)
+Base.getproperty(category::Category, key::Symbol) = lookup(category, name)
 
-function lookup(bucket::ConceptLookup, name::AbstractString)::Int64
-    lookup(bucket, normalize_concept_name(name))
+function lookup(category::Category, key::AbstractString)::Int64
+    lookup(category, Symbol(normalize_concept_name(key)))
 end
 
-function lookup(bucket::ConceptLookup, names::AbstractVector)
-    [lookup(bucket, name) for name in names]
+function lookup(category::Category, keys::AbstractVector)
+    [lookup(category, key) for key in keys]
 end
 
-function lookup(bucket::ConceptLookup, names::Tuple)
-    [lookup(bucket, name) for name in names]
+function lookup(category::Category, keys::Tuple)
+    [lookup(category, key) for key in keys]
 end
 
 instr(x::Union{AbstractString, Missing}, values::String...) =
@@ -114,22 +141,22 @@ standard_domain(row, domain_id) =
 
 exclude_duplicates(row, ids) = !(row.concept_id in ids)
 
-Race = ConceptLookup(:Race, 
+Race = Category("Race", 
     row -> standard_domain(row, "Race") && row.concept_id < 10000)
-Ethnicity = ConceptLookup(:Ethnicity, 
+Ethnicity = Category("Ethnicity", 
     row -> standard_domain(row, "Ethnicity"))
-ConditionStatus = ConceptLookup(:ConditionStatus,
+ConditionStatus = Category("ConditionStatus",
     row -> standard_domain(row, "Condition Status"))
-Specialty = ConceptLookup(:Specialty, 
+Specialty = Category("Specialty", 
     row -> standard_domain(row, "Provider") && 
            exclude_duplicates(row, (38004130, 38004142))) # NUCC pathology technician
-DoseFormGroup = ConceptLookup(:DoseFormGroup,
+DoseFormGroup = Category("DoseFormGroup",
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Dose Form Group")
-ComponentClass = ConceptLookup(:ComponentClass, 
+ComponentClass = Category("ComponentClass", 
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Component Class")
-Ingredient = ConceptLookup(:Ingredient, 
+Ingredient = Category("Ingredient", 
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Ingredient" &&
            row.vocabulary_id == "RxNorm")
@@ -142,7 +169,21 @@ race(args...) = lookup(Race, args)
 specialty(args...) = lookup(Specialty, args)
 ethnicity(args...) = lookup(Ethnicity, args)
 
-@funsql in_vocabulary(type, args, concept_id = :concept_id) =
+RxNorm = Vocabulary{Int64}("RxNorm")
+HemOnc = Vocabulary{Int64}("HemOnc")
+SNOMED = Vocabulary{Int64}("SNOMED")
+ICD10CM = Vocabulary{String}("ICD10CM")
+ICD9CM = Vocabulary{String}("ICD9CM")
+CPT4 = Vocabulary{String}("CPT4")
+LOINC = Vocabulary{String}("LOINC")
+ATC = Vocabulary{Int64}("ATC")
+
+
+
+
+
+
+@funsql in_category(type, args, concept_id = :concept_id) =
     in($concept_id, begin
         from(concept_ancestor)
         filter(in(ancestor_concept_id, $(lookup(type, args)...)))
