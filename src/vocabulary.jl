@@ -24,12 +24,12 @@ end
 
 normalize_concept_name(s::AbstractString) = replace(lowercase(s), r"[ -]" => "_")
 
-struct Vocabulary{T}
+struct Vocabulary
     name::String
-    table::Dict{T, Tuple{Int64, String}}
+    table::Dict{Symbol, Tuple{Int64, String}}
     
-    function Vocabulary{T}(name::String) where T
-        new{T}(name, Dict{T, Tuple{Int64, String}}())
+    function Vocabulary(name::String)
+        new(name, Dict{Symbol, Tuple{Int64, String}}())
     end
 end
 
@@ -43,7 +43,7 @@ function read_concepts(name, rebuild, process)
     CSV.read(filename, DataFrame)
 end
 
-function load_vocabulary(vocabulary::Vocabulary{T}; rebuild=false) where {T}
+function load_vocabulary(vocabulary::Vocabulary; rebuild=false)
     name = getfield(vocabulary, :name)
     table = getfield(vocabulary, :table)
     if isempty(table) || rebuild
@@ -52,26 +52,38 @@ function load_vocabulary(vocabulary::Vocabulary{T}; rebuild=false) where {T}
             concepts -> select(filter(row -> row.vocabulary_id == name, concepts),
                                [:concept_id, :concept_code, :concept_name]))
         for row in eachrow(concepts)
-            key = T(row.concept_code)
+            key = Symbol(row.concept_code)
             haskey(table, key) && @error "\nDuplicate $name:\n$key"
             table[key] = (row.concept_id, normalize_concept_name(row.concept_name))
         end
     end
 end
 
-function lookup(vocabulary::Vocabulary{T}, key::T, check::String = "")::Int64 where {T}
+function lookup(vocabulary::Vocabulary, key, check = nothing)::Int64
     load_vocabulary(vocabulary)
     name = getfield(vocabulary, :name)
     table = getfield(vocabulary, :table)
+    key = Symbol(key)
     !haskey(table, key) && throw(ArgumentError("'$key' not found in $name"))
     (concept_id, concept_name) = table[key]
-    startswith(concept_name, normalize_concept_name(check)) && return concept_id
+    check == nothing && return concept_id
+    check = string(check)
+    if occursin("...", check)
+        (start, finish) = split(check, "...")
+        if startswith(concept_name, normalize_concept_name(start)) &&
+            endswith(concept_name, normalize_concept_name(finish))
+            return concept_id
+        end
+    else
+        startswith(concept_name, normalize_concept_name(check)) && return concept_id
+    end
     throw(ArgumentError("'$key' in $name doesn't match '$check'"))
 end
 
-function (vocabulary::Vocabulary{T})(key::T, check::String = "") where T
-    lookup(vocabulary, key, check)
-end
+lookup(vocabulary::Vocabulary, key, check::Cmd) =
+    lookup(vocabulary, key, join(check.exec, " "))
+
+(vocabulary::Vocabulary)(key, check = nothing) = lookup(vocabulary, key, check)
 
 struct Category
     name::String
@@ -139,8 +151,6 @@ instr(x::Union{AbstractString, Missing}, values::String...) =
 standard_domain(row, domain_id) = 
     (row.domain_id == domain_id) && instr(row.standard_concept, "C", "S")
 
-exclude_duplicates(row, ids) = !(row.concept_id in ids)
-
 Race = Category("Race", 
     row -> standard_domain(row, "Race") && row.concept_id < 10000)
 Ethnicity = Category("Ethnicity", 
@@ -148,8 +158,7 @@ Ethnicity = Category("Ethnicity",
 ConditionStatus = Category("ConditionStatus",
     row -> standard_domain(row, "Condition Status"))
 Specialty = Category("Specialty", 
-    row -> standard_domain(row, "Provider") && 
-           exclude_duplicates(row, (38004130, 38004142))) # NUCC pathology technician
+    row -> standard_domain(row, "Provider"))
 DoseFormGroup = Category("DoseFormGroup",
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Dose Form Group")
@@ -169,19 +178,26 @@ race(args...) = lookup(Race, args)
 specialty(args...) = lookup(Specialty, args)
 ethnicity(args...) = lookup(Ethnicity, args)
 
-RxNorm = Vocabulary{Int64}("RxNorm")
-HemOnc = Vocabulary{Int64}("HemOnc")
-SNOMED = Vocabulary{Int64}("SNOMED")
-ICD10CM = Vocabulary{String}("ICD10CM")
-ICD9CM = Vocabulary{String}("ICD9CM")
-CPT4 = Vocabulary{String}("CPT4")
-LOINC = Vocabulary{String}("LOINC")
-ATC = Vocabulary{Int64}("ATC")
+RxNorm = Vocabulary("RxNorm")
+HemOnc = Vocabulary("HemOnc")
+SNOMED = Vocabulary("SNOMED")
+ICD10CM = Vocabulary("ICD10CM")
+ICD9CM = Vocabulary("ICD9CM")
+CPT4 = Vocabulary("CPT4")
+LOINC = Vocabulary("LOINC")
+ATC = Vocabulary("ATC")
+RxNormExtension = Vocabulary("RxNorm Extension")
 
-
-
-
-
+@funsql RxNorm(code, check=nothing) = $(something(check, code) => TRDW.RxNorm(code, check))
+@funsql HemOnc(code, check=nothing) = $(something(check, code) => TRDW.HemOnc(code, check))
+@funsql SNOMED(code, check=nothing) = $(something(check, code) => TRDW.SNOMED(code, check))
+@funsql ICD10CM(code, check=nothing) = $(something(check, code) => TRDW.ICD10CM(code, check))
+@funsql ICD9CM(code, check=nothing) = $(something(check, code) => TRDW.ICD9CM(code, check))
+@funsql CPT4(code, check=nothing) = $(something(check, code) => TRDW.CPT4(code, check))
+@funsql LOINC(code, check=nothing) = $(something(check, code) => TRDW.LOINC(code, check))
+@funsql ATC(code, check=nothing) = $(something(check, code) => TRDW.ATC(code, check))
+@funsql RxNormExtension(code, check=nothing) = 
+    $(something(check, code) => TRDW.RxNormExtension(code, check))
 
 @funsql in_category(type, args, concept_id = :concept_id) =
     in($concept_id, begin
@@ -189,3 +205,14 @@ ATC = Vocabulary{Int64}("ATC")
         filter(in(ancestor_concept_id, $(lookup(type, args)...)))
         select(descendant_concept_id)
     end)
+
+function print_concepts(df::DataFrame)
+    first = true
+    for row in eachrow(df)
+        !first && println(",")
+        print(replace(row.vocabulary_id, " " => "")) 
+        print("($(row.concept_code),\"$(row.concept_name)\")")             
+        first = false
+    end
+    println()
+end

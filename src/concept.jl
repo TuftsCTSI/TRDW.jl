@@ -22,7 +22,8 @@ isa(ids...; prefix=nothing) =
         $ids...)
 
 show_concept() =
-    select(concept_id, detail => concat(vocabulary_id, ":", concept_code, "|", concept_name))
+    select(concept_id, detail => concat(
+           replace(vocabulary_id, " ",""), "(", concept_code, ", `", concept_name,"`)"))
 
 is_icd10(pats...; over=nothing) =
     and(ilike($(FunSQL.Get(:vocabulary_id, over = over)), "ICD10%"),
