@@ -2,7 +2,8 @@ const VOCAB_SCHEMA = "vocabulary_v20230531"
 CONCEPT_PATH = [tempdir(), ENV["USERNAME"], "$(VOCAB_SCHEMA)"]
 g_concepts = nothing
 
-cache_filename(s) = joinpath([TRDW.CONCEPT_PATH..., "$(lowercase(string(s))).csv"])
+normalize_name(s) = replace(lowercase(s), r"[ -]" => "_")
+cache_filename(s) = joinpath([TRDW.CONCEPT_PATH..., "$(normalize_name(s)).csv"])
 
 """ load entire concept table, caching locally to CSV file"""
 function load_concepts()
@@ -22,172 +23,177 @@ function load_concepts()
     return g_concepts
 end
 
-normalize_concept_name(s::AbstractString) = replace(lowercase(s), r"[ -]" => "_")
-
-struct Vocabulary
-    name::String
-    table::Dict{Symbol, Tuple{Int64, String}}
-    
-    function Vocabulary(name::String)
-        new(name, Dict{Symbol, Tuple{Int64, String}}())
-    end
-end
-
-function read_concepts(name, rebuild, process)
-    filename = cache_filename(name)
-    if !isfile(filename) || rebuild
-        concepts = process(load_concepts())
-        mkpath(joinpath(CONCEPT_PATH))
-        CSV.write(filename, concepts)
-    end
-    CSV.read(filename, DataFrame)
-end
-
-function load_vocabulary(vocabulary::Vocabulary; rebuild=false)
-    name = getfield(vocabulary, :name)
-    table = getfield(vocabulary, :table)
-    if isempty(table) || rebuild
-        empty!(table)
-        concepts = read_concepts(name, rebuild,
-            concepts -> select(filter(row -> row.vocabulary_id == name, concepts),
-                               [:concept_id, :concept_code, :concept_name]))
-        for row in eachrow(concepts)
-            key = Symbol(row.concept_code)
-            haskey(table, key) && @error "\nDuplicate $name:\n$key"
-            table[key] = (row.concept_id, normalize_concept_name(row.concept_name))
-        end
-    end
-end
-
-function lookup(vocabulary::Vocabulary, key, check = nothing)::Int64
-    load_vocabulary(vocabulary)
-    name = getfield(vocabulary, :name)
-    table = getfield(vocabulary, :table)
-    key = Symbol(key)
-    !haskey(table, key) && throw(ArgumentError("'$key' not found in $name"))
-    (concept_id, concept_name) = table[key]
-    check == nothing && return concept_id
-    check = string(check)
-    if occursin("...", check)
-        (start, finish) = split(check, "...")
-        if startswith(concept_name, normalize_concept_name(start)) &&
-            endswith(concept_name, normalize_concept_name(finish))
-            return concept_id
-        end
-    else
-        startswith(concept_name, normalize_concept_name(check)) && return concept_id
-    end
-    throw(ArgumentError("'$key' in $name doesn't match '$check'"))
-end
-
-lookup(vocabulary::Vocabulary, key, check::Cmd) =
-    lookup(vocabulary, key, join(check.exec, " "))
-
-(vocabulary::Vocabulary)(key, check = nothing) = lookup(vocabulary, key, check)
-
 struct Category
-    name::String
-    table::Dict{Symbol, Int64}
-    filter::Function
-    
-    Category(name::String, filter::Function) = 
-        new(name, Dict{Symbol, Int64}(), filter)
+    name::Symbol
+    filename::String
+    criteria::Function
+    byname::Dict{Symbol, Int64}
+    bycode::Dict{Symbol, Tuple{Int64, String}}
+
+    function Category(name::String, criteria::Function)
+        filename = cache_filename(name)
+        name = Symbol(replace(name, " " => "_"))
+        new(name, filename, criteria, Dict{Symbol, Int64}(),
+            Dict{Symbol, Tuple{Int64, String}}())
+    end
 end
 
 function load_category(category::Category; rebuild=false)
     name = getfield(category, :name)
-    table = getfield(category, :table)
-    if isempty(table) || rebuild
-        empty!(table)
-        concepts = read_concepts(name, rebuild, 
-            concepts -> select(filter(getfield(category, :filter), concepts),
-                               [:concept_id, :concept_name]))
+    bycode = getfield(category, :bycode)
+    byname = getfield(category, :byname)
+    filename = getfield(category, :filename)
+    if isempty(bycode) || rebuild
+        empty!(bycode)
+        empty!(byname)
+        if !isfile(filename) || rebuild
+            concepts = select(filter(getfield(category, :criteria), load_concepts()),
+                             [:concept_id, :concept_code, :concept_name])
+            mkpath(joinpath(CONCEPT_PATH))
+            CSV.write(filename, concepts)
+        end
+        concepts = CSV.read(filename, DataFrame)
+        for row in eachrow(concepts)
+            key = Symbol(row.concept_code)
+            haskey(bycode, key) && @error "\nduplicate concept_code $name:\n$key"
+            bycode[key] = (row.concept_id, normalize_name(row.concept_name))
+        end
         duplicates = Set{Symbol}()
         for row in eachrow(concepts)
             key = row.concept_name
             nothing == match(r"^[A-Za-z][\w\- ]*\w$", key) && continue
-            key = Symbol(normalize_concept_name(key))
+            length(key) < 32 || continue
+            key = Symbol(normalize_name(key))
             key in duplicates && continue
-            if haskey(table, key)
+            if haskey(byname, key)
                 push!(duplicates, key)
-                delete!(table, key)
+                delete!(byname, key)
                 continue
             end
-            table[key] = row.concept_id
+            byname[key] = row.concept_id
         end
     end
 end
 
-function Base.fieldnames(category::Category)
-    load_category(category)
-    return keys(getfield(category, :table))
-end
-
-function lookup(category::Category, key::Symbol)::Int64
+function lookup_by_code(category::Category, key, check = nothing)::Int64
     load_category(category)
     name = getfield(category, :name)
-    table = getfield(category, :table)
-    !haskey(table, key) && throw(ArgumentError("'$key' not found in $name"))
-    return table[key]
+    bycode = getfield(category, :bycode)
+    key = Symbol(key)
+    !haskey(bycode, key) && throw(ArgumentError("'$key' not found in $name"))
+    (concept_id, concept_name) = bycode[key]
+    check == nothing && return concept_id
+    check = string(check)
+    if occursin("...", check)
+        (start, finish) = split(check, "...")
+        if startswith(concept_name, normalize_name(start)) &&
+            endswith(concept_name, normalize_name(finish))
+            return concept_id
+        end
+    else
+        startswith(concept_name, normalize_name(check)) && return concept_id
+    end
+    throw(ArgumentError("'$key' in $name doesn't match '$check'"))
 end
 
-Base.getproperty(category::Category, key::Symbol) = lookup(category, name)
+(category::Category)(key, check = nothing) = lookup_by_code(category, key, check)
 
-function lookup(category::Category, key::AbstractString)::Int64
-    lookup(category, Symbol(normalize_concept_name(key)))
+function Base.fieldnames(category::Category)
+    load_category(category)
+    return keys(getfield(category, :byname))
 end
 
-function lookup(category::Category, keys::AbstractVector)
-    [lookup(category, key) for key in keys]
+function lookup_by_name(category::Category, key::Symbol)::Int64
+    load_category(category)
+    name = getfield(category, :name)
+    byname = getfield(category, :byname)
+    !haskey(byname, key) && throw(ArgumentError("'$key' not found in $name"))
+    return byname[key]
 end
 
-function lookup(category::Category, keys::Tuple)
-    [lookup(category, key) for key in keys]
+Base.getproperty(category::Category, key::Symbol) = lookup_by_name(category, key)
+
+function lookup_by_name(category::Category, key::AbstractString)::Int64
+    lookup_by_name(category, Symbol(normalize_name(key)))
 end
+
+function lookup_by_name(category::Category, keys::AbstractVector)::Vector{Int64}
+    result = []
+    for key in keys
+        if isa(key, AbstractString) || isa(key, Symbol)
+            append!(result, lookup_by_name(category, key))
+        else
+            append!(result, key)
+        end
+    end
+    return result
+end
+
+lookup_by_name(category::Category, keys::Tuple) =
+   lookup_by_name(category, collect(keys))
 
 instr(x::Union{AbstractString, Missing}, values::String...) =
         ismissing(x) ? false : coalesce(x) in values
 
-standard_domain(row, domain_id) = 
+standard_domain(row, domain_id) =
     (row.domain_id == domain_id) && instr(row.standard_concept, "C", "S")
 
-Race = Category("Race", 
-    row -> standard_domain(row, "Race") && row.concept_id < 10000)
-Ethnicity = Category("Ethnicity", 
-    row -> standard_domain(row, "Ethnicity"))
-ConditionStatus = Category("ConditionStatus",
-    row -> standard_domain(row, "Condition Status"))
-Specialty = Category("Specialty", 
-    row -> standard_domain(row, "Provider"))
-DoseFormGroup = Category("DoseFormGroup",
+# useful concept classes, to increase readability
+DoseFormGroup = Category("Dose Form Group",
     row -> standard_domain(row, "Drug") &&
-           row.concept_class_id == "Dose Form Group")
-ComponentClass = Category("ComponentClass", 
+           row.concept_class_id == "Dose Form Group" &&
+           row.vocabulary_id == "RxNorm")
+ComponentClass = Category("ComponentClass",
     row -> standard_domain(row, "Drug") &&
-           row.concept_class_id == "Component Class")
-Ingredient = Category("Ingredient", 
+           row.concept_class_id == "Component Class" &&
+           row.vocabulary_id == "HemOnc")
+Ingredient = Category("Ingredient",
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Ingredient" &&
-           row.vocabulary_id == "RxNorm")
+           in(row.vocabulary_id, "RxNorm", "RxNorm Extension"))
 
-ingredient(args...) = lookup(Ingredient, args)
-component_class(args...) = lookup(ComponentClass, args)
-condition_status(args...) = lookup(ConditionStatus, args)
-dose_form_group(args...) = lookup(DoseFormGroup, args)
-race(args...) = lookup(Race, args)
-specialty(args...) = lookup(Specialty, args)
-ethnicity(args...) = lookup(Ethnicity, args)
+macro make_vocabulary(name)
+    label = replace(name, " " => "_")
+    funfn = Symbol("funsql#$label")
+    label = Symbol(label)
+    quote
+        $(esc(label)) = Category($name, row -> row.vocabulary_id == $name)
+        $(esc(funfn))(key, check=nothing) =
+           (Symbol(something(check, key)) => lookup_by_code($label, key, check))
+        export $(esc(funfn))
+    end
+end
 
-RxNorm = Vocabulary("RxNorm")
-HemOnc = Vocabulary("HemOnc")
-SNOMED = Vocabulary("SNOMED")
-ICD10CM = Vocabulary("ICD10CM")
-ICD9CM = Vocabulary("ICD9CM")
-CPT4 = Vocabulary("CPT4")
-LOINC = Vocabulary("LOINC")
-ATC = Vocabulary("ATC")
-RxNormExtension = Vocabulary("RxNorm Extension")
+@make_vocabulary("Race")
+@make_vocabulary("Provider")
+@make_vocabulary("RxNorm")
+@make_vocabulary("HemOnc")
+@make_vocabulary("SNOMED")
+@make_vocabulary("ICD10CM")
+@make_vocabulary("ICD9CM")
+@make_vocabulary("CPT4")
+@make_vocabulary("LOINC")
+@make_vocabulary("ATC")
+@make_vocabulary("Condition Status")
+@make_vocabulary("RxNorm Extension")
 
+#=
+Race = Category("Race")
+Provider = Category("Provider")
+Ethnicity = Category("Ethnicity")
+RxNorm = Category("RxNorm")
+HemOnc = Category("HemOnc")
+SNOMED = Category("SNOMED")
+ICD10CM = Category("ICD10CM")
+ICD9CM = Category("ICD9CM")
+CPT4 = Category("CPT4")
+LOINC = Category("LOINC")
+ATC = Category("ATC")
+ConditionStatus = Category("Condition Status")
+RxNormExtension = Category("RxNorm Extension")
+
+@funsql Provider(code, check=nothing) = $(something(check, code) => TRDW.Provider(code, check))
+@funsql Ethnicity(code, check=nothing) = $(something(check, code) => TRDW.Ethnicity(code, check))
 @funsql RxNorm(code, check=nothing) = $(something(check, code) => TRDW.RxNorm(code, check))
 @funsql HemOnc(code, check=nothing) = $(something(check, code) => TRDW.HemOnc(code, check))
 @funsql SNOMED(code, check=nothing) = $(something(check, code) => TRDW.SNOMED(code, check))
@@ -196,13 +202,16 @@ RxNormExtension = Vocabulary("RxNorm Extension")
 @funsql CPT4(code, check=nothing) = $(something(check, code) => TRDW.CPT4(code, check))
 @funsql LOINC(code, check=nothing) = $(something(check, code) => TRDW.LOINC(code, check))
 @funsql ATC(code, check=nothing) = $(something(check, code) => TRDW.ATC(code, check))
-@funsql RxNormExtension(code, check=nothing) = 
+@funsql ConditionStatus(code, check=nothing) =
+    $(something(check, code) => TRDW.ConditionStatus(code, check))
+@funsql RxNormExtension(code, check=nothing) =
     $(something(check, code) => TRDW.RxNormExtension(code, check))
+=#
 
-@funsql in_category(type, args, concept_id = :concept_id) =
+@funsql in_category(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
     in($concept_id, begin
         from(concept_ancestor)
-        filter(in(ancestor_concept_id, $(lookup(type, args)...)))
+        filter(in(ancestor_concept_id, $(lookup_by_name(type, args)...)))
         select(descendant_concept_id)
     end)
 
@@ -210,8 +219,8 @@ function print_concepts(df::DataFrame)
     first = true
     for row in eachrow(df)
         !first && println(",")
-        print(replace(row.vocabulary_id, " " => "")) 
-        print("($(row.concept_code),\"$(row.concept_name)\")")             
+        print(replace(row.vocabulary_id, " " => ""))
+        print("($(row.concept_code),\"$(row.concept_name)\")")
         first = false
     end
     println()
