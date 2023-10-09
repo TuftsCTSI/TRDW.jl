@@ -1,5 +1,5 @@
 const VOCAB_SCHEMA = "vocabulary_v20230531"
-CONCEPT_PATH = [tempdir(), get(ENV, "USERNAME", "trdw"), "$(VOCAB_SCHEMA)"]
+CONCEPT_PATH = [tempdir(), get(ENV, "USERNAME", get(ENV, "USER", "trdw")), "$(VOCAB_SCHEMA)"]
 g_concepts = nothing
 
 normalize_name(s) = replace(lowercase(s), r"[ -]" => "_")
