@@ -7,8 +7,7 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-""" given a concept set return those without ancestors in that same set """
-take_minimal_ancestor_cover(cte, concept_id = concept_id) = begin
+take_minimal_ancestor_cover(cte; concept_id=concept_id) = begin
 	from(selection)
 	filter(not(exists(begin
 		from(concept_ancestor)
@@ -105,6 +104,9 @@ concept_relatives(relationship_id) = begin
         concept_relationship.concept_id_2 == concept_id)
 end
 
+# why is this not found?
+concept_children() = concept_relatives("Subsumes")
+
 concept_parents() = begin
     as(base)
     join(
@@ -115,8 +117,6 @@ concept_parents() = begin
         concept(),
         concept_relationship.concept_id_1 == concept_id)
 end
-
-concept_children() = concept_relatives("Subsumes")
 
 concept_siblings() = concept_parents().concept_children()
 
