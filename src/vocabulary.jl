@@ -208,7 +208,7 @@ RxNormExtension = Category("RxNorm Extension")
     $(something(check, code) => TRDW.RxNormExtension(code, check))
 =#
 
-@funsql in_category(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
+@funsql category_isa(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
     in($concept_id, begin
         from(concept_ancestor)
         filter(in(ancestor_concept_id, $(lookup_by_name(type, args)...)))
