@@ -28,8 +28,12 @@ hiv_concepts() = begin
     deduplicate(concept_id)
 end
 
+cached_hiv_concepts() = $(FunSQL.From(
+    FunSQL.SQLTable(qualifiers = [:ctsi, :stage_trdw_green],
+                    name = :censored_concept, columns = [:concept_id])))
+
 filter_hiv_concepts(concept_id) = begin
-    left_join(hiv_concept => hiv_concepts(), $concept_id == hiv_concept.concept_id)
+    left_join(hiv_concept => cached_hiv_concepts(), $concept_id == hiv_concept.concept_id)
     filter(is_null(hiv_concept.concept_id))
 end
 
