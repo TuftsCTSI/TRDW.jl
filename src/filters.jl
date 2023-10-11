@@ -12,6 +12,7 @@ hiv_concepts() = begin
         begin
             concept(SNOMED(365866002, "Finding of HIV status"),
                     SNOMED(444356002, "Exposure to Human immunodeficiency virus"))
+            concept_descendants()
         end,
         begin
             concept(
@@ -22,9 +23,9 @@ hiv_concepts() = begin
                     NDFRT("N0000181002","HIV Fusion Protein Inhibitors"))
             concept_relatives("MoA of")
             concept_relatives("NDFRT - RxNorm eq")
+            concept_descendants()
         end)
     deduplicate(concept_id)
-    concept_descendants()
 end
 
 filter_hiv_concepts(concept_id) = begin
