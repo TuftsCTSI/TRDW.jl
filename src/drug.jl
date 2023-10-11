@@ -15,6 +15,10 @@ ingredient_isa(args...) = category_isa($Ingredient, $args, drug_concept_id)
 
 drug_isa(ids...) = is_descendant_concept(drug_concept_id, $ids...)
 
+isa_component_class() = isa_concept_class("Component Class")
+isa_dose_form_group() = isa_concept_class("Dose Form Group")
+isa_ingredient() = isa_concept_class("Ingredient")
+
 join_drug(ids...; carry=[]) = begin
     as(base)
     join(begin

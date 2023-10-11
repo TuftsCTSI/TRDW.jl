@@ -174,6 +174,7 @@ end
 @make_vocabulary("CPT4")
 @make_vocabulary("LOINC")
 @make_vocabulary("ATC")
+@make_vocabulary("NDFRT")
 @make_vocabulary("Condition Status")
 @make_vocabulary("RxNorm Extension")
 

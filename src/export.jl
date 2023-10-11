@@ -175,6 +175,17 @@ function (rhs::OMOP_Transform)(lhs::T)::T where {T<:OMOP_QuerySet}
         visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence)
 end
 
+strip_hiv_events(base) =
+    base |> OMOP_Transform(;
+            condition_era = @funsql(filter_hiv_concepts(condition_concept_id)),
+            condition_occurrence = @funsql(filter_hiv_concepts(condition_concept_id)),
+            drug_era = @funsql(filter_hiv_concepts(drug_concept_id)),
+            drug_exposure = @funsql(filter_hiv_concepts(drug_concept_id)),
+            measurement = @funsql(filter_hiv_concepts(measurement_concept_id)),
+            observation = @funsql(filter_hiv_concepts(observation_concept_id)),
+            procedure_occurrence = @funsql(filter_hiv_concepts(procedure_concept_id)),
+            specimen = @funsql(filter_hiv_concepts(specimen_concept_id)))
+
 strip_person_dob(base) =
     base |> OMOP_Transform(;
         person = @funsql(begin
@@ -206,9 +217,11 @@ function export_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
                     queries::OMOP_Queries = OMOP_Queries(),
                     include_txt = false,
                     include_dob = false,
+                    include_hiv = false,
                     include_mrn = false)
     queries = include_txt ? queries : strip_text_fields(queries)
     queries = include_dob ? queries : strip_person_dob(queries)
+    queries = include_hiv ? queries : strip_hiv_events(queries)
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
     suffix = Dates.format(Dates.now(), "yyyymmddHHMMSSZ")
     cohort_q =
@@ -665,8 +678,8 @@ end
 
 function export_denormalized_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
                                  queries::OMOP_Queries = OMOP_Queries(),
-                                 utilize_dob = false)
-
+                                 utilize_dob = false, include_hiv = false)
+    queries = include_hiv ? queries : strip_hiv_events(queries)
     etl = (db = db, create_stmts = String[], drop_stmts = String[])
     suffix = Dates.format(Dates.now(), "yyyymmddHHMMSSZ")
     cohort_q =

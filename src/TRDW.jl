@@ -15,6 +15,7 @@ include("helpers.jl")
 include("export.jl")
 include("omop.jl")
 include("vocabulary.jl")
+include("filters.jl")
 
 include("concept.jl")
 include("condition_era.jl")

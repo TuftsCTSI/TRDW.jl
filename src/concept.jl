@@ -7,14 +7,27 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-take_minimal_ancestor_cover(cte; concept_id=concept_id) = begin
+take_without_ancestors(cte; concept_id=concept_id) = begin
 	from(selection)
 	filter(not(exists(begin
 		from(concept_ancestor)
 		filter(descendant_concept_id != ancestor_concept_id)
 		filter(descendant_concept_id == :concept_id)
-		join(nest => from(selection), 
+		join(nest => from(selection),
 			ancestor_concept_id == nest.concept_id)
+		bind(:concept_id => concept_id)
+	end)))
+    with(selection => $cte)
+end
+
+take_without_descendants(cte; concept_id=concept_id) = begin
+	from(selection)
+	filter(not(exists(begin
+		from(concept_ancestor)
+		filter(descendant_concept_id != ancestor_concept_id)
+		filter(ancestor_concept_id == :concept_id)
+		join(nest => from(selection),
+			descendant_concept_id == nest.concept_id)
 		bind(:concept_id => concept_id)
 	end)))
     with(selection => $cte)
