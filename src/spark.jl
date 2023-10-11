@@ -127,6 +127,7 @@ end
     chr,
     cloud_files_state, # Databricks
     coalesce,
+    [collect],
     [collect_list],
     [collect_set],
     concat,

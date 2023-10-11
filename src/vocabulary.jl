@@ -1,58 +1,55 @@
 const VOCAB_SCHEMA = "vocabulary_v20230531"
-CONCEPT_PATH = [tempdir(), get(ENV, "USERNAME", get(ENV, "USER", "trdw")), "$(VOCAB_SCHEMA)"]
-g_concepts = nothing
+CONCEPT_PATH = [tempdir(), VOCAB_SCHEMA]
 
 normalize_name(s) = replace(lowercase(s), r"[ -]" => "_")
 cache_filename(s) = joinpath([TRDW.CONCEPT_PATH..., "$(normalize_name(s)).csv"])
 
-""" load entire concept table, caching locally to CSV file"""
-function load_concepts()
-    global g_concepts
-    if g_concepts != nothing
-        return g_concepts
-    end
-    if !isfile(cache_filename("concept"))
+function load_vocabulary(vocabulary)
+    if !isfile(cache_filename(vocabulary))
         conn = connect_to_databricks(; catalog = "ctsi")
-        cursor = DBInterface.execute(conn, "SELECT * FROM $(VOCAB_SCHEMA).concept")
+        cursor = DBInterface.execute(conn, """
+            SELECT concept_id, concept_code, concept_name,
+                standard_concept, domain_id, concept_class_id
+            FROM $(VOCAB_SCHEMA).concept
+            WHERE vocabulary_id = '$(vocabulary)'
+            """)
         concepts = cursor_to_dataframe(cursor)
         mkpath(joinpath(CONCEPT_PATH))
-        CSV.write(cache_filename("concept"), concepts)
-        concepts = nothing
+        CSV.write(cache_filename(vocabulary), concepts)
     end
-    g_concepts = CSV.read(cache_filename("concept"), DataFrame)
-    return g_concepts
+    return CSV.read(cache_filename(vocabulary), DataFrame)
 end
 
 struct Category
     name::Symbol
-    filename::String
-    criteria::Function
+    criteria::Union{Function, Nothing}
+    vocabs::Vector{String}
     byname::Dict{Symbol, Int64}
     bycode::Dict{Symbol, Tuple{Int64, String}}
 
-    function Category(name::String, criteria::Function)
-        filename = cache_filename(name)
+    function Category(name::String, vocabs = nothing, criteria = nothing)
+        vocabs = something(vocabs, [name])
         name = Symbol(replace(name, " " => "_"))
-        new(name, filename, criteria, Dict{Symbol, Int64}(),
+        new(name, criteria, vocabs, Dict{Symbol, Int64}(),
             Dict{Symbol, Tuple{Int64, String}}())
     end
 end
 
-function load_category(category::Category; rebuild=false)
+function load_category!(category::Category; rebuild=false)
     name = getfield(category, :name)
     bycode = getfield(category, :bycode)
     byname = getfield(category, :byname)
-    filename = getfield(category, :filename)
+    criteria = getfield(category, :criteria)
     if isempty(bycode) || rebuild
         empty!(bycode)
         empty!(byname)
-        if !isfile(filename) || rebuild
-            concepts = select(filter(getfield(category, :criteria), load_concepts()),
-                             [:concept_id, :concept_code, :concept_name])
-            mkpath(joinpath(CONCEPT_PATH))
-            CSV.write(filename, concepts)
+        concepts = DataFrame()
+        for v in getfield(category, :vocabs)
+            append!(concepts, load_vocabulary(v); promote=true)
         end
-        concepts = CSV.read(filename, DataFrame)
+        if !isnothing(criteria)
+            concepts = filter(criteria, concepts)
+        end
         for row in eachrow(concepts)
             key = Symbol(row.concept_code)
             haskey(bycode, key) && @error "\nduplicate concept_code $name:\n$key"
@@ -76,7 +73,7 @@ function load_category(category::Category; rebuild=false)
 end
 
 function lookup_by_code(category::Category, key, check = nothing)::Int64
-    load_category(category)
+    load_category!(category)
     name = getfield(category, :name)
     bycode = getfield(category, :bycode)
     key = Symbol(key)
@@ -99,12 +96,12 @@ end
 (category::Category)(key, check = nothing) = lookup_by_code(category, key, check)
 
 function Base.fieldnames(category::Category)
-    load_category(category)
+    load_category!(category)
     return keys(getfield(category, :byname))
 end
 
 function lookup_by_name(category::Category, key::Symbol)::Int64
-    load_category(category)
+    load_category!(category)
     name = getfield(category, :name)
     byname = getfield(category, :byname)
     !haskey(byname, key) && throw(ArgumentError("'$key' not found in $name"))
@@ -139,25 +136,22 @@ standard_domain(row, domain_id) =
     (row.domain_id == domain_id) && instr(row.standard_concept, "C", "S")
 
 # useful concept classes, to increase readability
-DoseFormGroup = Category("Dose Form Group",
+DoseFormGroup = Category("Dose Form Group", ["RxNorm"],
     row -> standard_domain(row, "Drug") &&
-           row.concept_class_id == "Dose Form Group" &&
-           row.vocabulary_id == "RxNorm")
-ComponentClass = Category("ComponentClass",
+           row.concept_class_id == "Dose Form Group")
+ComponentClass = Category("ComponentClass", ["HemOnc"],
     row -> standard_domain(row, "Drug") &&
-           row.concept_class_id == "Component Class" &&
-           row.vocabulary_id == "HemOnc")
-Ingredient = Category("Ingredient",
+           row.concept_class_id == "Component Class")
+Ingredient = Category("Ingredient", ["RxNorm", "RxNorm Extension"],
     row -> standard_domain(row, "Drug") &&
-           row.concept_class_id == "Ingredient" &&
-           in(row.vocabulary_id, "RxNorm", "RxNorm Extension"))
+           row.concept_class_id == "Ingredient")
 
 macro make_vocabulary(name)
     label = replace(name, " " => "_")
     funfn = Symbol("funsql#$label")
     label = Symbol(label)
     quote
-        $(esc(label)) = Category($name, row -> row.vocabulary_id == $name)
+        $(esc(label)) = Category($name)
         $(esc(funfn))(key, check=nothing) =
            (Symbol(something(check, key)) => lookup_by_code($label, key, check))
         export $(esc(funfn))
