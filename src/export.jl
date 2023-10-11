@@ -1,10 +1,12 @@
 function temp_table!(etl, name, def)
-    schema = etl.db.catalog[:person].schema
+    qualifiers = ("ctsi", "temp")
     ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
-    q = FunSQL.From(name) |> FunSQL.WithExternal(name => def, schema = schema, handler = (p -> ref[] = p))
+    q = FunSQL.From(name) |> FunSQL.WithExternal(name => def, qualifiers = qualifiers,
+                                                 handler = (p -> ref[] = p))
     FunSQL.render(etl.db, q)
     t, c = ref[]
-    name_sql = FunSQL.render(etl.db, FunSQL.ID(t.schema) |> FunSQL.ID(t.name))
+    name_sql = FunSQL.render(etl.db,
+                             FunSQL.ID("ctsi") |> FunSQL.ID("temp") |> FunSQL.ID(t.name))
     sql = FunSQL.render(etl.db, c)
     create_stmt = "CREATE TABLE $name_sql AS\n$sql"
     drop_stmt = "DROP TABLE $name_sql"
@@ -14,13 +16,11 @@ function temp_table!(etl, name, def)
 end
 
 function cleanup!(db)
-    schema = db.catalog[:person].schema
-    #TODO: fixme with proper regex
     sql = """
-        SELECT "DROP TABLE ctsi.$schema." || table_name AS query
-        FROM information_schema.tables 
-        WHERE table_catalog = 'ctsi' 
-          AND table_schema = '$schema' 
+        SELECT "DROP TABLE ctsi.temp." || table_name AS query
+        FROM information_schema.tables
+        WHERE table_catalog = 'ctsi'
+          AND table_schema = 'temp'
           AND table_name like '%_2023%'
           AND table_name like '%z'
     """
@@ -175,7 +175,7 @@ function (rhs::OMOP_Transform)(lhs::T)::T where {T<:OMOP_QuerySet}
         visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence)
 end
 
-strip_person_dob(base) = 
+strip_person_dob(base) =
     base |> OMOP_Transform(;
         person = @funsql(begin
             define(month_of_birth => int(missing),
@@ -598,20 +598,19 @@ function export_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
             end)
     mrn_q = nothing
     if include_mrn
-        schema = db.catalog[:person].schema
         mrn_q = """
         SELECT
           p.person_id,
           array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
           array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
-        FROM `$schema`.`person_$suffix` p
+        FROM `temp`.`person_$suffix` p
         LEFT JOIN `person_map`.`person_map` pm ON p.person_id = pm.person_id
         LEFT JOIN (
           SELECT DISTINCT
             system_epic_id,
             system_epic_mrn,
             system_tuftssoarian_mrn
-          FROM `hive_metastore`.`global`.`patient`) AS gp
+          FROM `main`.`global`.`patient`) AS gp
             ON pm.person_source_value = gp.system_epic_id
         GROUP BY p.person_id
         """
@@ -708,7 +707,7 @@ function export_denormalized_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
     death_q = @funsql $(queries.death).restrict_by($cohort_q)
     note_q = @funsql $(queries.note).$restrict_q
     specimen_q = @funsql $(queries.specimen).restrict_by($cohort_q)
-    age_q = @funsql `datediff(YEAR, ?, ?)`(person.birth_datetime, start_date)
+    age_q = @funsql datediff_year(person.birth_datetime, start_date)
     if !utilize_dob
         age_q = @funsql year(start_date) - person.year_of_birth
     end
