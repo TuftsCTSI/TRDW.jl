@@ -1,12 +1,11 @@
 const wide_notebook_style = html"""
 <style>
-    @media screen and (min-width: calc(700px + 25px + 283px + 34px + 25px)) {
+/*    @media screen and (min-width: calc(700px + 25px + 283px + 34px + 25px)) */
         main {
             margin: 0 auto;
             max-width: 2000px;
             padding-right: 50px;
         }
-    }
 </style>
 """
 

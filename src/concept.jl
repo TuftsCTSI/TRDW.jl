@@ -1,3 +1,14 @@
+# Vocabulary static module returns Pair{Symbol, Int64}
+CleverConcept = Pair{Symbol, Int64}
+CleverConceptSet = Union{Vector{CleverConcept}, Tuple{CleverConcept}}
+unpack_concepts(id::Int64) = [id]
+unpack_concepts(id::CleverConcept) = [id[1]]
+unpack_concepts(ids::Vector{Int64}) = ids
+unpack_concepts(ids::CleverConceptSet) =
+    unpack_concepts([id[2] for id in ids])
+unpack_concepts(ids::Union{Vector{CleverConceptSet}, Tuple{CleverConceptSet}}) =
+    unpack_concepts(collect(Iterators.flatten(ids)))
+
 @funsql begin
 
 concept(ids...) = begin
@@ -7,33 +18,12 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-take_without_ancestors(cte; concept_id=concept_id) = begin
-	from(selection)
-	filter(not(exists(begin
-		from(concept_ancestor)
-		filter(descendant_concept_id != ancestor_concept_id)
-		filter(descendant_concept_id == :concept_id)
-		join(nest => from(selection),
-			ancestor_concept_id == nest.concept_id)
-		bind(:concept_id => concept_id)
-	end)))
-    with(selection => $cte)
-end
-
-take_without_descendants(cte; concept_id=concept_id) = begin
-	from(selection)
-	filter(not(exists(begin
-		from(concept_ancestor)
-		filter(descendant_concept_id != ancestor_concept_id)
-		filter(ancestor_concept_id == :concept_id)
-		join(nest => from(selection),
-			descendant_concept_id == nest.concept_id)
-		bind(:concept_id => concept_id)
-	end)))
-    with(selection => $cte)
-end
-
 is_descendant_concept(concept_id, ids...) =
+    is_descendant_concept($concept_id, $ids)
+is_descendant_concept(concept_id, ids) =
+    is_descendant_concept($concept_id, $(unpack_concepts(ids)))
+
+is_descendant_concept(concept_id, ids::Union{Vector{Int64}, Tuple{Int64}}) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id &&
@@ -132,5 +122,23 @@ concept_parents() = begin
 end
 
 concept_siblings() = concept_parents().concept_children()
+
+filter_out_ancestors() = begin
+	left_join(
+		concept_ancestor => from(concept_ancestor),
+		concept_id == concept_ancestor.descendant_concept_id)
+	partition(concept_ancestor.ancestor_concept_id)
+	filter(count() <= 1)
+	filter(concept_ancestor.min_levels_of_separation == 0)
+end
+
+filter_out_descendants() = begin
+	left_join(
+		concept_ancestor => from(concept_ancestor),
+		concept_id == concept_ancestor.ancestor_concept_id)
+	partition(concept_ancestor.descendant_concept_id)
+	filter(count() <= 1)
+	filter(concept_ancestor.min_levels_of_separation == 0)
+end
 
 end
