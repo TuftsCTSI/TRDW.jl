@@ -2,10 +2,9 @@
 CleverConcept = Pair{Symbol, Int64}
 CleverConceptSet = Union{Vector{CleverConcept}, Tuple{CleverConcept}}
 unpack_concepts(id::Int64) = [id]
-unpack_concepts(id::CleverConcept) = [id[1]]
+unpack_concepts(id::CleverConcept) = [id[2]]
 unpack_concepts(ids::Vector{Int64}) = ids
-unpack_concepts(ids::CleverConceptSet) =
-    unpack_concepts([id[2] for id in ids])
+unpack_concepts(ids::CleverConceptSet) = [id[2] for id in ids]
 unpack_concepts(ids::Union{Vector{CleverConceptSet}, Tuple{CleverConceptSet}}) =
     unpack_concepts(collect(Iterators.flatten(ids)))
 
@@ -19,15 +18,10 @@ concept(ids...) = begin
 end
 
 is_descendant_concept(concept_id, ids...) =
-    is_descendant_concept($concept_id, $ids)
-is_descendant_concept(concept_id, ids) =
-    is_descendant_concept($concept_id, $(unpack_concepts(ids)))
-
-is_descendant_concept(concept_id, ids::Union{Vector{Int64}, Tuple{Int64}}) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id &&
-               in(ancestor_concept_id, $ids...))
+               in(ancestor_concept_id, $(unpack_concepts(ids))...))
         bind(:concept_id => $concept_id)
     end)
 
@@ -36,6 +30,15 @@ isa(ids...; prefix=nothing) =
         $(prefix == nothing ? @funsql(concept_id) :
                             @funsql($(Symbol("$(prefix)_concept_id")))),
         $ids...)
+
+select_concept(concept_id=nothing; carry=[]) = begin
+    as(base)
+    join(begin
+        concept()
+    end, base.$(something(concept_id, :concept_id)) == concept_id)
+    select($([[@funsql($n => base.$n) for n in carry]...,
+              :concept_id, :vocabulary_id, :concept_code, :concept_name])...)
+end
 
 show_concept() =
     select(concept_id, detail => concat(
@@ -66,13 +69,21 @@ with_concept(name, extension=nothing) =
         $(extension == nothing ? @funsql(define()) : extension)
     end, $(Symbol("$(name)_concept_id")) == $name.concept_id)
 
-join_concept(name, ids...; carry=[:person_id]) = begin
+join_concept(name, ids...; carry=[]) = begin
     as(base)
     join(begin
         concept()
         $(length(ids) == 0 ? @funsql(define()) :
             @funsql filter(is_descendant_concept(concept_id, $ids...)))
     end, base.$(Symbol("$(name)_concept_id")) == concept_id)
+    define($([@funsql($n => base.$n) for n in carry]...))
+end
+
+join_concept(;carry=[]) = begin
+    as(base)
+    join(begin
+        concept()
+    end, base.concept_id == concept_id)
     define($([@funsql($n => base.$n) for n in carry]...))
 end
 
