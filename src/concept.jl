@@ -17,6 +17,8 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
+deduplicate_concepts(ids::CleverConceptSet) = $(collect(Set(ids)))
+
 is_descendant_concept(concept_id, ids...) =
     exists(begin
         from(concept_ancestor)

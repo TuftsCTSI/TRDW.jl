@@ -8,6 +8,7 @@ drug_concept() = concept().filter(domain_id == "Drug")
 drug_component_class() = drug_concept().filter(concept_class_id == "Component Class")
 drug_dose_form_group() = drug_concept().filter(concept_class_id == "Dose Form Group")
 drug_ingredient() = drug_concept().filter(concept_class_id == "Ingredient")
+drug_pharmacologic_class() = drug_concept().filter(concept_class_id == "Pharmacologic Class")
 
 component_class_isa(args...) = category_isa($ComponentClass, $args, drug_concept_id)
 dose_form_group_isa(args...) = category_isa($DoseFormGroup, $args, drug_concept_id)

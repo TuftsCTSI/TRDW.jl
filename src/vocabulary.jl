@@ -215,9 +215,10 @@ RxNormExtension = Category("RxNorm Extension")
 
 function print_concepts(df::DataFrame)
     first = true
+    sort!(df, [:vocabulary_id, :concept_name])
     for row in eachrow(df)
         !first && println(",")
-        print(replace(row.vocabulary_id, " " => ""))
+        print(replace(row.vocabulary_id, " " => "_"))
         print("($(row.concept_code),\"$(row.concept_name)\")")
         first = false
     end
