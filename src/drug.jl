@@ -44,4 +44,17 @@ with_drug_group(extension=nothing) =
       group(person_id)
     end, person_id == drug_group.person_id)
 
+group_ingredient() = begin
+    as(drug_exposure)
+	join(concept_ancestor => from(concept_ancestor),
+		concept_ancestor.descendant_concept_id == drug_exposure.drug_concept_id)
+	join(concept().filter(concept_class_id=="Ingredient"),
+		concept_id == concept_ancestor.ancestor_concept_id)
+	partition(drug_exposure.drug_concept_id,
+              order_by = [concept_ancestor.min_levels_of_separation],
+              name="ancestors")
+	filter(ancestors.row_number() == 1)
+	group(concept_id)
+end
+
 end
