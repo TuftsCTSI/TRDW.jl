@@ -118,6 +118,11 @@ concept_relatives(relationship_id) = begin
         concept_relationship.concept_id_2 == concept_id)
 end
 
+concept_relatives(relationship_id, n_or_r) = begin
+    bounded_iterate(concept_relatives($relationship_id), $n_or_r)
+    deduplicate(concept_id)
+end
+
 concept_relationship() = begin
     as(base)
     join(concept_relationship => from(concept_relationship),
@@ -127,6 +132,8 @@ concept_relationship() = begin
 end
 
 concept_children() = concept_relatives("Subsumes")
+
+concept_children(n_or_r) = concept_relatives("Subsumes", $n_or_r)
 
 concept_parents() = begin
     as(base)
