@@ -117,7 +117,14 @@ concept_relatives(relationship_id) = begin
         concept_relationship.concept_id_2 == concept_id)
 end
 
-# why is this not found?
+concept_relationship() = begin
+    as(base)
+    join(concept_relationship => from(concept_relationship),
+         base.concept_id == concept_relationship.concept_id_1)
+    join(from(relationship), concept_relationship.relationship_id == relationship_id)
+    deduplicate(relationship_id)
+end
+
 concept_children() = concept_relatives("Subsumes")
 
 concept_parents() = begin
