@@ -24,11 +24,12 @@ end
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
-with_group(name, subquery) = begin
-    join($name => begin
+with_group(name, subquery; mandatory = true) = begin
+    left_join($name => begin
         $subquery
         group(person_id)
     end, person_id == $name.person_id)
+    $(mandatory ? @funsql(filter(not(is_null($name.person_id)))) : @funsql(define()))
 end
 
 stratify_by_age() = begin
