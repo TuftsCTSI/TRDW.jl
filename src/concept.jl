@@ -31,12 +31,12 @@ isa(ids...; prefix=nothing) =
                             @funsql($(Symbol("$(prefix)_concept_id")))),
         $ids...)
 
-select_concept(concept_id=nothing; carry=[]) = begin
+select_concept(concept_id=nothing; include=[]) = begin
     as(base)
     join(begin
         concept()
     end, base.$(something(concept_id, :concept_id)) == concept_id)
-    select($([[@funsql($n => base.$n) for n in carry]...,
+    select($([[@funsql($n => base.$n) for n in include]...,
               :concept_id, :vocabulary_id, :concept_code, :concept_name])...)
 end
 

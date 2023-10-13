@@ -2,6 +2,9 @@
 
 visit_occurrence() = begin
     from(visit_occurrence)
+    left_join(person => from(person), person_id == person.person_id, optional=true)
+	define(age => nvl(datediff_year(person.birth_datetime, visit_start_date),
+                      year(visit_start_date) - person.year_of_birth))
 end
 
 visit_date_overlaps(start, finish) =
@@ -18,7 +21,7 @@ join_visit(ids...; carry=[]) = begin
 end
 
 correlated_visit(ids...) = begin
-    from(visit_occurrence)
+    visit_occurrence()
 	filter(person_id == :person_id)
     $(length(ids) == 0 ? @funsql(define()) :
         @funsql filter(is_descendant_concept(visit_concept_id, $ids...)))
@@ -27,7 +30,7 @@ end
 
 with_visit_group(extension=nothing) =
     join(visit_group => begin
-        from(visit_occurrence)
+        visit_occurrence()
         $(extension == nothing ? @funsql(define()) : extension)
         group(person_id)
     end, person_id == visit_group.person_id)
