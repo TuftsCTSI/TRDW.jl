@@ -145,6 +145,9 @@ ComponentClass = Category("ComponentClass", ["HemOnc"],
 Ingredient = Category("Ingredient", ["RxNorm", "RxNorm Extension"],
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Ingredient")
+var"funsql#ingredient"(names::Union{String, Symbol}...) =
+    [Symbol(name) => TRDW.lookup_by_name(TRDW.Ingredient, name) for name in names]
+export var"funsql#ingredient"
 
 macro make_vocabulary(name)
     label = replace(name, " " => "_")
