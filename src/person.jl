@@ -15,10 +15,10 @@ person() = begin
     left_join(gender => from(concept),
 		gender_concept_id == gender.concept_id, optional=true)
 	define(
-	    soarian_mrn => soarian_person_map.soarian_mrn,
+        age => nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth),
+        deceased => death.death_date,
         epic_pat_id => person_map.person_source_value,
-		deceased => death.death_date
-	)
+	    soarian_mrn => soarian_person_map.soarian_mrn)
 end
 
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
