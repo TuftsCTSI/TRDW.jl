@@ -24,6 +24,13 @@ end
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
+with_group(name, subquery) = begin
+    join($name => begin
+        $subquery
+        group(person_id)
+    end, person_id == $name.person_id)
+end
+
 stratify_by_age() = begin
     join(p => from(person), p.person_id == person_id)
     define(age => 2023 - p.year_of_birth)
