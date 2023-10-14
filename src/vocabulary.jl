@@ -14,6 +14,15 @@ mutable struct Vocabulary <: AbstractCategory
 end
 
 const g_vocabularies = Dict{String, Vocabulary}()
+g_vocab_conn::Union{Nothing, ODBC.Connection} = nothing
+
+function get_connection()
+    global g_vocab_conn
+    if isnothing(g_vocab_conn)
+        g_vocab_conn = connect_to_databricks(; catalog = "ctsi")
+    end
+    return g_vocab_conn
+end
 
 function Vocabulary(vocabulary_id; constructor=nothing)
     if haskey(g_vocabularies, vocabulary_id)
@@ -37,7 +46,7 @@ function vocabulary_data!(vocabulary)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_filename = cache_filename(vocabulary_id)
     if !isfile(vocabulary_filename)
-        conn = connect_to_databricks(; catalog = "ctsi")
+        conn = get_connection()
         cursor = DBInterface.execute(conn, """
             SELECT concept_id, concept_code, concept_name,
                 standard_concept, domain_id, concept_class_id
@@ -46,6 +55,7 @@ function vocabulary_data!(vocabulary)
             """)
         concepts = cursor_to_dataframe(cursor)
         CSV.write(vocabulary_filename, concepts)
+        conn = cursor = nothing
     end
     vocabulary_data = CSV.read(vocabulary_filename, DataFrame)
     setfield!(vocabulary, :dataframe, vocabulary_data)
