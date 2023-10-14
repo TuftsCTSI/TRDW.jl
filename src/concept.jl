@@ -1,12 +1,3 @@
-# Vocabulary static module returns Pair{Symbol, Int64}
-CleverConcept = Pair{Symbol, Int64}
-unpack_concepts(ids::Vector{Int64}) = ids
-unpack_concepts(ids::Vector{CleverConcept}) = [id[2] for id in ids]
-unpack_concepts(ids::Vector{Vector{CleverConcept}}) =
-    unpack_concepts(collect(Set(Iterators.flatten(ids))))
-unpack_concepts(ids::Vector{Tuple{CleverConcept}}) =
-    unpack_concepts(collect(Set(Iterators.flatten(ids))))
-
 @funsql begin
 
 concept(ids...) = begin
@@ -16,13 +7,11 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-deduplicate_concepts(ids::Vector{CleverConcept}) = $(collect(Set(ids)))
-
 is_descendant_concept(concept_id, ids...) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id &&
-               in(ancestor_concept_id, $(unpack_concepts(collect(ids)))...))
+               in(ancestor_concept_id, $(collect(ids))...))
         bind(:concept_id => $concept_id)
     end)
 

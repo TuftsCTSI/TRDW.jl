@@ -29,7 +29,7 @@ drug_ingredient_by_SNOMED(code, name) = begin
     filter_out_descendants()
 end
 
-drug_ingredients_by_NDFRT(code, name) = begin
+drug_ingredient_by_NDFRT(code, name) = begin
     concept(NDFRT($code, $name))
     concept_relatives("Subsumes",1:3)
     concept_relatives("NDFRT - RxNorm eq")

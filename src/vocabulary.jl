@@ -59,7 +59,8 @@ struct Concept
     concept_name::AbstractString
 end
 
-Base.convert(::Type{FunSQL.SQLNode}, c::Concept) = convert(FunSQL.SQLNode, c.concept_id)
+Base.convert(::Type{FunSQL.SQLNode}, c::Concept) =
+    convert(FunSQL.SQLNode, c.concept_name => c.concept_id)
 
 function Base.show(io::IO, c::Concept)
     print(io, getfield(c.vocabulary, :constructor))
@@ -154,9 +155,9 @@ function lookup_by_name(vocabulary::Vocabulary, match_name::String)::Concept
     return concept
 end
 
-lookup_by_name(category::AbstractCategory, match_name::AbstractString) = 
+lookup_by_name(category::AbstractCategory, match_name::AbstractString) =
     lookup_by_name(category, String(match_name))
-lookup_by_name(category::AbstractCategory, match_name::Symbol) = 
+lookup_by_name(category::AbstractCategory, match_name::Symbol) =
     lookup_by_name(category, String(match_name))
 lookup_by_name(category::AbstractCategory, concept::Concept) = concept
 lookup_by_name(category::AbstractCategory, resolved::Int64) = resolved
@@ -227,7 +228,7 @@ function lookup_by_name(category::Category, match_name::String)::Concept
     name = getfield(category, :name)
     concept = nothing
     for vocab in getfield(category, :vocabs)
-        match = find_by_name(vocab, String(match_name); 
+        match = find_by_name(vocab, String(match_name);
                              having = getfield(category, :having))
         if isnothing(match)
             continue
@@ -287,4 +288,35 @@ function print_concepts(df::DataFrame)
         first = false
     end
     println()
+end
+
+function build_concepts(df::DataFrame)
+    retval = Concept[]
+    sort!(df, [:vocabulary_id, :concept_name])
+    for row in eachrow(df)
+        vocabulary = Vocabulary(row.vocabulary_id)
+        push!(retval, Concept(vocabulary, row.concept_id, row.concept_code, row.concept_name))
+    end
+    return retval
+end
+
+function build_concepts(conn, expr::Expr)
+    block = Expr(:block)
+    items = Expr(:tuple)
+    if expr.head == :block
+        exs = [ex for ex in expr.args if ex isa Expr]
+    else
+        exs = [expr]
+    end
+    for ex in exs;
+        if @dissect(ex, Expr(:(=), name::Symbol, q))
+            push!(items.args, Expr(:call, Symbol("=>"), QuoteNode(name), esc(name)))
+            push!(block.args, :($(esc(name)) =
+                        TRDW.build_concepts(TRDW.run($conn, @funsql $q))))
+        else
+            error("expecting name=funsql assignments")
+        end
+    end
+    push!(block.args, items)
+    return block
 end
