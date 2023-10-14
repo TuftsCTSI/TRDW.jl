@@ -20,6 +20,24 @@ isa_component_class() = isa_concept_class("Component Class")
 isa_dose_form_group() = isa_concept_class("Dose Form Group")
 isa_ingredient() = isa_concept_class("Ingredient")
 
+drug_ingredient_by_SNOMED(code, name) = begin
+    concept(SNOMED($code, $name))
+    concept_relatives("Subsumes",1:3)
+    concept_relatives("SNOMED - RxNorm eq")
+    filter(concept_class_id=="Ingredient")
+    deduplicate(concept_id)
+    filter_out_descendants()
+end
+
+drug_ingredients_by_NDFRT(code, name) = begin
+    concept(NDFRT($code, $name))
+    concept_relatives("Subsumes",1:3)
+    concept_relatives("NDFRT - RxNorm eq")
+    filter(concept_class_id=="Ingredient")
+    deduplicate(concept_id)
+    filter_out_descendants()
+end
+
 join_drug(ids...; carry=[]) = begin
     as(base)
     join(begin
