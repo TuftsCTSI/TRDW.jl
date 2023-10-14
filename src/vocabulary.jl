@@ -5,7 +5,9 @@ mkpath(joinpath(CONCEPT_PATH))
 normalize_name(s) = replace(lowercase(s), r"[ -]" => "_")
 cache_filename(s) = joinpath([CONCEPT_PATH..., "$(normalize_name(s)).csv"])
 
-mutable struct Vocabulary
+abstract type AbstractCategory end
+
+mutable struct Vocabulary <: AbstractCategory
     vocabulary_id::String
     constructor::String
     dataframe::Union{DataFrame, Nothing}
@@ -73,7 +75,21 @@ function Base.repr(c::Concept)
     return "$vname($(repr(c.concept_code)), $(repr(c.concept_name)))"
 end
 
-function lookup_by_code(vocabulary::Vocabulary, concept_code, check_name=nothing)
+function is_concept_name_match(concept_name::AbstractString, match_name::String)
+    concept_name = normalize_name(concept_name)
+    if concept_name == match_name
+        return true
+    end
+    if occursin("...", match_name)
+        (start, finish) = split(match_name, "...")
+        if startswith(concept_name, start) && endswith(concept_name, finish)
+           return true
+        end
+    end
+    return false
+end
+
+function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
     if eltype(vocabulary_data.concept_code) <: Integer
@@ -93,38 +109,35 @@ function lookup_by_code(vocabulary::Vocabulary, concept_code, check_name=nothing
                    result[1, :concept_id],
                    result[1, :concept_code],
                    result[1, :concept_name])
-    if isnothing(check_name)
+    if isnothing(match_name)
         return concept
     end
-    check_name = normalize_name(check_name)
-    concept_name = normalize_name(concept.concept_name)
-    if startswith(concept_name, check_name)
+    if is_concept_name_match(concept.concept_name, normalize_name(match_name))
         return concept
-    end
-    if occursin("...", check_name)
-        (start, finish) = split(check_name, "...")
-        if startswith(concept_name, start) && endswith(concept_name, finish)
-           return concept
-        end
     end
     throw(ArgumentError("'$concept_code' failed name check in vocabulary $vocabulary_id"))
 end
 
-(vocabulary::Vocabulary)(concept_code, check_name = nothing) =
-    lookup_by_code(vocabulary, concept_code, check_name)
+(vocabulary::Vocabulary)(concept_code, match_name = nothing) =
+    lookup_by_code(vocabulary, concept_code, match_name)
 
-function lookup_by_name(vocabulary::Vocabulary, concept_prefix)::Concept
+function find_by_name(vocabulary::Vocabulary, match_name::String;
+            having::Union{Function, Nothing} = nothing)::Union{Concept, Nothing}
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
-    concept_prefix = normalize_name(string(concept_prefix))
-    test = row -> startswith(normalize_name(row.concept_name), concept_prefix)
+    match_name = normalize_name(match_name)
+    if isnothing(having)
+        test = row -> is_concept_name_match(row.concept_name, match_name)
+    else
+        test = row -> having(row) && is_concept_name_match(row.concept_name, match_name)
+    end
     result = filter(test, vocabulary_data)
     nrows = size(result)[1]
     if nrows > 1
-        throw(ArgumentError("'$concept_prefix' matched $nrows in vocabulary $vocabulary_id"))
+        throw(ArgumentError("'$match_name' matched $nrows in vocabulary $vocabulary_id"))
     end
     if nrows < 1
-        throw(ArgumentError("'$concept_prefix' did not match in vocabulary $vocabulary_id"))
+        return nothing
     end
     return Concept(vocabulary,
                    result[1, :concept_id],
@@ -132,8 +145,43 @@ function lookup_by_name(vocabulary::Vocabulary, concept_prefix)::Concept
                    result[1, :concept_name])
 end
 
-Base.getproperty(vocabulary::Vocabulary, concept_prefix::Symbol) =
-    lookup_by_name(vocabulary, concept_prefix)
+function lookup_by_name(vocabulary::Vocabulary, match_name::String)::Concept
+    concept = find_by_name(vocabulary, match_name)
+    if isnothing(concept)
+        vocabulary_id = getfield(vocabulary, :vocabulary_id)
+        throw(ArgumentError("'$match_name' did not match in vocabulary $vocabulary_id"))
+    end
+    return concept
+end
+
+lookup_by_name(category::AbstractCategory, match_name::AbstractString) = 
+    lookup_by_name(category, String(match_name))
+lookup_by_name(category::AbstractCategory, match_name::Symbol) = 
+    lookup_by_name(category, String(match_name))
+lookup_by_name(category::AbstractCategory, concept::Concept) = concept
+lookup_by_name(category::AbstractCategory, resolved::Int64) = resolved
+
+function lookup_by_name(category::AbstractCategory, keys::AbstractVector)
+    # TODO: de-duplicated flattened list... is there another way?
+    retval = Vector{Union{Int64, Concept}}()
+    for item in keys
+        nest = lookup_by_name(category, item)
+        if nest in retval
+            continue
+        end
+        if nest isa AbstractVector
+            for part in nest
+                if part in retval
+                    continue
+                end
+                push!(retval, part)
+            end
+            continue
+        end
+        push!(retval, nest)
+    end
+    return retval
+end
 
 macro make_vocabulary(name)
     lname = replace(name, " " => "_")
@@ -141,8 +189,8 @@ macro make_vocabulary(name)
     label = Symbol(lname)
     quote
         $(esc(label)) = Vocabulary($name; constructor=$lname)
-        $(esc(funfn))(key, check=nothing) =
-            lookup_by_code($label, concept_code, check_name)
+        $(esc(funfn))(concept_code, match_name=nothing) =
+            lookup_by_code($label, concept_code, match_name)
         export $(esc(funfn))
     end
 end
@@ -160,6 +208,67 @@ end
 @make_vocabulary("NDFRT")
 @make_vocabulary("Condition Status")
 @make_vocabulary("RxNorm Extension")
+
+struct Category <: AbstractCategory
+    name::String
+    vocabs::Tuple{Vararg{Vocabulary}}
+    having::Function
+end
+
+function Base.show(io::IO, c::Category)
+    print(io, "Category(")
+    show(io, getfield(v, :name))
+    print(io, ")")
+end
+
+(category::Category)(keys...) = lookup_by_name(category, collect(keys))
+
+function lookup_by_name(category::Category, match_name::String)::Concept
+    name = getfield(category, :name)
+    concept = nothing
+    for vocab in getfield(category, :vocabs)
+        match = find_by_name(vocab, String(match_name); 
+                             having = getfield(category, :having))
+        if isnothing(match)
+            continue
+        end
+        if isnothing(concept)
+            concept = match
+            continue
+        end
+        throw(ArgumentError("'$match_name' ambiguous in category $name"))
+    end
+    if isnothing(concept)
+        throw(ArgumentError("'$match_name' failed to match in category $name"))
+    end
+    return concept
+end
+
+instr(x::Union{AbstractString, Missing}, values::String...) =
+        ismissing(x) ? false : coalesce(x) in values
+
+standard_domain(row, domain_id) =
+    (row.domain_id == domain_id) && instr(row.standard_concept, "C", "S")
+
+# useful concept classes, to increase readability
+DoseFormGroup = Category("Dose Form Group", (RxNorm,),
+    row -> standard_domain(row, "Drug") &&
+           row.concept_class_id == "Dose Form Group")
+ComponentClass = Category("ComponentClass", (HemOnc,),
+    row -> standard_domain(row, "Drug") &&
+           row.concept_class_id == "Component Class")
+Ingredient = Category("Ingredient", (RxNorm, RxNorm_Extension),
+    row -> standard_domain(row, "Drug") &&
+           row.concept_class_id == "Ingredient")
+
+var"funsql#Ingredient"(items...) = Ingredient(items...)
+export var"funsql#Ingredient"
+
+var"funsql#DoseFormGroup"(items...) = DoseFormGroup(items...)
+export var"funsql#DoseFormGroup"
+
+var"funsql#component_class"(items...) = ComponentClass(items...)
+export var"funsql#ComponentClass"
 
 @funsql category_isa(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
     in($concept_id, begin
