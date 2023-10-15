@@ -62,8 +62,6 @@ struct Concept
     concept_name::AbstractString
 end
 
-Base.iterate(c::Concept, state=nothing) = isnothing(state) ? (c, nothing) : nothing
-
 Base.convert(::Type{FunSQL.SQLNode}, c::Concept) =
     convert(FunSQL.SQLNode, c.concept_name => c.concept_id)
 
