@@ -2,7 +2,12 @@
 
 visit_occurrence() = begin
     from(visit_occurrence)
-    left_join(person => from(person), person_id == person.person_id, optional=true)
+    left_join(person => from(person),
+              person_id == person.person_id, optional=true)
+    left_join(care_site => from(care_site),
+              care_site_id == care_site.care_site_id, optional=true)
+    left_join(location => from(location),
+              location.location_id == care_site.location_id, optional=true)
 	define(age => nvl(datediff_year(person.birth_datetime, visit_start_date),
                       year(visit_start_date) - person.year_of_birth))
 end

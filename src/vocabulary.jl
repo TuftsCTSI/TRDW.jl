@@ -14,14 +14,14 @@ mutable struct Vocabulary <: AbstractCategory
 end
 
 const g_vocabularies = Dict{String, Vocabulary}()
-g_vocab_conn::Union{Nothing, ODBC.Connection} = nothing
+const g_vocab_conn = Ref{FunSQL.SQLConnection}()
 
-function get_connection()
+function vocab_connection()
     global g_vocab_conn
-    if isnothing(g_vocab_conn)
-        g_vocab_conn = connect_to_databricks(; catalog = "ctsi")
+    if !isassigned(g_vocab_conn)
+        g_vocab_conn[] = connect_with_funsql(VOCAB_SCHEMA; catalog = "ctsi")
     end
-    return g_vocab_conn
+    return g_vocab_conn[]
 end
 
 function Vocabulary(vocabulary_id; constructor=nothing)
@@ -46,16 +46,9 @@ function vocabulary_data!(vocabulary)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_filename = cache_filename(vocabulary_id)
     if !isfile(vocabulary_filename)
-        conn = get_connection()
-        cursor = DBInterface.execute(conn, """
-            SELECT concept_id, concept_code, concept_name,
-                standard_concept, domain_id, concept_class_id
-            FROM $(VOCAB_SCHEMA).concept
-            WHERE vocabulary_id = '$(vocabulary_id)'
-            """)
-        concepts = cursor_to_dataframe(cursor)
+        concepts = run(vocab_connection(),
+                       @funsql(from(concept).filter(vocabulary_id==$vocabulary_id)))
         CSV.write(vocabulary_filename, concepts)
-        conn = cursor = nothing
     end
     vocabulary_data = CSV.read(vocabulary_filename, DataFrame)
     setfield!(vocabulary, :dataframe, vocabulary_data)
@@ -310,21 +303,29 @@ function build_concepts(df::DataFrame)
     return retval
 end
 
-function build_concepts(conn, expr::Expr)
+macro concepts(expr::Expr)
     block = Expr(:block)
     items = Expr(:tuple)
+    conn = vocab_connection()
     if expr.head == :block
         exs = [ex for ex in expr.args if ex isa Expr]
     else
         exs = [expr]
     end
     for ex in exs;
-        if @dissect(ex, Expr(:(=), name::Symbol, q))
+        if @dissect(ex, Expr(:(=), name::Symbol, query))
             push!(items.args, Expr(:call, Symbol("=>"), QuoteNode(name), esc(name)))
-            push!(block.args, :($(esc(name)) =
-                        TRDW.build_concepts(TRDW.run($conn, @funsql $q))))
+            if @dissect(query, Expr(:vect, args...))
+                item = query
+            elseif @dissect(query, Expr(:tuple, args...))
+                query.head = :vect
+                item = query
+            else
+                item = :(build_concepts(run($conn, @funsql $query)))
+            end
+            push!(block.args, :($(esc(name))::Vector{Concept} = $item))
         else
-            error("expecting name=funsql assignments")
+            error("expecting name=funsql or name=[concept...] assignments")
         end
     end
     push!(block.args, items)

@@ -22,7 +22,7 @@ isa(ids...; prefix=nothing) =
         $ids...)
 
 # TODO: permit include to be pairs....
-select_concept_with(include...) = begin
+select_concept(include...) = begin
     as(base)
     join(from(concept), base.concept_id == concept_id)
     select($([[@funsql($n => base.$n) for n in include]...,

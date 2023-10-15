@@ -1,6 +1,6 @@
 module TRDW
 
-export @run_funsql
+export @run_funsql, @concepts
 
 using DataFrames
 using ODBC
@@ -17,6 +17,7 @@ include("omop.jl")
 include("vocabulary.jl")
 include("filters.jl")
 
+include("care_site.jl")
 include("concept.jl")
 include("condition_era.jl")
 include("condition.jl")
