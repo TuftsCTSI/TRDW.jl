@@ -2,6 +2,7 @@
 
 observation() = begin
     from(observation)
+    define(is_historical => observation_id > 1500000000)
 end
 
 observation_isa(ids...) = is_descendant_concept(observation_concept_id, $ids...)

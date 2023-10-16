@@ -2,6 +2,7 @@
 
 procedure_occurrence() = begin
     from(procedure_occurrence)
+    define(is_historical => procedure_occurrence_id > 1500000000)
 end
 
 procedure_isa(ids...) = is_descendant_concept(procedure_concept_id, $ids...)

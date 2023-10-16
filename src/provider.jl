@@ -2,6 +2,7 @@
 
 provider() = begin
     from(provider)
+    define(is_historical => provider_id > 1000000000)
 end
 
 specialty_isa(args...) = category_isa($Provider, $args, specialty_concept_id)

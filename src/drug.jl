@@ -2,6 +2,7 @@
 
 drug_exposure() = begin
     from(drug_exposure)
+    define(is_historical => drug_exposure_id > 1500000000)
 end
 
 drug_concept() = concept().filter(domain_id == "Drug")

@@ -2,6 +2,7 @@
 
 measurement() = begin
     from(measurement)
+    define(is_historical => measurement_id > 1500000000)
 end
 
 measurement_isa(ids...) = is_descendant_concept(measurement_concept_id, $ids...)

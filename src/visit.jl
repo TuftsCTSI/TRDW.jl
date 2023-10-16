@@ -2,6 +2,7 @@
 
 visit_occurrence() = begin
     from(visit_occurrence)
+    define(is_historical => visit_occurrence_id > 1000000000)
     left_join(person => from(person),
               person_id == person.person_id, optional=true)
     left_join(care_site => from(care_site),

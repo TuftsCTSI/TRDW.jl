@@ -2,6 +2,7 @@
 
 specimen() = begin
     from(specimen)
+    define(is_historical => specimen_id > 1500000000)
 end
 
 specimen_isa(ids...) = is_descendant_concept(specimen_concept_id, $ids...)
