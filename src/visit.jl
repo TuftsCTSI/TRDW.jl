@@ -2,15 +2,16 @@
 
 visit_occurrence() = begin
     from(visit_occurrence)
-    define(is_historical => visit_occurrence_id > 1000000000)
-    left_join(person => from(person),
+    left_join(person => person(),
               person_id == person.person_id, optional=true)
-    left_join(care_site => from(care_site),
+    left_join(care_site => care_site(),
               care_site_id == care_site.care_site_id, optional=true)
-    left_join(location => from(location),
+    left_join(location => location(),
               location.location_id == care_site.location_id, optional=true)
-	define(age => nvl(datediff_year(person.birth_datetime, visit_start_date),
-                      year(visit_start_date) - person.year_of_birth))
+	define(
+        age => nvl(datediff_year(person.birth_datetime, visit_start_date),
+               year(visit_start_date) - person.year_of_birth),
+        is_historical => visit_occurrence_id > 1000000000)
 end
 
 visit_date_overlaps(start, finish) =
