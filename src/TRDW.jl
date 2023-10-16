@@ -13,7 +13,6 @@ include("general.jl")
 include("spark.jl")
 include("helpers.jl")
 include("export.jl")
-include("omop.jl")
 include("vocabulary.jl")
 include("filters.jl")
 
