@@ -65,9 +65,7 @@ struct OMOP_Transform <: OMOP_QuerySet
     specimen::FunSQL.SQLNode
     visit_detail::FunSQL.SQLNode
     visit_occurrence::FunSQL.SQLNode
-    # filters for additional visits
-    is_extra_visit_detail::FunSQL.SQLNode
-    is_extra_visit_occurrence::FunSQL.SQLNode
+    extra_visit_cohort::FunSQL.SQLNode
 
     OMOP_Transform(;
         condition_era = NOOP,
@@ -86,8 +84,7 @@ struct OMOP_Transform <: OMOP_QuerySet
         specimen = NOOP,
         visit_detail = NOOP,
         visit_occurrence = NOOP,
-        is_extra_visit_detail = NOOP,
-        is_extra_visit_occurrence = NOOP) =
+        extra_visit_cohort = NOOP) =
             new(condition_era,
                 condition_occurrence,
                 death,
@@ -104,8 +101,7 @@ struct OMOP_Transform <: OMOP_QuerySet
                 specimen,
                 visit_detail,
                 visit_occurrence,
-                is_extra_visit_detail,
-                is_extra_visit_occurrence)
+                extra_visit_cohort)
 end
 
 struct OMOP_Queries <: OMOP_QuerySet
@@ -125,9 +121,7 @@ struct OMOP_Queries <: OMOP_QuerySet
     specimen::FunSQL.SQLNode
     visit_detail::FunSQL.SQLNode
     visit_occurrence::FunSQL.SQLNode
-    # filters for additional visits
-    is_extra_visit_detail::FunSQL.SQLNode
-    is_extra_visit_occurrence::FunSQL.SQLNode
+    extra_visit_cohort::FunSQL.SQLNode
 
     OMOP_Queries(;
         condition_era = @funsql(from(condition_era)),
@@ -146,8 +140,7 @@ struct OMOP_Queries <: OMOP_QuerySet
         specimen = @funsql(from(specimen)),
         visit_detail = @funsql(from(visit_detail)),
         visit_occurrence = @funsql(from(visit_occurrence)),
-        is_extra_visit_detail = @funsql(true),
-        is_extra_visit_occurrence = @funsql(true)) =
+        extra_visit_cohort = @funsql(from(visit_occurrence))) =
             new(condition_era,
                 condition_occurrence,
                 death,
@@ -164,8 +157,7 @@ struct OMOP_Queries <: OMOP_QuerySet
                 specimen,
                 visit_detail,
                 visit_occurrence,
-                is_extra_visit_detail,
-                is_extra_visit_occurrence)
+                extra_visit_cohort)
 end
 
 
@@ -187,10 +179,7 @@ function (rhs::OMOP_Transform)(lhs::T)::T where {T<:OMOP_QuerySet}
         specimen = lhs.specimen |> rhs.specimen,
         visit_detail = lhs.visit_detail |> rhs.visit_detail,
         visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence,
-        is_extra_visit_detail = @funsql(
-            $(lhs.is_extra_visit_detail) && $(rhs.is_extra_visit_detail)),
-        is_extra_visit_occurrence = @funsql(
-            $(lhs.is_extra_visit_occurrence) && $(rhs.is_extra_visit_occurrence)))
+        extra_visit_cohort = lhs.extra_visit_cohort |> rhs.extra_visit_cohort)
 end
 
 strip_hiv_events(base) =
@@ -233,8 +222,7 @@ strip_text_fields(base) =
 
 strip_extra_visits(base) =
     base |> OMOP_Transform(;
-            is_extra_visit_detail = @funsql(false),
-            is_extra_visit_occurrence = @funsql(false))
+            extra_visit_cohort = filter(false))
 
 function export_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
                     queries::OMOP_Queries = OMOP_Queries(),
@@ -269,19 +257,9 @@ function export_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
             etl,
             "visit_occurrence_x_$suffix",
             @funsql $(queries.visit_occurrence).restrict_by($person_q))
-    visit_detail_q =
-        temp_table!(
-            etl,
-            "visit_detail_x_$suffix",
-            @funsql begin
-                $(queries.visit_detail)
-                restrict_by($person_q)
-                restrict_by(visit_occurrence_id, $visit_occurrence_q)
-            end)
     restrict_q = @funsql begin
         restrict_by($person_q)
         restrict_by(visit_occurrence_id, $visit_occurrence_q)
-        restrict_by(visit_detail_id, $visit_detail_q)
     end
     condition_occurrence_q =
         temp_table!(
@@ -333,32 +311,13 @@ function export_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
             etl,
             "specimen_$suffix",
             @funsql $(queries.specimen).restrict_by($person_q))
-    visit_detail_q =
-            @funsql begin
-                $visit_detail_q
-                left_join(outer => begin
-                    from(visit_detail)
-                    restrict_by(
-                        visit_detail_id,
-                        append(
-                            $condition_occurrence_q,
-                            $drug_exposure_q,
-                            $procedure_occurrence_q,
-                            $device_exposure_q,
-                            $measurement_q,
-                            $observation_q,
-                            $note_q))
-                end, visit_detail_id == outer.visit_detail_id)
-                filter($(queries.is_extra_visit_detail) ||
-                       !isnull(outer.visit_detail_id))
-            end
     visit_occurrence_q =
         temp_table!(
             etl,
             "visit_occurrence_$suffix",
             @funsql begin
                 $visit_occurrence_q
-                left_join(outer => begin
+                left_join(required_visits => begin
                     from(visit_occurrence)
                     restrict_by(
                         visit_occurrence_id,
@@ -369,11 +328,23 @@ function export_zip(filename, db, input_q::FunSQL.AbstractSQLNode;
                             $device_exposure_q,
                             $measurement_q,
                             $observation_q,
-                            $note_q,
-                            $visit_detail_q))
-                end, visit_occurrence_id == outer.visit_occurrence_id)
-                filter($(queries.is_extra_visit_occurrence) ||
-                       !isnull(outer.visit_occurrence_id))
+                            $note_q))
+                end, visit_occurrence_id == required_visits.visit_occurrence_id)
+                left_join(extra_visits => begin
+                    $(queries.extra_visit_cohort)
+                    restrict_by($person_q)
+                end, visit_occurrence_id == extra_visits.visit_occurrence_id)
+                filter(!isnull(required_visits.visit_occurrence_id) ||
+                       !isnull(extra_visits.visit_occurrence_id))
+            end)
+    visit_detail_q =
+        temp_table!(
+            etl,
+            "visit_detail_$suffix",
+            @funsql begin
+                $(queries.visit_detail)
+                restrict_by($person_q)
+                restrict_by(visit_occurrence_id, $visit_occurrence_q)
             end)
     provider_q =
         temp_table!(
