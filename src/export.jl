@@ -3,12 +3,9 @@ abstract type OMOP_QuerySet end
 NOOP = @funsql define()
 
 struct OMOP_Transform <: OMOP_QuerySet
-    condition_era::FunSQL.SQLNode
     condition_occurrence::FunSQL.SQLNode
     death::FunSQL.SQLNode
     device_exposure::FunSQL.SQLNode
-    dose_era::FunSQL.SQLNode
-    drug_era::FunSQL.SQLNode
     drug_exposure::FunSQL.SQLNode
     measurement::FunSQL.SQLNode
     note::FunSQL.SQLNode
@@ -22,12 +19,9 @@ struct OMOP_Transform <: OMOP_QuerySet
     extra_visit_cohort::FunSQL.SQLNode
 
     OMOP_Transform(;
-        condition_era = NOOP,
         condition_occurrence = NOOP,
         death = NOOP,
         device_exposure = NOOP,
-        dose_era = NOOP,
-        drug_era = NOOP,
         drug_exposure = NOOP,
         measurement = NOOP,
         note = NOOP,
@@ -39,12 +33,9 @@ struct OMOP_Transform <: OMOP_QuerySet
         visit_detail = NOOP,
         visit_occurrence = NOOP,
         extra_visit_cohort = NOOP) =
-            new(condition_era,
-                condition_occurrence,
+            new(condition_occurrence,
                 death,
                 device_exposure,
-                dose_era,
-                drug_era,
                 drug_exposure,
                 measurement,
                 note,
@@ -59,12 +50,9 @@ struct OMOP_Transform <: OMOP_QuerySet
 end
 
 struct OMOP_Queries <: OMOP_QuerySet
-    condition_era::FunSQL.SQLNode
     condition_occurrence::FunSQL.SQLNode
     death::FunSQL.SQLNode
     device_exposure::FunSQL.SQLNode
-    dose_era::FunSQL.SQLNode
-    drug_era::FunSQL.SQLNode
     drug_exposure::FunSQL.SQLNode
     measurement::FunSQL.SQLNode
     note::FunSQL.SQLNode
@@ -78,12 +66,9 @@ struct OMOP_Queries <: OMOP_QuerySet
     extra_visit_cohort::FunSQL.SQLNode
 
     OMOP_Queries(;
-        condition_era = @funsql(from(condition_era)),
         condition_occurrence = @funsql(from(condition_occurrence)),
         death = @funsql(from(death)),
         device_exposure = @funsql(from(device_exposure)),
-        dose_era = @funsql(from(dose_era)),
-        drug_era = @funsql(from(drug_era)),
         drug_exposure = @funsql(from(drug_exposure)),
         measurement = @funsql(from(measurement)),
         note = @funsql(from(note)),
@@ -95,12 +80,9 @@ struct OMOP_Queries <: OMOP_QuerySet
         visit_detail = @funsql(from(visit_detail)),
         visit_occurrence = @funsql(from(visit_occurrence)),
         extra_visit_cohort = @funsql(from(visit_occurrence))) =
-            new(condition_era,
-                condition_occurrence,
+            new(condition_occurrence,
                 death,
                 device_exposure,
-                dose_era,
-                drug_era,
                 drug_exposure,
                 measurement,
                 note,
@@ -115,12 +97,9 @@ struct OMOP_Queries <: OMOP_QuerySet
 end
 
 OMOP_Queries(base::OMOP_Queries;
-    condition_era = nothing,
     condition_occurrence = nothing,
     death = nothing,
     device_exposure = nothing,
-    dose_era = nothing,
-    drug_era = nothing,
     drug_exposure = nothing,
     measurement = nothing,
     note = nothing,
@@ -133,12 +112,9 @@ OMOP_Queries(base::OMOP_Queries;
     visit_occurrence = nothing,
     extra_visit_cohort = nothing) =
         OMOP_Queries(
-            something(condition_era, base.condition_era),
             something(condition_occurrence, base.condition_occurrence),
             something(death, base.death),
             something(device_exposure, base.device_exposure),
-            something(dose_era, base.dose_era),
-            something(drug_era, base.drug_era),
             something(drug_exposure, base.drug_exposure),
             something(measurement, base.measurement),
             something(note, base.note),
@@ -153,12 +129,9 @@ OMOP_Queries(base::OMOP_Queries;
 
 function (rhs::OMOP_Transform)(lhs::T)::T where {T<:OMOP_QuerySet}
     T(;
-        condition_era = lhs.condition_era |> rhs.condition_era,
         condition_occurrence = lhs.condition_occurrence |> rhs.condition_occurrence,
         death = lhs.death |> rhs.death,
         device_exposure = lhs.device_exposure |> rhs.device_exposure,
-        dose_era = lhs.dose_era |> rhs.dose_era,
-        drug_era = lhs.drug_era |> rhs.drug_era,
         drug_exposure = lhs.drug_exposure |> rhs.drug_exposure,
         measurement = lhs.measurement |> rhs.measurement,
         note = lhs.note |> rhs.note,
@@ -174,9 +147,7 @@ end
 
 strip_hiv_events(base) =
     base |> OMOP_Transform(;
-            condition_era = @funsql(filter_hiv_concepts(condition_concept_id)),
             condition_occurrence = @funsql(filter_hiv_concepts(condition_concept_id)),
-            drug_era = @funsql(filter_hiv_concepts(drug_concept_id)),
             drug_exposure = @funsql(filter_hiv_concepts(drug_concept_id)),
             measurement = @funsql(filter_hiv_concepts(measurement_concept_id)),
             observation = @funsql(filter_hiv_concepts(observation_concept_id)),
@@ -339,11 +310,6 @@ function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
         restrict_by(visit_occurrence_id, $visit_occurrence_q)
         restrict_by(visit_detail_id, $visit_detail_q)
     end
-    condition_era_q =
-        temp_table!(
-            etl,
-            "condition_era_$(etl.suffix)",
-            @funsql $(queries.condition_era).restrict_by($person_q))
     condition_occurrence_q =
         temp_table!(
             etl,
@@ -359,16 +325,6 @@ function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
             etl,
             "device_exposure_$(etl.suffix)",
             @funsql $(queries.device_exposure).$restrict_q)
-    dose_era_q =
-        temp_table!(
-            etl,
-            "dose_era_$(etl.suffix)",
-            @funsql $(queries.dose_era).restrict_by($person_q))
-    drug_era_q =
-        temp_table!(
-            etl,
-            "drug_era_$(etl.suffix)",
-            @funsql $(queries.drug_era).restrict_by($person_q))
     drug_exposure_q =
         temp_table!(
             etl,
@@ -452,12 +408,9 @@ function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
     etl.queries[] =
       QueryGuard(nothing; bypass=
         OMOP_Queries(;
-          condition_era = condition_era_q,
           condition_occurrence = condition_occurrence_q,
           death = death_q,
           device_exposure = device_exposure_q,
-          dose_era = dose_era_q,
-          drug_era = drug_era_q,
           drug_exposure = drug_exposure_q,
           measurement = measurement_q,
           note = note_q,
@@ -491,12 +444,9 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
 
     @assert isassigned(etl.queries)
 
-    condition_era_q = etl.queries[].condition_era
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
     device_exposure_q = etl.queries[].device_exposure
-    dose_era_q = etl.queries[].dose_era
-    drug_era_q = etl.queries[].drug_era
     drug_exposure_q = etl.queries[].drug_exposure
     measurement_q = etl.queries[].measurement
     note_q = etl.queries[].note
@@ -745,10 +695,6 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
                         $cost_q.define(concept_id => currency_concept_id),
                         $cost_q.define(concept_id => revenue_code_concept_id),
                         $cost_q.define(concept_id => drg_concept_id),
-                        $drug_era_q.define(concept_id => drug_concept_id),
-                        $dose_era_q.define(concept_id => drug_concept_id),
-                        $dose_era_q.define(concept_id => unit_concept_id),
-                        $condition_era_q.define(concept_id => condition_concept_id),
                         $episode_q.define(concept_id => episode_object_concept_id),
                         $episode_q.define(concept_id => episode_type_concept_id),
                         $episode_q.define(concept_id => episode_source_concept_id),
@@ -799,6 +745,22 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
                     subset_2 => $concept_q,
                     descendant_concept_id == subset_2.concept_id)
             end)
+    # TODO: rebuild these directly
+    condition_era_q =
+        temp_table!(
+            etl,
+            "condition_era_$(etl.suffix)",
+            @funsql from(condition_era).filter(false))
+    dose_era_q =
+        temp_table!(
+            etl,
+            "dose_era_$(etl.suffix)",
+            @funsql from(dose_era).filter(false))
+    drug_era_q =
+        temp_table!(
+            etl,
+            "drug_era_$(etl.suffix)",
+            @funsql from(drug_era).filter(false))
     mrn_q = nothing
     if include_mrn
         mrn_q = """
