@@ -212,10 +212,13 @@ struct ETLContext
     queries::Ref{QueryGuard}
     create_stmts::Vector{String}
     drop_stmts::Vector{String}
+    stmt_names::Vector{String}
+    timing::Vector{NamedTuple{(:name, :start, :time), Tuple{String, DateTime, Float64}}}
     suffix::String
 
     function ETLContext(db::FunSQL.SQLConnection)
-        new(db, Ref{QueryGuard}(), String[], String[],
+        new(db, Ref{QueryGuard}(), String[], String[], String[],
+            NamedTuple{(:name, :start, :time), Tuple{String, DateTime, Float64}}[],
             Dates.format(Dates.now(), "yyyymmddHHMMSSZ"))
     end
 
@@ -235,6 +238,7 @@ function temp_table!(etl::ETLContext, name, def)
     sql = FunSQL.render(etl.db, c)
     create_stmt = "CREATE TABLE $name_sql AS\n$sql"
     drop_stmt = "DROP TABLE IF EXISTS $name_sql"
+    push!(etl.stmt_names, name)
     push!(etl.create_stmts, create_stmt)
     push!(etl.drop_stmts, drop_stmt)
     return FunSQL.From(t)
@@ -243,12 +247,23 @@ end
 function create_temp_tables!(etl::ETLContext)
     while(!isempty(etl.create_stmts))
         stmt = popfirst!(etl.create_stmts)
+        name = popfirst!(etl.stmt_names)
+        start = time()
+        start_time = now()
         try
             DBInterface.execute(etl.db, stmt)
         catch e
             println(stmt)
             throw(e)
+        finally
+            push!(etl.timing, (name = name, start = start_time, time = time() - start))
         end
+    end
+end
+
+function print_timing!(etl::ETLContext)
+    for row in etl.timing
+        println("$(row.start), $(row.time), $(row.name)")
     end
 end
 
