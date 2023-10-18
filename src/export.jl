@@ -217,7 +217,7 @@ Base.show(io::IO, row::ETLTiming) =
     println(io, "$(row.start), $(row.length), $(row.name)")
 
 Base.show(io::IO, timing::Vector{ETLTiming}) =
-    for row in timing; println(io, row) end
+    for row in timing; print(io, row) end
 
 struct ETLContext
     db::FunSQL.SQLConnection
@@ -262,7 +262,7 @@ function create_temp_tables!(etl::ETLContext)
         start = time()
         start_time = now()
         try
-            @debug name, start_time, stmt
+            @debug stmt
             DBInterface.execute(etl.db, stmt)
         catch e
             println(stmt)
@@ -276,6 +276,7 @@ function create_temp_tables!(etl::ETLContext)
 end
 
 function drop_temp_tables!(etl::ETLContext)
+    @debug "dropping temp tables"
     while(!isempty(etl.drop_stmts))
         stmt = popfirst!(etl.drop_stmts)
         try
@@ -453,9 +454,12 @@ function zipfile(filename, db, pairs...)
         q !== nothing || continue
         f = ZipFile.addfile(z, name; method=ZipFile.Deflate)
         if q isa AbstractDataFrame
+            @debug "writing", name, size(q)
             CSV.write(f, q; bufsize = 2^23)
         else
+            @debug "execute", name, q
             cr = DBInterface.execute(db, q)
+            @debug "writing", name
             CSV.write(f, cr; bufsize = 2^23)
         end
     end
@@ -463,6 +467,7 @@ function zipfile(filename, db, pairs...)
 end
 
 function export_zip(filename, etl::ETLContext; include_mrn = false)
+    @debug "export_zip($(repr(filename)))"
 
     @assert isassigned(etl.queries)
 
@@ -845,8 +850,8 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
         "keyfile.csv" => mrn_q)
 end
 
-function export_denormalized_zip(filename, etl::ETLContext)
-
+function export_timeline_zip(filename, etl::ETLContext)
+    @debug "export_timeline_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
