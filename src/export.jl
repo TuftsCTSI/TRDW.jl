@@ -214,10 +214,10 @@ struct ETLTiming
 end
 
 Base.show(io::IO, row::ETLTiming) =
-    println(io, "$(row.start), $(row.time), $(row.name)")
+    println(io, "$(row.start), $(row.length), $(row.name)")
 
 Base.show(io::IO, timing::Vector{ETLTiming}) =
-    for row in timing; println(row) end
+    for row in timing; println(io, row) end
 
 struct ETLContext
     db::FunSQL.SQLConnection
