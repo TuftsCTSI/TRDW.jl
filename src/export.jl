@@ -145,7 +145,7 @@ function (rhs::OMOP_Transform)(lhs::T)::T where {T<:OMOP_QuerySet}
         extra_visit_cohort = lhs.extra_visit_cohort |> rhs.extra_visit_cohort)
 end
 
-strip_hiv_events(base) =
+redact_hiv_events(base) =
     base |> OMOP_Transform(;
             condition_occurrence = @funsql(filter_hiv_concepts(condition_concept_id)),
             drug_exposure = @funsql(filter_hiv_concepts(drug_concept_id)),
@@ -154,7 +154,7 @@ strip_hiv_events(base) =
             procedure_occurrence = @funsql(filter_hiv_concepts(procedure_concept_id)),
             specimen = @funsql(filter_hiv_concepts(specimen_concept_id)))
 
-strip_person_dob(base) =
+redact_person_dob(base) =
     base |> OMOP_Transform(;
         person = @funsql(begin
             define(month_of_birth => int(missing),
@@ -162,7 +162,7 @@ strip_person_dob(base) =
                    birth_datetime => timestamp(missing))
         end))
 
-strip_text_fields(base) =
+redact_text_fields(base) =
     base |> OMOP_Transform(;
         person = @funsql(begin
             define(location_id => int(missing),
@@ -181,7 +181,7 @@ strip_text_fields(base) =
             define(snippet => string(missing))
         end))
 
-strip_extra_visits(base) =
+redact_extra_visits(base) =
     base |> OMOP_Transform(;
             extra_visit_cohort = @funsql filter(false))
 
@@ -195,10 +195,10 @@ struct QueryGuard
     function QueryGuard(qs::OMOP_Queries = OMOP_Queries();
                         include_txt = false, include_dob = false,
                         include_hiv = false, extra_visit = false)
-        qs = include_txt ? qs : strip_text_fields(qs)
-        qs = include_dob ? qs : strip_person_dob(qs)
-        qs = include_hiv ? qs : strip_hiv_events(qs)
-        qs = extra_visit ? qs : strip_extra_visits(qs)
+        qs = include_txt ? qs : redact_text_fields(qs)
+        qs = include_dob ? qs : redact_person_dob(qs)
+        qs = include_hiv ? qs : redact_hiv_events(qs)
+        qs = extra_visit ? qs : redact_extra_visits(qs)
         new(qs)
     end
 
@@ -207,18 +207,29 @@ end
 Base.getproperty(qg::QueryGuard, field::Symbol) =
     getproperty(getfield(qg, :qs), field)
 
+struct ETLTiming
+    name::String
+    start::DateTime
+    length::Float64
+end
+
+Base.show(io::IO, row::ETLTiming) =
+    println(io, "$(row.start), $(row.time), $(row.name)")
+
+Base.show(io::IO, timing::Vector{ETLTiming}) =
+    for row in timing; println(row) end
+
 struct ETLContext
     db::FunSQL.SQLConnection
     queries::Ref{QueryGuard}
     create_stmts::Vector{String}
     drop_stmts::Vector{String}
     stmt_names::Vector{String}
-    timing::Vector{NamedTuple{(:name, :start, :time), Tuple{String, DateTime, Float64}}}
+    timing::Vector{ETLTiming}
     suffix::String
 
     function ETLContext(db::FunSQL.SQLConnection)
-        new(db, Ref{QueryGuard}(), String[], String[], String[],
-            NamedTuple{(:name, :start, :time), Tuple{String, DateTime, Float64}}[],
+        new(db, Ref{QueryGuard}(), String[], String[], String[], ETLTiming[],
             Dates.format(Dates.now(), "yyyymmddHHMMSSZ"))
     end
 
@@ -251,19 +262,16 @@ function create_temp_tables!(etl::ETLContext)
         start = time()
         start_time = now()
         try
+            @debug name, start_time, stmt
             DBInterface.execute(etl.db, stmt)
         catch e
             println(stmt)
             throw(e)
         finally
-            push!(etl.timing, (name = name, start = start_time, time = time() - start))
+            timing = timing = ETLTiming(name, start_time, time() - start)
+            push!(etl.timing, timing)
+            @debug timing
         end
-    end
-end
-
-function print_timing!(etl::ETLContext)
-    for row in etl.timing
-        println("$(row.start), $(row.time), $(row.name)")
     end
 end
 
@@ -453,7 +461,6 @@ function zipfile(filename, db, pairs...)
     end
     close(z)
 end
-
 
 function export_zip(filename, etl::ETLContext; include_mrn = false)
 
