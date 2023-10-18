@@ -620,7 +620,9 @@ version = "1.6.1"
 
 [[deps.ZipFile]]
 deps = ["Libdl", "Printf", "Zlib_jll"]
-git-tree-sha1 = "f492b7fe1698e623024e873244f10d89c95c340a"
+git-tree-sha1 = "33da10a434d0ab6ef75b2f5ee7c3778df478935a"
+repo-rev = "d0426c1"
+repo-url = "https://github.com/TuftsCTSI/ZipFile.jl.git"
 uuid = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 version = "0.10.1"
 

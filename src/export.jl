@@ -452,7 +452,7 @@ function zipfile(filename, db, pairs...)
     z = ZipFile.Writer(filename)
     for (name, q) in pairs
         q !== nothing || continue
-        f = ZipFile.addfile(z, name; method=ZipFile.Deflate)
+        f = ZipFile.addfile(z, name; method=ZipFile.Deflate, deflate_level=6)
         if q isa AbstractDataFrame
             @debug "writing", name, size(q)
             CSV.write(f, q; bufsize = 2^23)
@@ -467,6 +467,7 @@ function zipfile(filename, db, pairs...)
 end
 
 function export_zip(filename, etl::ETLContext; include_mrn = false)
+
     @debug "export_zip($(repr(filename)))"
 
     @assert isassigned(etl.queries)
