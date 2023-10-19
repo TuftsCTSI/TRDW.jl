@@ -71,10 +71,9 @@ group_ingredient(;carry=[]) = begin
 	join(concept().filter(concept_class_id=="Ingredient"),
 		concept_id == concept_ancestor.ancestor_concept_id)
     define($([@funsql($n => drug_exposure.$n) for n in carry]...))
-	partition(drug_exposure.drug_concept_id,
-              order_by = [concept_ancestor.min_levels_of_separation],
-              name="ancestors")
-	filter(ancestors.row_number() == 1)
+	partition(drug_exposure.drug_concept_id, name="ancestors")
+    filter(concept_ancestor.min_levels_of_separation ==
+           ancestors.min(concept_ancestor.min_levels_of_separation))
 	group(concept_id)
 end
 

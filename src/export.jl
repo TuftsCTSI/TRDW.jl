@@ -469,7 +469,6 @@ end
 function export_zip(filename, etl::ETLContext; include_mrn = false)
 
     @debug "export_zip($(repr(filename)))"
-
     @assert isassigned(etl.queries)
 
     condition_occurrence_q = etl.queries[].condition_occurrence

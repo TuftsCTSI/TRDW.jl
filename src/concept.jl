@@ -7,12 +7,13 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-is_descendant_concept(concept_id, ids...) =
+is_descendant_concept(name, ids...) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id &&
                in(ancestor_concept_id, $(collect(ids))...))
-        bind(:concept_id => $concept_id)
+        bind(:concept_id => $(contains(string(name), "concept_id") ? name :
+                              Symbol("$(name)_concept_id")))
     end)
 
 isa(ids...; prefix=nothing) =
@@ -43,7 +44,9 @@ is_snomed(codes...; over=nothing) =
         in($(FunSQL.Get(:concept_code, over = over)), pats...))
 
 count_concept(name=nothing) = begin
-    define(concept_id => $(name == nothing ? :concept_id : Symbol("$(name)_concept_id")))
+    define(concept_id => $(name == nothing ? :concept_id :
+                           contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id")))
     group(concept_id)
     define(count => count())
     as(base)
@@ -51,12 +54,13 @@ count_concept(name=nothing) = begin
     order(base.count.desc(), vocabulary_id, concept_code)
     select(base.count, concept_id, vocabulary_id, concept_code, concept_name)
 end
-	
+
 with_concept(name, extension=nothing) =
     join($name => begin
         concept()
         $(extension == nothing ? @funsql(define()) : extension)
-    end, $(Symbol("$(name)_concept_id")) == $name.concept_id)
+    end, $(contains(string(name), "concept_id") ? name :
+           Symbol("$(name)_concept_id")) == $name.concept_id)
 
 join_concept(name, ids...; carry=[]) = begin
     as(base)
@@ -64,7 +68,8 @@ join_concept(name, ids...; carry=[]) = begin
         concept()
         $(length(ids) == 0 ? @funsql(define()) :
             @funsql filter(is_descendant_concept(concept_id, $ids...)))
-    end, base.$(Symbol("$(name)_concept_id")) == concept_id)
+    end, base.$(contains(string(name), "concept_id") ? name :
+                Symbol("$(name)_concept_id")) == concept_id)
     define($([@funsql($n => base.$n) for n in carry]...))
 end
 
@@ -138,21 +143,21 @@ end
 concept_siblings() = concept_parents().concept_children()
 
 filter_out_ancestors() = begin
-	left_join(
-		concept_ancestor => from(concept_ancestor),
-		concept_id == concept_ancestor.descendant_concept_id)
-	partition(concept_ancestor.ancestor_concept_id)
-	filter(count() <= 1)
-	filter(concept_ancestor.min_levels_of_separation == 0)
+    left_join(
+        concept_ancestor => from(concept_ancestor),
+        concept_id == concept_ancestor.descendant_concept_id)
+    partition(concept_ancestor.ancestor_concept_id)
+    filter(count() <= 1)
+    filter(concept_ancestor.min_levels_of_separation == 0)
 end
 
 filter_out_descendants() = begin
-	left_join(
-		concept_ancestor => from(concept_ancestor),
-		concept_id == concept_ancestor.ancestor_concept_id)
-	partition(concept_ancestor.descendant_concept_id)
-	filter(count() <= 1)
-	filter(concept_ancestor.min_levels_of_separation == 0)
+    left_join(
+        concept_ancestor => from(concept_ancestor),
+        concept_id == concept_ancestor.ancestor_concept_id)
+    partition(concept_ancestor.descendant_concept_id)
+    filter(count() <= 1)
+    filter(concept_ancestor.min_levels_of_separation == 0)
 end
 
 end

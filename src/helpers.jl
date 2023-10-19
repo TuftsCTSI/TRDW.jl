@@ -8,6 +8,7 @@ like_acronym(s, pats...) =
     or($([@funsql(like_acronym($s, $pat)) for pat in pats]...))
 
 is_integer(s) = rlike($s, "^[0-9]+\$")
+round_up(n) =  ceiling($n/10)*10
 
 deduplicate(keys...) = begin
     partition($(keys...), order_by = [$(keys...)], name = deduplicate)

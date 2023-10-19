@@ -36,4 +36,36 @@ with_condition_group(extension=nothing) =
       group(person_id)
     end, person_id == condition_group.person_id)
 
+group_3char_icd10cm(;carry=[]) = begin
+    as(condition_occurrence)
+	join(concept_ancestor => from(concept_ancestor),
+		concept_ancestor.descendant_concept_id ==
+        condition_occurrence.condition_source_concept_id)
+    join(begin
+             concept()
+             filter(vocabulary_id == "ICD10CM")
+             filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
+        end,
+		concept_id == concept_ancestor.ancestor_concept_id)
+    define($([@funsql($n => condition_occurrence.$n) for n in carry]...))
+	partition(condition_occurrence.condition_source_concept_id, name="ancestors")
+    filter(concept_ancestor.min_levels_of_separation ==
+           ancestors.min(concept_ancestor.min_levels_of_separation))
+	group(concept_id)
+end
+
+group_clinical_finding(concept_id=nothing;carry=[]) = begin
+    define(concept_id => $(something(concept_id, :condition_concept_id)))
+    as(condition_occurrence)
+	join(concept_ancestor => from(concept_ancestor),
+		concept_ancestor.descendant_concept_id == condition_occurrence.condition_concept_id)
+	join(concept().filter(concept_class_id=="Clinical Finding"),
+		concept_id == concept_ancestor.ancestor_concept_id)
+    define($([@funsql($n => condition_occurrence.$n) for n in carry]...))
+	partition(condition_occurrence.condition_concept_id, name="ancestors")
+    filter(concept_ancestor.min_levels_of_separation ==
+           ancestors.min(concept_ancestor.min_levels_of_separation))
+	group(concept_id)
+end
+
 end
