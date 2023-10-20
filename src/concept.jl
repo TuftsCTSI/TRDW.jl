@@ -30,6 +30,8 @@ select_concept(name, include...) = begin
               :concept_id, :vocabulary_id, :concept_code, :concept_name])...)
 end
 
+select_concept() = select_concept(concept_id)
+
 show_concept() =
     select(concept_id, detail => concat(
            replace(vocabulary_id, " ",""), "(", concept_code, ", `", concept_name,"`)"))
@@ -117,7 +119,7 @@ concept_relatives(relationship_id, n_or_r) = begin
     deduplicate(concept_id)
 end
 
-concept_relationship() = begin
+concept_relationships() = begin
     as(base)
     join(concept_relationship => from(concept_relationship),
          base.concept_id == concept_relationship.concept_id_1)
@@ -143,21 +145,55 @@ end
 concept_siblings() = concept_parents().concept_children()
 
 filter_out_ancestors() = begin
-    left_join(
-        concept_ancestor => from(concept_ancestor),
-        concept_id == concept_ancestor.descendant_concept_id)
-    partition(concept_ancestor.ancestor_concept_id)
-    filter(count() <= 1)
-    filter(concept_ancestor.min_levels_of_separation == 0)
+    $(let name = gensym(); @funsql(begin
+        deduplicate(concept_id)
+        left_join(
+            $name => from(concept_ancestor),
+            concept_id == $name.descendant_concept_id)
+        partition($name.ancestor_concept_id)
+        filter(count() <= 1)
+        filter($name.min_levels_of_separation == 0)
+        end)
+    end)
 end
 
+
 filter_out_descendants() = begin
+    $(let name = gensym(); @funsql(begin
+        deduplicate(concept_id)
+        left_join(
+            $name => from(concept_ancestor),
+            concept_id == $name.ancestor_concept_id)
+        partition($name.descendant_concept_id)
+        filter(count() <= 1)
+        filter($name.min_levels_of_separation == 0)
+        end)
+    end)
+end
+
+generalize_to_concept_ancestor(category) = begin
+    concept_ancestors()
+    deduplicate(concept_id)
+    left_join(category => $category,
+              concept_id == category.concept_id)
+    filter(is_not_null(category.concept_id) ||
+           is_null(category.concept_id) &&
+           concept_ancestor.min_levels_of_separation == 0)
+    filter_out_ancestors()
+end
+
+concept_cover(category) = begin
+    deduplicate(concept_id)
+    as(base)
     left_join(
-        concept_ancestor => from(concept_ancestor),
-        concept_id == concept_ancestor.ancestor_concept_id)
-    partition(concept_ancestor.descendant_concept_id)
-    filter(count() <= 1)
-    filter(concept_ancestor.min_levels_of_separation == 0)
+        begin
+            from(concept_ancestor)
+            join(category => $category,
+                 ancestor_concept_id == category.concept_id)
+        end, base.concept_id == descendant_concept_id)
+    partition(descendant_concept_id)
+    filter(isnull(ancestor_concept_id) || min_levels_of_separation == 1)
+    select(concept_id => coalesce(ancestor_concept_id, base.concept_id))
 end
 
 end
