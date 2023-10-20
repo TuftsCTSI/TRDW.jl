@@ -22,11 +22,15 @@ isa(ids...; prefix=nothing) =
                             @funsql($(Symbol("$(prefix)_concept_id")))),
         $ids...)
 
-# TODO: permit include to be pairs....
-select_concept(include...) = begin
+select_concept(name, include...) = begin
+    define(concept_id => $(contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id")))
     as(base)
     join(from(concept), base.concept_id == concept_id)
-    select($([[@funsql($n => base.$n) for n in include]...,
+    select($([[isa(n, FunSQL.SQLNode) ? FunSQL.AsNode(n[].name; over= @funsql(base.$n)) :
+               isa(n, Pair) ? @funsql($(n[1]) => base.$(n[2])) :
+               @funsql($n => base.$n)
+              for n in include]...,
               :concept_id, :vocabulary_id, :concept_code, :concept_name])...)
 end
 
