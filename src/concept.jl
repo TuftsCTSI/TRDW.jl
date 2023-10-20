@@ -2,7 +2,6 @@
 
 concept(ids...) = begin
     from(concept)
-    filter(is_null(invalid_reason))
     $(length(ids) == 0 ? @funsql(define()) :
       @funsql(filter(in(concept_id, $ids...))))
 end
