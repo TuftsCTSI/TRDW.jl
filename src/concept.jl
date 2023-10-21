@@ -6,11 +6,20 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-is_descendant_concept(name, ids...) =
+is_descendant_concept(name, ids::Union{Integer, TRDW.Concept}...) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id &&
                in(ancestor_concept_id, $(collect(ids))...))
+        bind(:concept_id => $(contains(string(name), "concept_id") ? name :
+                              Symbol("$(name)_concept_id")))
+    end)
+
+is_descendant_concept(name, q::FunSQL.SQLNode) =
+    exists(begin
+        from(concept_ancestor)
+        filter(descendant_concept_id == :concept_id)
+        join(q => $q, q.concept_id == ancestor_concept_id)
         bind(:concept_id => $(contains(string(name), "concept_id") ? name :
                               Symbol("$(name)_concept_id")))
     end)
@@ -32,9 +41,15 @@ end
 
 select_concept() = select_concept(concept_id)
 
-show_concept() =
+repr_concept(name=nothing) = begin
+    define(concept_id => $(name == nothing ? :concept_id :
+                           contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id")))
+    as(base)
+    join(concept(), concept_id == base.concept_id)
     select(concept_id, detail => concat(
-           replace(vocabulary_id, " ",""), "(", concept_code, ", `", concept_name,"`)"))
+           replace(vocabulary_id, " ","_"), "(", concept_code, ", \"", concept_name,"\")"))
+end
 
 is_icd10(pats...; over=nothing) =
     and(ilike($(FunSQL.Get(:vocabulary_id, over = over)), "ICD10%"),
@@ -157,7 +172,6 @@ filter_out_ancestors() = begin
     end)
 end
 
-
 filter_out_descendants() = begin
     $(let name = gensym(); @funsql(begin
         deduplicate(concept_id)
@@ -169,21 +183,10 @@ filter_out_descendants() = begin
         filter($name.min_levels_of_separation == 0)
         end)
     end)
+    deduplicate(concept_id)
 end
 
-generalize_to_concept_ancestor(category) = begin
-    concept_ancestors()
-    deduplicate(concept_id)
-    left_join(category => $category,
-              concept_id == category.concept_id)
-    filter(is_not_null(category.concept_id) ||
-           is_null(category.concept_id) &&
-           concept_ancestor.min_levels_of_separation == 0)
-    filter_out_ancestors()
-end
-
-concept_cover(category) = begin
-    deduplicate(concept_id)
+concept_cover(category::FunSQL.SQLNode) = begin
     as(base)
     left_join(
         begin
@@ -192,8 +195,33 @@ concept_cover(category) = begin
                  ancestor_concept_id == category.concept_id)
         end, base.concept_id == descendant_concept_id)
     partition(descendant_concept_id)
-    filter(isnull(ancestor_concept_id) || min_levels_of_separation == 1)
+    filter(isnull(ancestor_concept_id) ||
+           min_levels_of_separation == min(min_levels_of_separation))
     select(concept_id => coalesce(ancestor_concept_id, base.concept_id))
+    filter_out_descendants()
 end
+
+snomed_cover_via_icd10() =
+    concept_cover(begin
+        concept()
+        filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
+        concept_relatives("Maps to")
+    end)
+
+snomed_cover_via_cpt4() =
+    concept_cover(begin
+		concept()
+		filter(concept_class_id == "CPT4 Hierarchy")
+        left_join(nest_link =>
+            from(concept_relationship).filter(relationship_id == "Subsumes"),
+            nest_link.concept_id_1 == concept_id)
+        left_join(nest =>
+            from(concept).filter(concept_class_id == "CPT4 Hierarchy"),
+            nest.concept_id == nest_link.concept_id_2)
+        filter(isnull(nest.concept_id))
+		concept_relatives("Subsumes")
+		filter(concept_class_id == "CPT4")
+        concept_relatives("CPT4 - SNOMED cat")
+    end)
 
 end

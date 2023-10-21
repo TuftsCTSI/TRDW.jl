@@ -281,17 +281,24 @@ export var"funsql#ComponentClass"
         select(descendant_concept_id)
     end)
 
-function print_concepts(df::DataFrame)
+function print_concepts(df::DataFrame, prefix="        ")
     first = true
     sort!(df, [:vocabulary_id, :concept_name])
     for row in eachrow(df)
         !first && println(",")
+        print(prefix)
         print(replace(row.vocabulary_id, " " => "_"))
         print("($(row.concept_code),\"$(row.concept_name)\")")
         first = false
     end
     println()
 end
+
+print_concepts(q::FunSQL.SQLNode, prefix="        ") =
+    print_concepts(run(vocab_connection(), q), prefix)
+
+print_concepts(ids::Vector{<:Integer}, prefix="        ") =
+    print_concepts(@funsql(concept($ids...)), prefix)
 
 function build_concepts(df::DataFrame)
     retval = Concept[]
