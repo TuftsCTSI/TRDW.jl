@@ -1,7 +1,9 @@
 @funsql begin
 
-drug_exposure() = begin
+drug_exposure(ids...) = begin
     from(drug_exposure)
+    $(length(ids) == 0 ? @funsql(define()) :
+        @funsql filter(is_descendant_concept(drug_concept_id, $ids)))
     define(is_historical => drug_exposure_id > 1500000000)
 end
 
@@ -39,17 +41,19 @@ drug_ingredient_by_NDFRT(code, name) = begin
     filter_out_descendants()
 end
 
-join_drug(ids...; carry=[]) = begin
+link_drug_exposure(drug_exposure=nothing) =
+    link(drug_exposure, $(something(drug_exposure, @funsql drug_exposure())))
+
+antijoin_drug_exposure(drug_exposure) =
+    antijoin($drug_exposure, drug_exposure_id)
+
+join_drug_exposure(drug_exposure; carry=[]) = begin
     as(base)
-    join(begin
-        drug_exposure()
-        $(length(ids) == 0 ? @funsql(define()) :
-            @funsql filter(is_descendant_concept(drug_concept_id, $ids...)))
-    end, base.person_id == person_id)
+    join($(something(drug_exposure, @funsql drug_exposure())), base.person_id == person_id)
     define($([@funsql($n => base.$n) for n in carry]...))
 end
 
-correlated_drug(ids...) = begin
+correlated_drug_exposure(ids...) = begin
 	from(drug_exposure)
 	filter(person_id == :person_id)
     $(length(ids) == 0 ? @funsql(define()) :
@@ -64,16 +68,18 @@ with_drug_group(extension=nothing) =
       group(person_id)
     end, person_id == drug_group.person_id)
 
-group_ingredient(;carry=[]) = begin
+to_ingredient() = begin
     as(drug_exposure)
 	join(concept_ancestor => from(concept_ancestor),
 		concept_ancestor.descendant_concept_id == drug_exposure.drug_concept_id)
 	join(concept().filter(concept_class_id=="Ingredient"),
 		concept_id == concept_ancestor.ancestor_concept_id)
-    define($([@funsql($n => drug_exposure.$n) for n in carry]...))
+    define(person_id => drug_exposure.person_id,
+           drug_exposure_id => drug_exposure.drug_exposure_id)
 	partition(drug_exposure.drug_concept_id, name="ancestors")
     filter(concept_ancestor.min_levels_of_separation ==
            ancestors.min(concept_ancestor.min_levels_of_separation))
+    group(concept_id, person_id, drug_exposure_id)
 	group(concept_id)
 end
 

@@ -1,12 +1,20 @@
 @funsql begin
 
-procedure_occurrence() = begin
+procedure_occurrence(ids...) = begin
     from(procedure_occurrence)
+    $(length(ids) == 0 ? @funsql(define()) :
+        @funsql filter(is_descendant_concept(procedure_concept_id, $ids)))
     define(is_historical => procedure_occurrence_id > 1500000000)
 end
 
 procedure_isa(ids...) = is_descendant_concept(procedure_concept_id, $ids)
 procedure_type_isa(ids...) = is_descendant_concept(procedure_type_concept_id, $ids)
+
+link_procedure_occurrence(procedure_occurrence=nothing) =
+    link(procedure_occurrence, $(something(procedure_occurrence, @funsql procedure_occurrence())))
+
+antijoin_procedure_occurrence(procedure_occurrence) =
+    antijoin($procedure_occurrence, procedure_occurrence_id)
 
 join_procedure(ids...; carry=[]) = begin
     as(base)

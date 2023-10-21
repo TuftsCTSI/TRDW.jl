@@ -27,6 +27,11 @@ bounded_iterate(q, r::UnitRange{<:Integer}) = begin
     over(append(args = $[@funsql(from(base).bounded_iterate($q, $n)) for n in r]))
 end
 
+antijoin(q, lhs, rhs=nothing) =
+    $(let name = gensym(), rhs = something(rhs, lhs);
+          @funsql(left_join($name => $q, $lhs == $rhs).filter(isnull($name.$rhs)))
+    end)
+
 restrict_by(q) = restrict_by(person_id, $q)
 
 restrict_by(column_name, q) = begin

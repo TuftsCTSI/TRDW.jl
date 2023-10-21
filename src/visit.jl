@@ -9,13 +9,17 @@ visit_occurrence() = begin
     left_join(location => location(),
               location.location_id == care_site.location_id, optional=true)
 	define(
-        age => nvl(datediff_year(person.birth_datetime, visit_start_date),
-               year(visit_start_date) - person.year_of_birth),
+        current_age => nvl(datediff_year(person.birth_datetime, visit_start_date),
+                           year(visit_start_date) - person.year_of_birth),
         is_historical => visit_occurrence_id > 1000000000)
 end
 
-visit_date_overlaps(start, finish) =
-    (visit_start_date <= date($finish) && date($start) <= visit_end_date)
+with_visit_occurrence(visit_occurrence::FunSQL.SQLNode, extension=nothing) =
+    join(visit_ocurrence => begin
+        $visit_occurrence
+        $(extension == nothing ? @funsql(define()) : extension)
+        group(visit_occurrence_id)
+    end, visit_occurrence_id == visit_occurrence.visit_occurrence_id)
 
 join_visit(ids...; carry=[]) = begin
     as(base)

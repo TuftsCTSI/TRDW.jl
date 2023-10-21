@@ -15,7 +15,7 @@ person() = begin
     left_join(gender => from(concept),
 		gender_concept_id == gender.concept_id, optional=true)
 	define(
-        age => nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth),
+        current_age => nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth),
         deceased => death.death_date,
         epic_pat_id => person_map.person_source_value,
 	    soarian_mrn => soarian_person_map.soarian_mrn)
@@ -24,12 +24,31 @@ end
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
-with_group(name, subquery; mandatory = true) = begin
-    left_join($name => begin
-        $subquery
+link(name::Symbol, query; carry=[]) =
+    $(let base = gensym(),
+          start_date = contains(string(name), "_date") ? name : Symbol("$(name)_start_date"),
+          end_date = contains(string(name), "_date") ? name : Symbol("$(name)_end_date");
+          @funsql(begin
+              as($base)
+              join($query, person_id == $base.person_id)
+               filter($start_date >= $base.cohort_start_date)
+               filter($end_date <= $base.cohort_end_date)
+               define($([@funsql($n => $base.$n) for n in carry]...))
+          end)
+      end)
+
+with_group(pair::Pair{Symbol, FunSQL.SQLNode}; mandatory = true) = begin
+    left_join($(pair[1]) => begin
+        $(pair[2])
         group(person_id)
-    end, person_id == $name.person_id)
-    $(mandatory ? @funsql(filter(not(is_null($name.person_id)))) : @funsql(define()))
+    end, person_id == $(pair[1]).person_id)
+    $(mandatory ? @funsql(filter(not(is_null($(pair[1]).person_id)))) : @funsql(define()))
+end
+
+join_by_person(next::FunSQL.SQLNode; carry=[]) = begin
+    as(base)
+    join($next, base.person_id == person_id)
+    define($([@funsql($n => base.$n) for n in carry]...))
 end
 
 count_n_person() = begin

@@ -3,6 +3,8 @@
 condition_occurrence() = begin
     from(condition_occurrence)
     define(is_historical => condition_occurrence_id > 1000000000)
+    left_join(visit_occurrence => visit_occurrence(),
+              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
 end
 
 is_condition_status(args...) =
