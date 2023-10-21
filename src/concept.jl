@@ -219,7 +219,11 @@ concept_cover(category::FunSQL.SQLNode; exclude=[]) = begin
            min_levels_of_separation == min(min_levels_of_separation))
     define(concept_id => coalesce(
         $(length(exclude) == 0 ? @funsql(ancestor_concept_id) : @funsql begin
-           in(ancestor_concept_id, $exclude...) ? base.concept_id : ancestor_concept_id
+           in(ancestor_concept_id, begin
+              concept($exclude...)
+              concept_ancestors()
+              select(concept_id)
+           end) ? base.concept_id : ancestor_concept_id
        end), base.concept_id))
     filter_out_descendants()
 end
