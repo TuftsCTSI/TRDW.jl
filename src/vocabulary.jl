@@ -84,6 +84,13 @@ function is_concept_name_match(concept_name::AbstractString, match_name::String)
     if concept_name == match_name
         return true
     end
+    if startswith(match_name, "...") && endswith(match_name, "...")
+        match_name = match_name[4:end-3]
+        if occursin(match_name, concept_name)
+            return true
+        end
+        return false
+    end
     if occursin("...", match_name)
         (start, finish) = split(match_name, "...")
         if startswith(concept_name, start) && endswith(concept_name, finish)
