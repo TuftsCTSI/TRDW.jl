@@ -24,11 +24,13 @@ is_descendant_concept(name::Symbol, q::FunSQL.SQLNode) =
                               Symbol("$(name)_concept_id")))
     end)
 
-is_descendant_concept(name::Symbol, ids::Union{<:Integer, TRDW.Concept}...) =
-    is_descendant_concept($name, $(collect(ids)))
-
 is_descendant_concept(name::Symbol, ids::Tuple{Vararg{Any}}) =
-    is_descendant_concept($name, $(collect(ids)))
+    $(begin
+        nested = Iterators.flatten([(item isa Tuple ? collect(item) : item) for item in ids])
+        nested = [(item isa Pair ? item[2] : item) for item in nested]
+        nested = collect(Iterators.flatten(nested))
+        @funsql(is_descendant_concept($name, $nested))
+    end)
 
 concept_isa(ids...; prefix=nothing) =
     is_descendant_concept(
@@ -46,6 +48,20 @@ select_concept(name, include...) = begin
 end
 
 select_concept() = select_concept(concept_id)
+
+select_concepts_by_person(name=nothing; threshold=1) = begin
+    define(concept_id => $(name == nothing ? :concept_id :
+                           contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id")))
+    define(n_person => roundup(count_distinct(person_id)))
+    $(threshold == 0 ? @funsql(define()) : @funsql(filter(n_person>=$threshold)))
+    define(n => roundup(count()))
+    join(c => from(concept), c.concept_id == concept_id)
+    order(n_person.desc(), c.concept_name)
+    define(n_person => concat("≤", n_person))
+    define(n => concat("≤", n))
+    select(n_person, n, c.concept_id, c.vocabulary_id, c.concept_code, c.concept_name)
+end
 
 select_concept_counts(name=nothing; threshold=1) = begin
     define(concept_id => $(name == nothing ? :concept_id :
