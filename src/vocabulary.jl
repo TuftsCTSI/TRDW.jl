@@ -330,6 +330,14 @@ macro concepts(expr::Expr)
         if @dissect(ex, Expr(:(=), name::Symbol, query))
             push!(items.args, Expr(:call, Symbol("=>"), QuoteNode(name), esc(name)))
             if @dissect(query, Expr(:vect, args...))
+                for (index, value) in enumerate(query.args)
+                    if @dissect(value, Expr(:(...), item, _...)) && item isa Symbol
+                        error("no need to ... expand references to arrays within @concepts")
+                    end
+                    if value isa Symbol
+                        query.args[index] = Expr(:(...), esc(value))
+                    end
+                end
                 item = query
             elseif @dissect(query, Expr(:tuple, args...))
                 query.head = :vect
