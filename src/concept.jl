@@ -6,7 +6,7 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-is_descendant_concept(name::Symbol, ids::Vector) =
+is_descendant_concept(name::Symbol, ids::ConceptSet) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id &&
@@ -15,6 +15,9 @@ is_descendant_concept(name::Symbol, ids::Vector) =
                               Symbol("$(name)_concept_id")))
     end)
 
+is_descendant_concept(name::Symbol, ids) =
+    is_descendant_concept($name, $(unnest_concept_set(ids)))
+
 is_descendant_concept(name::Symbol, q::FunSQL.SQLNode) =
     exists(begin
         from(concept_ancestor)
@@ -22,14 +25,6 @@ is_descendant_concept(name::Symbol, q::FunSQL.SQLNode) =
         join(q => $q, q.concept_id == ancestor_concept_id)
         bind(:concept_id => $(contains(string(name), "concept_id") ? name :
                               Symbol("$(name)_concept_id")))
-    end)
-
-is_descendant_concept(name::Symbol, ids::Tuple{Vararg{Any}}) =
-    $(begin
-        nested = Iterators.flatten([(item isa Tuple ? collect(item) : item) for item in ids])
-        nested = [(item isa Pair ? item[2] : item) for item in nested]
-        nested = collect(Iterators.flatten(nested))
-        @funsql(is_descendant_concept($name, $nested))
     end)
 
 concept_isa(ids...; prefix=nothing) =

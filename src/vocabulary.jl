@@ -62,6 +62,18 @@ struct Concept
     concept_name::AbstractString
 end
 
+const ConceptSet = Vector{Union{Concept, Int64}}
+
+unnest_concept_set(@nospecialize ids) = unnest_concept_set(ids, ConceptSet())
+unnest_concept_set(c::Concept, cs::ConceptSet) = push!(cs, c)
+unnest_concept_set(c::Int64, cs::ConceptSet) = push!(cs, c)
+unnest_concept_set(p::Pair, cs::ConceptSet) =
+    unnest_concept_set(p[2], cs)
+unnest_concept_set(items::Tuple, cs::ConceptSet) =
+    unnest_concept_set(collect(items), cs)
+unnest_concept_set(items::Vector, cs::ConceptSet) =
+    something(for it in items; unnest_concept_set(it, cs) end, cs)
+
 Base.convert(::Type{FunSQL.SQLNode}, c::Concept) =
     convert(FunSQL.SQLNode, c.concept_name => c.concept_id)
 
