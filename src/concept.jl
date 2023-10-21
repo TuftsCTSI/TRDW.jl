@@ -47,6 +47,20 @@ end
 
 select_concept() = select_concept(concept_id)
 
+select_concept_counts(name=nothing; threshold=1) = begin
+    define(concept_id => $(name == nothing ? :concept_id :
+                           contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id")))
+    define(n_person => roundup(count_distinct(person_id)))
+    $(threshold == 0 ? @funsql(define()) : @funsql(filter(n_person>=$threshold)))
+    define(n => roundup(count()))
+    join(c => from(concept), c.concept_id == concept_id)
+    order(n_person.desc(), c.concept_name)
+    define(n_person => concat("≤", n_person))
+    define(n => concat("≤", n))
+    select(n_person, n, c.concept_id, c.vocabulary_id, c.concept_code, c.concept_name)
+end
+
 repr_concept(name=nothing) = begin
     define(concept_id => $(name == nothing ? :concept_id :
                            contains(string(name), "concept_id") ? name :
