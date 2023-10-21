@@ -33,6 +33,18 @@ concept_isa(ids...; prefix=nothing) =
                             @funsql($(Symbol("$(prefix)_concept_id")))),
         $ids)
 
+is_relative_concept(name::Symbol, ids::ConceptSet, relationship_id) =
+    exists(begin
+        from(concept_relationship)
+        filter(relationship_id == $relationship_id)
+        filter(concept_id_1 == :concept_id && in(concept_id_2, $ids...))
+        bind(:concept_id => $(contains(string(name), "concept_id") ? name :
+                              Symbol("$(name)_concept_id")))
+    end)
+
+is_relative_concept(name::Symbol, ids, relationship_id) =
+    is_relative_concept($name, $(unnest_concept_set(ids)), relationship_id)
+
 select_concept(name, include...) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))

@@ -18,12 +18,13 @@ dose_form_group_isa(args...) = category_isa($DoseFormGroup, $args, drug_concept_
 ingredient_isa(args...) = category_isa($Ingredient, $args, drug_concept_id)
 
 drug_isa(ids...) = is_descendant_concept(drug_concept_id, $ids)
+drug_source_relative_isa(ids...) = is_relative_concept(drug_source, $ids, "Is a")
 
 isa_component_class() = isa_concept_class("Component Class")
 isa_dose_form_group() = isa_concept_class("Dose Form Group")
 isa_ingredient() = isa_concept_class("Ingredient")
 
-drug_ingredient_by_SNOMED(code, name) = begin
+drug_ingredient_via_SNOMED(code, name) = begin
     concept(SNOMED($code, $name))
     concept_relatives("Subsumes",1:3)
     concept_relatives("SNOMED - RxNorm eq")
@@ -32,7 +33,7 @@ drug_ingredient_by_SNOMED(code, name) = begin
     filter_out_descendants()
 end
 
-drug_ingredient_by_NDFRT(code, name) = begin
+drug_ingredient_via_NDFRT(code, name) = begin
     concept(NDFRT($code, $name))
     concept_relatives("Subsumes",1:3)
     concept_relatives("NDFRT - RxNorm eq")
