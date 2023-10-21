@@ -32,10 +32,16 @@ with_group(name, subquery; mandatory = true) = begin
     $(mandatory ? @funsql(filter(not(is_null($name.person_id)))) : @funsql(define()))
 end
 
+count_n_person() = begin
+    define(n_person => roundup(count()))
+    order(n_person.desc())
+    define(n_person => concat("≤", n_person))
+end
+
 stratify_by_age() = begin
     join(p => from(person), p.person_id == person_id)
     define(age => 2023 - p.year_of_birth)
-    define(age => case(
+    group(age => case(
         age >= 80, "80+",
         age >= 70, "70-79",
         age >= 60, "60-69",
@@ -43,27 +49,25 @@ stratify_by_age() = begin
         age >= 40, "40-49",
         age >= 30, "30-39",
         "29 or less"))
-    group(age)
+    count_n_person()
     order(age)
-    select(count(), age)
+    select(n_person, age)
 end
 
 stratify_by_race() = begin
     join(p => person(), p.person_id == person_id)
     filter(p.race_concept_id > 0 )
     group(race => p.race.concept_name)
-    filter(count()>9)
-    order(count().desc())
-    select(count(), race)
+    count_n_person()
+    select(n_person, race)
 end
 
 stratify_by_ethnicity() = begin
     join(p => person(), p.person_id == person_id)
     filter(p.ethnicity_concept_id > 0 )
     group(ethnicity => p.ethnicity.concept_name)
-    filter(count()>9)
-    order(count().desc())
-    select(count(), ethnicity)
+    count_n_person()
+    select(n_person, ethnicity)
 end
 
 end

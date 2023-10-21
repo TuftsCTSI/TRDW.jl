@@ -30,11 +30,11 @@ is_descendant_concept(name::Symbol, ids::Union{<:Integer, TRDW.Concept}...) =
 is_descendant_concept(name::Symbol, ids::Tuple{Vararg{Any}}) =
     is_descendant_concept($name, $(collect(ids)))
 
-isa(ids...; prefix=nothing) =
+concept_isa(ids...; prefix=nothing) =
     is_descendant_concept(
         $(prefix == nothing ? @funsql(concept_id) :
                             @funsql($(Symbol("$(prefix)_concept_id")))),
-        $ids...)
+        $ids)
 
 select_concept(name, include...) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :
@@ -93,7 +93,7 @@ join_concept(name, ids...; carry=[]) = begin
             @funsql filter(is_descendant_concept(concept_id, $ids...)))
     end, base.$(contains(string(name), "concept_id") ? name :
                 Symbol("$(name)_concept_id")) == concept_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
+    define($([@funsql(base.$n) for n in carry]...))
 end
 
 join_concept(;carry=[]) = begin
