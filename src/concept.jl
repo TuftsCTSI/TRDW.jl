@@ -6,16 +6,16 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-is_descendant_concept(name, ids::Union{Integer, TRDW.Concept}...) =
+is_descendant_concept(name::Symbol, ids::Vector) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id &&
-               in(ancestor_concept_id, $(collect(ids))...))
+               in(ancestor_concept_id, $ids...))
         bind(:concept_id => $(contains(string(name), "concept_id") ? name :
                               Symbol("$(name)_concept_id")))
     end)
 
-is_descendant_concept(name, q::FunSQL.SQLNode) =
+is_descendant_concept(name::Symbol, q::FunSQL.SQLNode) =
     exists(begin
         from(concept_ancestor)
         filter(descendant_concept_id == :concept_id)
@@ -23,6 +23,12 @@ is_descendant_concept(name, q::FunSQL.SQLNode) =
         bind(:concept_id => $(contains(string(name), "concept_id") ? name :
                               Symbol("$(name)_concept_id")))
     end)
+
+is_descendant_concept(name::Symbol, ids::Union{<:Integer, TRDW.Concept}...) =
+    is_descendant_concept($name, $(collect(ids)))
+
+is_descendant_concept(name::Symbol, ids::Tuple{Vararg{Any}}) =
+    is_descendant_concept($name, $(collect(ids)))
 
 isa(ids...; prefix=nothing) =
     is_descendant_concept(
@@ -186,7 +192,7 @@ filter_out_descendants() = begin
     deduplicate(concept_id)
 end
 
-concept_cover(category::FunSQL.SQLNode) = begin
+concept_cover(category::FunSQL.SQLNode; exclude=[]) = begin
     as(base)
     left_join(
         begin
@@ -197,18 +203,21 @@ concept_cover(category::FunSQL.SQLNode) = begin
     partition(descendant_concept_id)
     filter(isnull(ancestor_concept_id) ||
            min_levels_of_separation == min(min_levels_of_separation))
-    select(concept_id => coalesce(ancestor_concept_id, base.concept_id))
+    define(concept_id => coalesce(
+        $(length(exclude) == 0 ? @funsql(ancestor_concept_id) : @funsql begin
+           in(ancestor_concept_id, $exclude...) ? base.concept_id : ancestor_concept_id
+       end), base.concept_id))
     filter_out_descendants()
 end
 
-snomed_cover_via_icd10() =
+snomed_cover_via_icd10(;exclude=[]) =
     concept_cover(begin
         concept()
         filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
         concept_relatives("Maps to")
-    end)
+    end; exclude=$exclude)
 
-snomed_cover_via_cpt4() =
+snomed_cover_via_cpt4(;exclude=[]) =
     concept_cover(begin
 		concept()
 		filter(concept_class_id == "CPT4 Hierarchy")
@@ -222,6 +231,6 @@ snomed_cover_via_cpt4() =
 		concept_relatives("Subsumes")
 		filter(concept_class_id == "CPT4")
         concept_relatives("CPT4 - SNOMED cat")
-    end)
+    end; exclude=$exclude)
 
 end
