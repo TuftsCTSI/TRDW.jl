@@ -7,7 +7,9 @@ procedure_occurrence(ids...) = begin
     define(is_historical => procedure_occurrence_id > 1500000000)
 end
 
-procedure_matches(ids...) = does_concept_match(procedure, $ids)
+procedure_matches(ids...) = build_concept_matches($ids, procedure)
+procedure_pairing(ids...) = build_concept_pairing($ids, procedure)
+
 
 link_procedure_occurrence(procedure_occurrence=nothing) =
     link(procedure_date, $(something(procedure_occurrence, @funsql procedure_occurrence())))

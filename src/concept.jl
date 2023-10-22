@@ -6,7 +6,8 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-concept_matches(ids...) = does_concept_match(concept_id, concept_id, $ids)
+concept_matches(ids...) = build_concept_matches($ids, concept_id, concept_id)
+concept_pairing(ids...) = build_concept_pairing($ids, concept_id, concept_id)
 
 select_concept(name, include...) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :

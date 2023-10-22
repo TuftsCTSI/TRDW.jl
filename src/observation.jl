@@ -5,7 +5,8 @@ observation() = begin
     define(is_historical => observation_id > 1500000000)
 end
 
-observation_matches(ids...) = does_concept_match(observation, $ids)
+observation_matches(ids...) = build_concept_matches($ids, observation)
+observation_pairing(ids...) = build_concept_pairing($ids, observation)
 
 join_observation(ids...; carry=[]) = begin
     as(base)

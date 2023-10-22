@@ -7,17 +7,18 @@ cache_filename(s) = joinpath([CONCEPT_PATH..., "$(normalize_name(s)).csv"])
 
 abstract type AbstractCategory end
 
-@enum MatchStrategy begin
-    MATCH_PRIMARY_CONCEPT_ID = 1
-    MATCH_SOURCE_CONCEPT_ID = 2
-    MATCH_BOTH_CONCEPT_IDS = 3
+@enum MatchLocation begin
+    MATCH_PRIMARY = 1
+    MATCH_SOURCE = 2
+    MATCH_BOTH = 3
 end
 
 mutable struct Vocabulary <: AbstractCategory
     vocabulary_id::String
     constructor::String
     dataframe::Union{DataFrame, Nothing}
-    match_strategy::MatchStrategy
+    match_location::MatchLocation
+    match_strategy::Function
 end
 
 const g_vocabularies = Dict{String, Vocabulary}()
@@ -31,14 +32,37 @@ function vocab_connection()
     return g_vocab_conn[]
 end
 
+match_descendants(concepts, concept_id::Symbol) =
+    @funsql begin
+        exists(begin
+            from(concept_ancestor)
+            filter(descendant_concept_id == :concept_id &&
+                   in(ancestor_concept_id, $concepts...))
+            bind(:concept_id => $concept_id)
+        end)
+    end
+
+match_isa_relatives(concepts, concept_id::Symbol) =
+    @funsql begin
+        exists(begin
+            from(concept_relationship)
+            filter(relationship_id == "Is a" &&
+                   concept_id_1 == :concept_id &&
+                   in(concept_id_2, $concepts...))
+            bind(:concept_id => $concept_id)
+        end)
+    end
+
 function Vocabulary(vocabulary_id; constructor=nothing,
-                    match_strategy=MATCH_PRIMARY_CONCEPT_ID)
+                    match_location=nothing, match_strategy=nothing)
     if haskey(g_vocabularies, vocabulary_id)
         return g_vocabularies[vocabulary_id]
     end
     constructor = something(constructor, "Vocabulary($(repr(vocabulary_id)))")
     return g_vocabularies[vocabulary_id] =
-        Vocabulary(vocabulary_id, constructor, nothing, match_strategy)
+        Vocabulary(vocabulary_id, constructor, nothing,
+                   something(match_location, MATCH_PRIMARY),
+                   something(match_strategy, match_descendants))
 end
 
 function Base.show(io::IO, v::Vocabulary)
@@ -214,12 +238,14 @@ function lookup_by_name(category::AbstractCategory, keys::AbstractVector)
     return retval
 end
 
-macro make_vocabulary(name, match_strategy=MATCH_PRIMARY_CONCEPT_ID)
+macro make_vocabulary(name, match_location=nothing, match_strategy=nothing)
     lname = replace(name, " " => "_")
     funfn = Symbol("funsql#$lname")
     label = Symbol(lname)
     quote
-        $(esc(label)) = Vocabulary($name; constructor=$lname, match_strategy=$match_strategy)
+        $(esc(label)) = Vocabulary($name; constructor=$lname,
+                                   match_location=$match_location,
+                                   match_strategy=$match_strategy)
         $(esc(funfn))(concept_code, match_name=nothing) =
             lookup_by_code($label, concept_code, match_name)
         export $(esc(funfn))
@@ -231,8 +257,8 @@ end
 @make_vocabulary("RxNorm")
 @make_vocabulary("HemOnc")
 @make_vocabulary("SNOMED")
-@make_vocabulary("ICD10CM", MATCH_SOURCE_CONCEPT_ID)
-@make_vocabulary("ICD9CM", MATCH_SOURCE_CONCEPT_ID)
+@make_vocabulary("ICD10CM", MATCH_SOURCE, match_isa_relatives)
+@make_vocabulary("ICD9CM", MATCH_SOURCE, match_isa_relatives)
 @make_vocabulary("CPT4")
 @make_vocabulary("LOINC")
 @make_vocabulary("ATC")
@@ -371,66 +397,86 @@ macro concepts(expr::Expr)
     return block
 end
 
-function var"funsql#does_concept_match"(concept_id::Symbol,
-                                         source_concept_id::Symbol,
-                                         ids::Vector{Concept})
-    if length(ids) == 0
-        return @funsql(define())
-    end
-    primary = Int[]
-    source = Int[]
-    if concept_id == source_concept_id
-        primary = [c.concept_id for c in ids]
-    else
-        for c in ids
-            strategy = getfield(c.vocabulary, :match_strategy)
-            if strategy == MATCH_PRIMARY_CONCEPT_ID
-                push!(primary, c.concept_id)
-            elseif strategy == MATCH_SOURCE_CONCEPT_ID
-                push!(source, c.concept_id)
-            else
-                push!(primary, c.concept_id)
-                push!(source, c.concept_id)
-            end
-        end
-    end
-    clause = FunSQL.SQLNode[]
-    if length(primary) > 0
-        push!(clause, @funsql begin
-            exists(begin
-                from(concept_ancestor)
-                filter(descendant_concept_id == :concept_id &&
-                       in(ancestor_concept_id, $primary...))
-                bind(:concept_id => $concept_id)
-            end)
-        end)
-    end
-    if length(source) > 0
-        push!(clause, @funsql begin
-            exists(begin
-                from(concept_relationship)
-                filter(relationship_id == "Is a" &&
-                       concept_id_1 == :concept_id &&
-                       in(concept_id_2, $source...))
-                bind(:concept_id => $source_concept_id)
-            end)
-        end)
-    end
-    if length(clause) == 1
-        return clause[1]
-    end
-    return @funsql($(clause[1]) || $(clause[2]))
-end
-
-var"funsql#does_concept_match"(concept_id::Symbol, source_concept_id::Symbol, ids) =
-    var"funsql#does_concept_match"(concept_id, source_concept_id, unnest_concept_set(ids))
-
-function var"funsql#does_concept_match"(name, ids)
+function build_concept_matches(concepts, name=nothing, source=nothing)
+    concepts = unnest_concept_set(concepts)
+    name = isnothing(name) ? :concept_id : name
     if contains(string(name), "concept_id")
-        concept_id = source_concept_id = Symbol(name)
+        concept_id = Symbol(name)
+        if isnothing(source)
+            source_concept_id = concept_id
+        else
+            @assert contains(string(name), "concept_id")
+            source_concept_id = Symbol(source)
+        end
     else
+        @assert isnothing(source)
         concept_id = Symbol("$(name)_concept_id")
         source_concept_id = Symbol("$(name)_source_concept_id")
     end
-    return var"funsql#does_concept_match"(concept_id, source_concept_id, ids)
+    buckets = Dict()
+    for c in concepts
+        key = (getfield(c.vocabulary, :match_strategy),
+               (concept_id == source_concept_id) ?
+                   MATCH_PRIMARY :
+                   getfield(c.vocabulary, :match_location))
+        bucket = haskey(buckets, key) ?
+                   buckets[key] :
+                   (buckets[key] = Int[])
+        push!(bucket, c.concept_id)
+    end
+    tests = FunSQL.SQLNode[]
+    for ((strategy, location), ids) in buckets
+        if location in (MATCH_PRIMARY, MATCH_BOTH)
+            push!(tests, strategy(ids, concept_id))
+        end
+        if location in (MATCH_SOURCE, MATCH_BOTH)
+            push!(tests, strategy(ids, source_concept_id))
+        end
+    end
+    if length(tests) == 1
+        return tests[1]
+    end
+    return FunSQL.Fun.Or(tests...)
 end
+const var"funsql#build_concept_matches" = build_concept_matches
+
+flatten_named_concept_sets(s::T) where T<:NamedTuple = [s]
+flatten_named_concept_sets(v::T) where T<:Vector{<:NamedTuple} = v
+flatten_named_concept_sets(t::T) where T<:Tuple = [(x for x in n) for n in t]
+flatten_named_concept_sets(t::T) where T<:Vector = [(x for x in n) for n in t]
+
+function build_concept_pairing(clist, name=nothing, source=nothing)
+    retval = Pair[]
+    for cpairs in flatten_named_concept_sets(clist)
+        for (handle, cset) in pairs(cpairs)
+            push!(retval, handle => build_concept_matches(cset, name, source))
+        end
+    end
+    return retval
+end
+const var"funsql#build_concept_pairing" = build_concept_pairing
+
+function build_pairing_fun(clist, fun_name::Symbol, args...)
+    retval = Pair[]
+    for cpairs in flatten_named_concept_sets(clist)
+        for (handle, _) in pairs(cpairs)
+            push!(retval, handle => FunSQL.Fun(fun_name, handle, args...))
+        end
+    end
+    return retval
+end
+const var"funsql#build_pairing_fun" = build_pairing_fun
+
+function build_pairing_agg(clist, agg_name::Symbol, args...)
+    retval = Pair[]
+    for cpairs in flatten_named_concept_sets(clist)
+        for (handle, _) in pairs(cpairs)
+            push!(retval, handle => FunSQL.Agg(agg_name, handle, args...))
+        end
+    end
+    return retval
+end
+const var"funsql#build_pairing_agg" = build_pairing_agg
+
+const var"funsql#build_pairing_count"(clist) = build_pairing_agg(clist, :count_if)
+

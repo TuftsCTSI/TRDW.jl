@@ -13,6 +13,7 @@ icontains(s, pats...) = or($([@funsql(icontains($s, $pat)) for pat in pats]...))
 
 is_integer(s) = rlike($s, "^[0-9]+\$")
 roundup(n) =  ceiling($n/10)*10
+roundups(n) = concat("≤", roundup($n))
 
 deduplicate(keys...) = begin
     partition($(keys...), order_by = [$(keys...)], name = deduplicate)

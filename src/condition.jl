@@ -2,7 +2,6 @@
 
 condition_occurrence() = begin
     from(condition_occurrence)
-    define(is_historical => condition_occurrence_id > 1000000000)
     left_join(visit_occurrence => visit_occurrence(),
               visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
 end
@@ -10,7 +9,8 @@ end
 is_condition_status(args...) =
     in_category($ConditionStatus, $args, condition_status_concept_id)
 
-condition_matches(ids...) = does_concept_match(condition, $ids)
+condition_matches(ids...) = build_concept_matches($ids, condition)
+condition_pairing(ids...) = build_concept_pairing($ids, condition)
 
 join_condition(ids...; carry=[]) = begin
     as(base)
