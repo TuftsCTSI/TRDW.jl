@@ -19,6 +19,9 @@ ingredient_isa(args...) = category_isa($Ingredient, $args, drug_concept_id)
 
 drug_matches(ids...) = build_concept_matches($ids, drug)
 drug_pairing(ids...) = build_concept_pairing($ids, drug)
+drug_pivot(selection...; total=false, person_total=false, roundup=false) =
+    build_pivot($selection, drug, drug_exposure_id,
+                $total, $person_total, $roundup)
 
 isa_component_class() = isa_concept_class("Component Class")
 isa_dose_form_group() = isa_concept_class("Dose Form Group")

@@ -9,7 +9,9 @@ end
 
 procedure_matches(ids...) = build_concept_matches($ids, procedure)
 procedure_pairing(ids...) = build_concept_pairing($ids, procedure)
-
+procedure_pivot(selection...; total=false, person_total=false, roundup=false) =
+    build_pivot($selection, procedure, procedure_occurrence_id,
+                $total, $person_total, $roundup)
 
 link_procedure_occurrence(procedure_occurrence=nothing) =
     link(procedure_date, $(something(procedure_occurrence, @funsql procedure_occurrence())))
@@ -29,10 +31,10 @@ end
 
 correlated_procedure(ids...) = begin
     from(procedure_occurrence)
-	filter(person_id == :person_id)
+    filter(person_id == :person_id)
     $(length(ids) == 0 ? @funsql(define()) :
         @funsql filter(is_descendant_concept(procedure_concept_id, $ids...)))
-	bind(:person_id => person_id )
+    bind(:person_id => person_id )
 end
 
 with_procedure_group(extension=nothing) =

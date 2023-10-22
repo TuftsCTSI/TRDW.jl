@@ -15,6 +15,7 @@ include("helpers.jl")
 include("export.jl")
 include("vocabulary.jl")
 include("filters.jl")
+include("pivot.jl")
 
 include("care_site.jl")
 include("concept.jl")

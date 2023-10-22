@@ -7,6 +7,9 @@ end
 
 observation_matches(ids...) = build_concept_matches($ids, observation)
 observation_pairing(ids...) = build_concept_pairing($ids, observation)
+observation_pivot(selection...; total=false, person_total=false, roundup=false) =
+    build_pivot($selection, observation, observation_occurrence_id,
+                $total, $person_total, $roundup)
 
 join_observation(ids...; carry=[]) = begin
     as(base)
@@ -19,11 +22,11 @@ join_observation(ids...; carry=[]) = begin
 end
 
 correlated_observation(ids...) = begin
-	from(observation)
-	filter(person_id == :person_id)
+    from(observation)
+    filter(person_id == :person_id)
     $(length(ids) == 0 ? @funsql(define()) :
         @funsql filter(is_descendant_concept(observation_concept_id, $ids...)))
-	bind(:person_id => person_id )
+    bind(:person_id => person_id )
 end
 
 with_observation_group(extension=nothing) =
