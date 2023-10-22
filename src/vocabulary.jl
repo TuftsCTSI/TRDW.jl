@@ -77,6 +77,8 @@ unnest_concept_set(p::Pair, cs::Vector{Concept}) =
     unnest_concept_set(p[2], cs)
 unnest_concept_set(items::Tuple, cs::Vector{Concept}) =
     unnest_concept_set(collect(items), cs)
+unnest_concept_set(items::NamedTuple, cs::Vector{Concept}) =
+    unnest_concept_set(collect(items), cs)
 unnest_concept_set(items::Vector, cs::Vector{Concept}) =
     something(for it in items; unnest_concept_set(it, cs) end, cs)
 
@@ -336,8 +338,7 @@ function build_concepts(df::DataFrame)
 end
 
 macro concepts(expr::Expr)
-    block = Expr(:block)
-    items = Expr(:tuple)
+    block = Expr(:tuple)
     conn = vocab_connection()
     if expr.head == :block
         exs = [ex for ex in expr.args if ex isa Expr]
@@ -346,7 +347,6 @@ macro concepts(expr::Expr)
     end
     for ex in exs;
         if @dissect(ex, Expr(:(=), name::Symbol, query))
-            push!(items.args, Expr(:call, Symbol("=>"), QuoteNode(name), esc(name)))
             if @dissect(query, Expr(:vect, args...))
                 for (index, value) in enumerate(query.args)
                     if @dissect(value, Expr(:(...), item, _...)) && item isa Symbol
@@ -363,12 +363,11 @@ macro concepts(expr::Expr)
             else
                 item = :(build_concepts(run($conn, @funsql $query)))
             end
-            push!(block.args, :($(esc(name))::Vector{Concept} = $item))
+            push!(block.args, Expr(:(=), name, item))
         else
             error("expecting name=funsql or name=[concept...] assignments")
         end
     end
-    push!(block.args, items)
     return block
 end
 
