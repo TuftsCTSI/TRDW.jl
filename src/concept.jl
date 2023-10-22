@@ -6,44 +6,7 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
-is_descendant_concept(name::Symbol, ids::ConceptSet) =
-    exists(begin
-        from(concept_ancestor)
-        filter(descendant_concept_id == :concept_id &&
-               in(ancestor_concept_id, $ids...))
-        bind(:concept_id => $(contains(string(name), "concept_id") ? name :
-                              Symbol("$(name)_concept_id")))
-    end)
-
-is_descendant_concept(name::Symbol, ids) =
-    is_descendant_concept($name, $(unnest_concept_set(ids)))
-
-is_descendant_concept(name::Symbol, q::FunSQL.SQLNode) =
-    exists(begin
-        from(concept_ancestor)
-        filter(descendant_concept_id == :concept_id)
-        join(q => $q, q.concept_id == ancestor_concept_id)
-        bind(:concept_id => $(contains(string(name), "concept_id") ? name :
-                              Symbol("$(name)_concept_id")))
-    end)
-
-concept_isa(ids...; prefix=nothing) =
-    is_descendant_concept(
-        $(prefix == nothing ? @funsql(concept_id) :
-                            @funsql($(Symbol("$(prefix)_concept_id")))),
-        $ids)
-
-is_relative_concept(name::Symbol, ids::ConceptSet, relationship_id) =
-    exists(begin
-        from(concept_relationship)
-        filter(relationship_id == $relationship_id)
-        filter(concept_id_1 == :concept_id && in(concept_id_2, $ids...))
-        bind(:concept_id => $(contains(string(name), "concept_id") ? name :
-                              Symbol("$(name)_concept_id")))
-    end)
-
-is_relative_concept(name::Symbol, ids, relationship_id) =
-    is_relative_concept($name, $(unnest_concept_set(ids)), relationship_id)
+concept_matches(ids...) = does_concept_match(concept_id, concept_id, $ids)
 
 select_concept(name, include...) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :
@@ -93,15 +56,6 @@ repr_concept(name=nothing) = begin
     select(concept_id, detail => concat(
            replace(vocabulary_id, " ","_"), "(", concept_code, ", \"", concept_name,"\")"))
 end
-
-is_icd10(pats...; over=nothing) =
-    and(ilike($(FunSQL.Get(:vocabulary_id, over = over)), "ICD10%"),
-        or($[@funsql(ilike($(FunSQL.Get(:concept_code, over = over)),
-                           $("$(pat)%"))) for pat in pats]...))
-
-is_snomed(codes...; over=nothing) =
-    and($(FunSQL.Get(:vocabulary_id, over = over)) == "SNOMED",
-        in($(FunSQL.Get(:concept_code, over = over)), pats...))
 
 count_concept(name=nothing) = begin
     define(concept_id => $(name == nothing ? :concept_id :

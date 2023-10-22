@@ -7,10 +7,17 @@ cache_filename(s) = joinpath([CONCEPT_PATH..., "$(normalize_name(s)).csv"])
 
 abstract type AbstractCategory end
 
+@enum MatchStrategy begin
+    MATCH_PRIMARY_CONCEPT_ID = 1
+    MATCH_SOURCE_CONCEPT_ID = 2
+    MATCH_BOTH_CONCEPT_IDS = 3
+end
+
 mutable struct Vocabulary <: AbstractCategory
     vocabulary_id::String
     constructor::String
     dataframe::Union{DataFrame, Nothing}
+    match_strategy::MatchStrategy
 end
 
 const g_vocabularies = Dict{String, Vocabulary}()
@@ -24,12 +31,14 @@ function vocab_connection()
     return g_vocab_conn[]
 end
 
-function Vocabulary(vocabulary_id; constructor=nothing)
+function Vocabulary(vocabulary_id; constructor=nothing,
+                    match_strategy=MATCH_PRIMARY_CONCEPT_ID)
     if haskey(g_vocabularies, vocabulary_id)
         return g_vocabularies[vocabulary_id]
     end
     constructor = something(constructor, "Vocabulary($(repr(vocabulary_id)))")
-    return g_vocabularies[vocabulary_id] = Vocabulary(vocabulary_id, constructor, nothing)
+    return g_vocabularies[vocabulary_id] =
+        Vocabulary(vocabulary_id, constructor, nothing, match_strategy)
 end
 
 function Base.show(io::IO, v::Vocabulary)
@@ -62,16 +71,13 @@ struct Concept
     concept_name::AbstractString
 end
 
-const ConceptSet = Vector{Union{Concept, Int64}}
-
-unnest_concept_set(@nospecialize ids) = unnest_concept_set(ids, ConceptSet())
-unnest_concept_set(c::Concept, cs::ConceptSet) = push!(cs, c)
-unnest_concept_set(c::Int64, cs::ConceptSet) = push!(cs, c)
-unnest_concept_set(p::Pair, cs::ConceptSet) =
+unnest_concept_set(@nospecialize ids) = unnest_concept_set(ids, Vector{Concept}())
+unnest_concept_set(c::Concept, cs::Vector{Concept}) = push!(cs, c)
+unnest_concept_set(p::Pair, cs::Vector{Concept}) =
     unnest_concept_set(p[2], cs)
-unnest_concept_set(items::Tuple, cs::ConceptSet) =
+unnest_concept_set(items::Tuple, cs::Vector{Concept}) =
     unnest_concept_set(collect(items), cs)
-unnest_concept_set(items::Vector, cs::ConceptSet) =
+unnest_concept_set(items::Vector, cs::Vector{Concept}) =
     something(for it in items; unnest_concept_set(it, cs) end, cs)
 
 Base.convert(::Type{FunSQL.SQLNode}, c::Concept) =
@@ -206,12 +212,12 @@ function lookup_by_name(category::AbstractCategory, keys::AbstractVector)
     return retval
 end
 
-macro make_vocabulary(name)
+macro make_vocabulary(name, match_strategy=MATCH_PRIMARY_CONCEPT_ID)
     lname = replace(name, " " => "_")
     funfn = Symbol("funsql#$lname")
     label = Symbol(lname)
     quote
-        $(esc(label)) = Vocabulary($name; constructor=$lname)
+        $(esc(label)) = Vocabulary($name; constructor=$lname, match_strategy=$match_strategy)
         $(esc(funfn))(concept_code, match_name=nothing) =
             lookup_by_code($label, concept_code, match_name)
         export $(esc(funfn))
@@ -223,8 +229,8 @@ end
 @make_vocabulary("RxNorm")
 @make_vocabulary("HemOnc")
 @make_vocabulary("SNOMED")
-@make_vocabulary("ICD10CM")
-@make_vocabulary("ICD9CM")
+@make_vocabulary("ICD10CM", MATCH_SOURCE_CONCEPT_ID)
+@make_vocabulary("ICD9CM", MATCH_SOURCE_CONCEPT_ID)
 @make_vocabulary("CPT4")
 @make_vocabulary("LOINC")
 @make_vocabulary("ATC")
@@ -364,4 +370,68 @@ macro concepts(expr::Expr)
     end
     push!(block.args, items)
     return block
+end
+
+function var"funsql#does_concept_match"(concept_id::Symbol,
+                                         source_concept_id::Symbol,
+                                         ids::Vector{Concept})
+    if length(ids) == 0
+        return @funsql(define())
+    end
+    primary = Int[]
+    source = Int[]
+    if concept_id == source_concept_id
+        primary = [c.concept_id for c in ids]
+    else
+        for c in ids
+            strategy = getfield(c.vocabulary, :match_strategy)
+            if strategy == MATCH_PRIMARY_CONCEPT_ID
+                push!(primary, c.concept_id)
+            elseif strategy == MATCH_SOURCE_CONCEPT_ID
+                push!(source, c.concept_id)
+            else
+                push!(primary, c.concept_id)
+                push!(source, c.concept_id)
+            end
+        end
+    end
+    clause = FunSQL.SQLNode[]
+    if length(primary) > 0
+        push!(clause, @funsql begin
+            exists(begin
+                from(concept_ancestor)
+                filter(descendant_concept_id == :concept_id &&
+                       in(ancestor_concept_id, $primary...))
+                bind(:concept_id => $concept_id)
+            end)
+        end)
+    end
+    if length(source) > 0
+        push!(clause, @funsql begin
+            exists(begin
+                from(concept_relationship)
+                filter(relationship_id == "Is a" &&
+                       concept_id_1 == :concept_id &&
+                       in(concept_id_2, $source...))
+                bind(:concept_id => $source_concept_id)
+            end)
+        end)
+    end
+    if length(clause) == 1
+        return clause[1]
+    end
+    return @funsql($(clause[1]) || $(clause[2]))
+end
+
+var"funsql#does_concept_match"(concept_id::Symbol, source_concept_id::Symbol, ids) =
+    var"funsql#does_concept_match"(concept_id, source_concept_id, unnest_concept_set(ids))
+
+function var"funsql#does_concept_match"(name, ids)
+    if contains(string(name), "concept_id")
+        concept_id = source_concept_id = Symbol(name)
+    else
+        concept_id = Symbol("$(name)_concept_id")
+        source_concept_id = Symbol("$(name)_source_concept_id")
+    end
+    return var"funsql#does_concept_match"(concept_id, source_concept_id, ids)
 end

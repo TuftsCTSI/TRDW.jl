@@ -17,8 +17,7 @@ component_class_isa(args...) = category_isa($ComponentClass, $args, drug_concept
 dose_form_group_isa(args...) = category_isa($DoseFormGroup, $args, drug_concept_id)
 ingredient_isa(args...) = category_isa($Ingredient, $args, drug_concept_id)
 
-drug_isa(ids...) = is_descendant_concept(drug_concept_id, $ids)
-drug_source_relative_isa(ids...) = is_relative_concept(drug_source, $ids, "Is a")
+drug_matches(ids...) = does_concept_match(drug, $ids)
 
 isa_component_class() = isa_concept_class("Component Class")
 isa_dose_form_group() = isa_concept_class("Dose Form Group")

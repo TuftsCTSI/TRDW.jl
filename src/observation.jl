@@ -5,8 +5,7 @@ observation() = begin
     define(is_historical => observation_id > 1500000000)
 end
 
-observation_isa(ids...) = is_descendant_concept(observation_concept_id, $ids...)
-observation_type_isa(ids...) = is_descendant_concept(observation_type_concept_id, $ids...)
+observation_matches(ids...) = does_concept_match(observation, $ids)
 
 join_observation(ids...; carry=[]) = begin
     as(base)

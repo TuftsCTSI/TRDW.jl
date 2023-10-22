@@ -10,9 +10,7 @@ end
 is_condition_status(args...) =
     in_category($ConditionStatus, $args, condition_status_concept_id)
 
-condition_isa(ids...) = is_descendant_concept(condition_concept_id, $ids)
-condition_source_isa(ids...) = is_descendant_concept(condition_source_concept_id, $ids)
-condition_source_relative_isa(ids...) = is_relative_concept(condition_source, $ids, "Is a")
+condition_matches(ids...) = does_concept_match(condition, $ids)
 
 join_condition(ids...; carry=[]) = begin
     as(base)
