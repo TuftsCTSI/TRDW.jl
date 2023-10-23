@@ -14,6 +14,9 @@ visit_occurrence() = begin
         is_historical => visit_occurrence_id > 1000000000)
 end
 
+link_visit_occurrence(visit_occurrence=nothing) =
+    link(visit, $(something(visit_occurrence, @funsql visit_occurrence())))
+
 with_visit_occurrence(visit_occurrence::FunSQL.SQLNode, extension=nothing) =
     join(visit_ocurrence => begin
         $visit_occurrence

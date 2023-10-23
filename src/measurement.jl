@@ -5,8 +5,13 @@ measurement() = begin
     define(is_historical => measurement_id > 1500000000)
 end
 
-measurement_isa(ids...) = is_descendant_concept(measurement_concept_id, $ids...)
-measurement_type_isa(ids...) = is_descendant_concept(measurement_type_concept_id, $ids...)
+measurement_matches(ids...) = build_concept_matches($ids, measurement)
+measurement_pairing(ids...) = build_concept_pairing($ids, measurement)
+measurement_pivot(selection...; total=false, person_total=false, roundup=false) =
+    build_pivot($selection, measurement, measurement_id,
+                $total, $person_total, $roundup)
+link_measurement(measurement=nothing) =
+    link(measurement_date, $(something(measurement, @funsql measurement())))
 
 join_measurement(ids...; carry=[]) = begin
     as(base)

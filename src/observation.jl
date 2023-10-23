@@ -8,8 +8,11 @@ end
 observation_matches(ids...) = build_concept_matches($ids, observation)
 observation_pairing(ids...) = build_concept_pairing($ids, observation)
 observation_pivot(selection...; total=false, person_total=false, roundup=false) =
-    build_pivot($selection, observation, observation_occurrence_id,
+    build_pivot($selection, observation, observation_id,
                 $total, $person_total, $roundup)
+
+link_observation(observation=nothing) =
+    link(observation_date, $(something(observation, @funsql observation())))
 
 join_observation(ids...; carry=[]) = begin
     as(base)

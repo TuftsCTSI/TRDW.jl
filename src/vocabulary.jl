@@ -42,6 +42,16 @@ match_descendants(concepts, concept_id::Symbol) =
         end)
     end
 
+match_children(concepts, concept_id::Symbol) =
+    @funsql begin
+        exists(begin
+            concept($concepts...)
+            concept_children(0:5)
+            filter(concept_id == :concept_id)
+            bind(:concept_id => $concept_id)
+        end)
+    end
+
 match_isa_relatives(concepts, concept_id::Symbol) =
     @funsql begin
         exists(begin
@@ -93,6 +103,7 @@ struct Concept
     concept_id::Int64
     concept_code::Union{Int64, AbstractString}
     concept_name::AbstractString
+    is_standard::Bool
 end
 
 unnest_concept_set(@nospecialize ids) = unnest_concept_set(ids, Vector{Concept}())
@@ -163,7 +174,8 @@ function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing
     concept = Concept(vocabulary,
                    result[1, :concept_id],
                    result[1, :concept_code],
-                   result[1, :concept_name])
+                   result[1, :concept_name],
+                   !ismissing(result[1, :standard_concept]))
     if isnothing(match_name)
         return concept
     end
@@ -197,7 +209,8 @@ function find_by_name(vocabulary::Vocabulary, match_name::String;
     return Concept(vocabulary,
                    result[1, :concept_id],
                    result[1, :concept_code],
-                   result[1, :concept_name])
+                   result[1, :concept_name],
+                   !ismissing(result[1, :standard_concept]))
 end
 
 function lookup_by_name(vocabulary::Vocabulary, match_name::String)::Concept
@@ -358,7 +371,9 @@ function build_concepts(df::DataFrame)
     sort!(df, [:vocabulary_id, :concept_name])
     for row in eachrow(df)
         vocabulary = Vocabulary(row.vocabulary_id)
-        push!(retval, Concept(vocabulary, row.concept_id, row.concept_code, row.concept_name))
+        push!(retval, Concept(vocabulary, row.concept_id,
+                              row.concept_code, row.concept_name,
+                              !ismissing(row.standard_concept)))
     end
     return retval
 end
@@ -414,11 +429,15 @@ function build_concept_matches(concepts, name=nothing, source=nothing)
         source_concept_id = Symbol("$(name)_source_concept_id")
     end
     buckets = Dict()
+    non_standard = Dict()
     for c in concepts
         key = (getfield(c.vocabulary, :match_strategy),
                (concept_id == source_concept_id) ?
                    MATCH_PRIMARY :
                    getfield(c.vocabulary, :match_location))
+        if !c.is_standard && key[1] == match_descendants
+            key = (match_children, key[2])
+        end
         bucket = haskey(buckets, key) ?
                    buckets[key] :
                    (buckets[key] = Int[])
