@@ -242,6 +242,8 @@ function temp_table!(etl::ETLContext, name, def)
     ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
     q = FunSQL.From(name) |> FunSQL.WithExternal(name => def, qualifiers = qualifiers,
                                                  handler = (p -> ref[] = p))
+    @debug name
+    @debug q
     FunSQL.render(etl.db, q)
     t, c = ref[]
     name_sql = FunSQL.render(etl.db,
@@ -262,6 +264,7 @@ function create_temp_tables!(etl::ETLContext)
         start = time()
         start_time = now()
         try
+            @debug name
             @debug stmt
             DBInterface.execute(etl.db, stmt)
         catch e
@@ -489,13 +492,21 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
         temp_table!(
             etl,
             "observation_period_$(etl.suffix)",
-            @funsql from(observation_period).restrict_by($person_q))
+            @funsql begin
+                from(observation_period)
+                restrict_by($person_q)
+            end)
     provider_q =
         temp_table!(
             etl,
             "provider_$(etl.suffix)",
             @funsql begin
                 from(provider)
+                define(care_site_id=>int(missing),
+                       year_of_birth=>int(missing),
+                       provider_source_value=>string(missing),
+                       npi=>string(missing), dea=>string(missing),
+                       provider_name=>string(missing))
                 restrict_by(
                     provider_id,
                     append(
@@ -516,6 +527,8 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
             "care_site_$(etl.suffix)",
             @funsql begin
                 from(care_site)
+                define(location_id=>int(missing), care_site_source_value=>string(missing),
+                       place_of_service_source_value=>string(missing))
                 restrict_by(
                     care_site_id,
                     append(
