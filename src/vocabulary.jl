@@ -265,19 +265,20 @@ macro make_vocabulary(name, match_location=nothing, match_strategy=nothing)
     end
 end
 
-@make_vocabulary("Race")
-@make_vocabulary("Provider")
-@make_vocabulary("RxNorm")
+@make_vocabulary("ATC")
+@make_vocabulary("CPT4")
+@make_vocabulary("Condition Status")
 @make_vocabulary("HemOnc")
-@make_vocabulary("SNOMED")
 @make_vocabulary("ICD10CM", MATCH_SOURCE, match_isa_relatives)
 @make_vocabulary("ICD9CM", MATCH_SOURCE, match_isa_relatives)
-@make_vocabulary("CPT4")
 @make_vocabulary("LOINC")
-@make_vocabulary("ATC")
 @make_vocabulary("NDFRT")
-@make_vocabulary("Condition Status")
+@make_vocabulary("Provider")
+@make_vocabulary("Race")
 @make_vocabulary("RxNorm Extension")
+@make_vocabulary("RxNorm")
+@make_vocabulary("SNOMED")
+@make_vocabulary("Visit")
 
 struct Category <: AbstractCategory
     name::String
