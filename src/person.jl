@@ -14,12 +14,9 @@ person() = begin
 		ethnicity_concept_id == ethnicity.concept_id, optional=true)
     left_join(gender => from(concept),
 		gender_concept_id == gender.concept_id, optional=true)
-	define(
-        current_age => nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth),
-        deceased => death.death_date,
-        epic_pat_id => person_map.person_source_value,
-	    soarian_mrn => soarian_person_map.soarian_mrn)
 end
+
+person_current_age() = nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth)
 
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)

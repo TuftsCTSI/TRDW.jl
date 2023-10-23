@@ -2,9 +2,9 @@
 
 observation() = begin
     from(observation)
-    define(is_historical => observation_id > 1500000000)
 end
 
+observation_is_historical() = observation_id > 1500000000
 observation_matches(ids...) = build_concept_matches($ids, observation)
 observation_pairing(ids...) = build_concept_pairing($ids, observation)
 observation_pivot(selection...; total=false, person_total=false, roundup=false) =

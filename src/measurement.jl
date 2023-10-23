@@ -2,9 +2,9 @@
 
 measurement() = begin
     from(measurement)
-    define(is_historical => measurement_id > 1500000000)
 end
 
+measurement_is_historical() = measurement_id > 1500000000
 measurement_matches(ids...) = build_concept_matches($ids, measurement)
 measurement_pairing(ids...) = build_concept_pairing($ids, measurement)
 measurement_pivot(selection...; total=false, person_total=false, roundup=false) =
