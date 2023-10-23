@@ -243,12 +243,13 @@ function temp_table!(etl::ETLContext, name, def)
     q = FunSQL.From(name) |> FunSQL.WithExternal(name => def, qualifiers = qualifiers,
                                                  handler = (p -> ref[] = p))
     @debug name
-    @debug q
+    @debug sprint(FunSQL.pprint, q)
+    @debug sprint(FunSQL.pprint, def)
     FunSQL.render(etl.db, q)
     t, c = ref[]
     name_sql = FunSQL.render(etl.db,
                              FunSQL.ID("ctsi") |> FunSQL.ID("temp") |> FunSQL.ID(t.name))
-    sql = FunSQL.render(etl.db, c)
+    sql = FunSQL.render(etl.db, def)
     create_stmt = "CREATE TABLE $name_sql AS\n$sql"
     drop_stmt = "DROP TABLE IF EXISTS $name_sql"
     push!(etl.stmt_names, name)
