@@ -21,19 +21,6 @@ person_current_age() = nvl(datediff_year(birth_datetime, now()), year(now()) - y
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
-link(name::Symbol, query; carry=[]) =
-    $(let base = gensym(),
-          start_date = contains(string(name), "_date") ? name : Symbol("$(name)_start_date"),
-          end_date = contains(string(name), "_date") ? name : Symbol("$(name)_end_date");
-          @funsql(begin
-              as($base)
-              join($query, person_id == $base.person_id)
-               filter($start_date >= $base.cohort_start_date)
-               filter($end_date <= $base.cohort_end_date)
-               define($([@funsql($n => $base.$n) for n in carry]...))
-          end)
-      end)
-
 with_group(pair::Pair{Symbol, FunSQL.SQLNode}; mandatory = true) = begin
     left_join($(pair[1]) => begin
         $(pair[2])

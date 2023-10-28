@@ -1,47 +1,28 @@
 @funsql begin
 
-procedure_occurrence(ids...) = begin
+procedure_occurrence(match...) = begin
     from(procedure_occurrence)
-    $(length(ids) == 0 ? @funsql(define()) :
-        @funsql filter(is_descendant_concept(procedure_concept_id, $ids)))
+    $(length(match) == 0 ? @funsql(define()) : @funsql(procedure_matches($match)))
+    left_join(visit_occurrence => visit_occurrence(),
+              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
     define(is_historical => procedure_occurrence_id > 1500000000)
 end
 
-procedure_matches(ids...) = build_concept_matches($ids, procedure)
-procedure_pairing(ids...) = build_concept_pairing($ids, procedure)
-procedure_pivot(selection...; total=false, person_total=false, roundup=false) =
-    build_pivot($selection, procedure, procedure_occurrence_id,
-                $total, $person_total, $roundup)
+procedure_matches(match...) = concept_matches($match; match_prefix=procedure)
 
-link_procedure_occurrence(procedure_occurrence=nothing) =
-    link(procedure_date, $(something(procedure_occurrence, @funsql procedure_occurrence())))
-
-antijoin_procedure_occurrence(procedure_occurrence) =
-    antijoin($procedure_occurrence, procedure_occurrence_id)
-
-join_procedure(ids...; carry=[]) = begin
-    as(base)
-    join(begin
-        procedure_occurrence()
-        $(length(ids) == 0 ? @funsql(define()) :
-            @funsql filter(is_descendant_concept(procedure_concept_id, $ids...)))
-    end, base.person_id == person_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
+procedure_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
+    join_via_cohort(procedure_occurrence(), procedure_date;
+                    match_prefix=procedure, match=$match)
+    pairing_pivot($match, procedure, procedure_occurrence_id;
+                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-correlated_procedure(ids...) = begin
-    from(procedure_occurrence)
-    filter(person_id == :person_id)
-    $(length(ids) == 0 ? @funsql(define()) :
-        @funsql filter(is_descendant_concept(procedure_concept_id, $ids...)))
-    bind(:person_id => person_id )
+join_procedure_via_cohort(match...; exclude=nothing) = begin
+    join_via_cohort(procedure_occurrence(), procedure_date;
+                    match_prefix=procedure, match=$match)
+    $(isnothing(exclude) ? @funsql(define()) :
+      @funsql(filter(!procedure_matches($exclude))))
+    define(concept_id => coalesce(procedure_source_concept_id, procedure_concept_id))
 end
-
-with_procedure_group(extension=nothing) =
-    join(procedure_group => begin
-        from(procedure_occurrence)
-        $(extension == nothing ? @funsql(define()) : extension)
-        group(person_id)
-    end, person_id == procedure_group.person_id)
 
 end

@@ -1,47 +1,30 @@
 @funsql begin
 
-condition_occurrence() = begin
+condition_occurrence(match...) = begin
     from(condition_occurrence)
+    $(length(match) == 0 ? @funsql(define()) : @funsql(condition_matches($match)))
     left_join(visit_occurrence => visit_occurrence(),
               visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    define(is_historical => condition_occurrence_id > 1000000000)
 end
 
 is_condition_status(args...) =
     in_category($ConditionStatus, $args, condition_status_concept_id)
 
-condition_matches(ids...) = build_concept_matches($ids, condition)
-condition_pairing(ids...) = build_concept_pairing($ids, condition)
-condition_pivot(selection...; total=false, person_total=false, roundup=false) =
-    build_pivot($selection, condition, condition_occurrence_id,
-                $total, $person_total, $roundup)
+condition_matches(match...) = concept_matches($match; match_prefix=condition)
 
-link_condition_occurrence(condition_occurrence=nothing) =
-    link(condition, $(something(condition_occurrence, @funsql condition_occurrence())))
-
-join_condition(ids...; carry=[]) = begin
-    as(base)
-    join(begin
-        condition_occurrence()
-        $(length(ids) == 0 ? @funsql(define()) :
-            @funsql filter(is_descendant_concept(condition_concept_id, $ids)))
-    end, base.person_id == person_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
+condition_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
+    join_via_cohort(condition_occurrence(), condition; match=$match)
+    pairing_pivot($match, condition, condition_occurrence_id;
+                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-correlated_condition(ids...) = begin
-    from(condition_occurrence)
-    filter(person_id == :person_id)
-    $(length(ids) == 0 ? @funsql(define()) :
-        @funsql filter(is_descendant_concept(condition_concept_id, $ids)))
-    bind(:person_id => person_id )
+join_condition_via_cohort(match...; exclude=nothing) = begin
+    join_via_cohort(condition_occurrence(), condition; match=$match)
+    $(isnothing(exclude) ? @funsql(define()) :
+      @funsql(filter(!condition_matches($exclude))))
+    define(concept_id => coalesce(condition_source_concept_id, condition_concept_id))
 end
-
-with_condition_group(extension=nothing) =
-    join(condition_group => begin
-      from(condition_occurrence)
-      $(extension == nothing ? @funsql(define()) : extension)
-      group(person_id)
-    end, person_id == condition_group.person_id)
 
 group_3char_icd10cm(;carry=[]) = begin
     as(condition_occurrence)

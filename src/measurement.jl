@@ -1,41 +1,28 @@
 @funsql begin
 
-measurement() = begin
+measurement(match...) = begin
     from(measurement)
+    $(length(match) == 0 ? @funsql(define()) : @funsql(measurement_matches($match)))
+    left_join(visit_occurrence => visit_occurrence(),
+              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    define(is_historical => measurement_id > 1500000000)
 end
 
-measurement_is_historical() = measurement_id > 1500000000
-measurement_matches(ids...) = build_concept_matches($ids, measurement)
-measurement_pairing(ids...) = build_concept_pairing($ids, measurement)
-measurement_pivot(selection...; total=false, person_total=false, roundup=false) =
-    build_pivot($selection, measurement, measurement_id,
-                $total, $person_total, $roundup)
-link_measurement(measurement=nothing) =
-    link(measurement_date, $(something(measurement, @funsql measurement())))
+measurement_matches(match...) = concept_matches($match; match_prefix=measurement)
 
-join_measurement(ids...; carry=[]) = begin
-    as(base)
-    join(begin
-        measurement()
-        $(length(ids) == 0 ? @funsql(define()) :
-            @funsql filter(is_descendant_concept(measurement_concept_id, $ids...)))
-    end, base.person_id == person_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
+measurement_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
+    join_via_cohort(measurement(), measurement_date;
+                    match_prefix=measurement, match=$match)
+    pairing_pivot($match, measurement, measurement_id;
+                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-correlated_measurement(ids...) = begin
-	from(measurement)
-	filter(person_id == :person_id)
-    $(length(ids) == 0 ? @funsql(define()) :
-        @funsql filter(is_descendant_concept(measurement_concept_id, $ids...)))
-	bind(:person_id => person_id )
+join_measurement_via_cohort(match...; exclude=nothing) = begin
+    join_via_cohort(measurement(), measurement_date;
+                    match_prefix=measurement, match=$match)
+    $(isnothing(exclude) ? @funsql(define()) :
+      @funsql(filter(!measurement_matches($exclude))))
+    define(concept_id => coalesce(measurement_source_concept_id, measurement_concept_id))
 end
-
-with_measurement_group(extension=nothing) =
-    join(measurement_group => begin
-      from(measurement)
-      $(extension == nothing ? @funsql(define()) : extension)
-      group(person_id)
-    end, person_id == measurement_group.person_id)
 
 end

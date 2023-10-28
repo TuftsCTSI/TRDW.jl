@@ -1,4 +1,4 @@
-const VOCAB_SCHEMA = "vocabulary_v20230531"
+const VOCAB_SCHEMA = "vocabulary_v20230823"
 const CONCEPT_PATH = (tempdir(), VOCAB_SCHEMA)
 mkpath(joinpath(CONCEPT_PATH))
 
@@ -273,6 +273,7 @@ end
 @make_vocabulary("ICD9CM", MATCH_SOURCE, match_isa_relatives)
 @make_vocabulary("LOINC")
 @make_vocabulary("NDFRT")
+@make_vocabulary("OMOP Extension")
 @make_vocabulary("Provider")
 @make_vocabulary("Race")
 @make_vocabulary("RxNorm Extension")
@@ -413,25 +414,25 @@ macro concepts(expr::Expr)
     return block
 end
 
-function build_concept_matches(concepts, name=nothing, source=nothing)
-    concepts = unnest_concept_set(concepts)
-    name = isnothing(name) ? :concept_id : name
-    if contains(string(name), "concept_id")
-        concept_id = Symbol(name)
-        if isnothing(source)
+function concept_matches(match...; match_prefix=nothing, match_source=nothing)
+    match = unnest_concept_set(match)
+    match_prefix = isnothing(match_prefix) ? :concept_id : match_prefix
+    if contains(string(match_prefix), "concept_id")
+        concept_id = Symbol(match_prefix)
+        if isnothing(match_source)
             source_concept_id = concept_id
         else
-            @assert contains(string(name), "concept_id")
-            source_concept_id = Symbol(source)
+            @assert contains(string(match_prefix), "concept_id")
+            source_concept_id = Symbol(match_source)
         end
     else
-        @assert isnothing(source)
-        concept_id = Symbol("$(name)_concept_id")
-        source_concept_id = Symbol("$(name)_source_concept_id")
+        @assert isnothing(match_source)
+        concept_id = Symbol("$(match_prefix)_concept_id")
+        source_concept_id = Symbol("$(match_prefix)_source_concept_id")
     end
     buckets = Dict()
     non_standard = Dict()
-    for c in concepts
+    for c in match
         key = (getfield(c.vocabulary, :match_strategy),
                (concept_id == source_concept_id) ?
                    MATCH_PRIMARY :
@@ -458,5 +459,5 @@ function build_concept_matches(concepts, name=nothing, source=nothing)
     end
     return FunSQL.Fun.Or(tests...)
 end
-const var"funsql#build_concept_matches" = build_concept_matches
+const var"funsql#concept_matches" = concept_matches
 

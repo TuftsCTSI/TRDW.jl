@@ -1,42 +1,28 @@
 @funsql begin
 
-observation() = begin
+observation(match...) = begin
     from(observation)
+    $(length(match) == 0 ? @funsql(define()) : @funsql(observation_matches($match)))
+    left_join(visit_occurrence => visit_occurrence(),
+              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    define(is_historical => observation_id > 1500000000)
 end
 
-observation_is_historical() = observation_id > 1500000000
-observation_matches(ids...) = build_concept_matches($ids, observation)
-observation_pairing(ids...) = build_concept_pairing($ids, observation)
-observation_pivot(selection...; total=false, person_total=false, roundup=false) =
-    build_pivot($selection, observation, observation_id,
-                $total, $person_total, $roundup)
+observation_matches(match...) = concept_matches($match; match_prefix=observation)
 
-link_observation(observation=nothing) =
-    link(observation_date, $(something(observation, @funsql observation())))
-
-join_observation(ids...; carry=[]) = begin
-    as(base)
-    join(begin
-        observation()
-        $(length(ids) == 0 ? @funsql(define()) :
-            @funsql filter(is_descendant_concept(observation_concept_id, $ids...)))
-    end, base.person_id == person_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
+observation_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
+    join_via_cohort(observation(), observation_date;
+                    match_prefix=observation, match=$match)
+    pairing_pivot($match, observation, observation_id;
+                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-correlated_observation(ids...) = begin
-    from(observation)
-    filter(person_id == :person_id)
-    $(length(ids) == 0 ? @funsql(define()) :
-        @funsql filter(is_descendant_concept(observation_concept_id, $ids...)))
-    bind(:person_id => person_id )
+join_observation_via_cohort(match...; exclude=nothing) = begin
+    join_via_cohort(observation(), observation_date;
+                    match_prefix=observation, match=$match)
+    $(isnothing(exclude) ? @funsql(define()) :
+      @funsql(filter(!observation_matches($exclude))))
+    define(concept_id => coalesce(observation_source_concept_id, observation_concept_id))
 end
-
-with_observation_group(extension=nothing) =
-    join(observation_group => begin
-      from(observation)
-      $(extension == nothing ? @funsql(define()) : extension)
-      group(person_id)
-    end, person_id == observation_group.person_id)
 
 end
