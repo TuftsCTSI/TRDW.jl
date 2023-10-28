@@ -41,8 +41,8 @@ function connect_to_databricks(; catalog = nothing, schema = nothing)
     DBInterface.connect(ODBC.Connection, DATABRICKS_DSN)
 end
 
-isuppercaseor_(s) =
-    all(ch -> isuppercase(ch) || ch == '_', s)
+isessentiallyuppercase(s) =
+    all(ch -> isuppercase(ch) || isdigit(ch) || ch == '_', s)
 
 function connect_with_funsql(specs...; catalog = nothing, exclude = nothing)
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
@@ -58,7 +58,7 @@ function connect_with_funsql(specs...; catalog = nothing, exclude = nothing)
         cols = [(lowercase(row.TABLE_CAT),
                  lowercase(row.TABLE_SCHEM),
                  lowercase(row.TABLE_NAME),
-                 isuppercaseor_(row.COLUMN_NAME) ? lowercase(row.COLUMN_NAME) : row.COLUMN_NAME)
+                 isessentiallyuppercase(row.COLUMN_NAME) ? lowercase(row.COLUMN_NAME) : row.COLUMN_NAME)
                 for row in Tables.rows(raw_cols)]
         tables = _tables_from_column_list(cols)
         for table in tables
@@ -146,7 +146,8 @@ end
 
 function describe_table(db, name)
     t = db.catalog[name]
-    ddl = run(db, "SHOW CREATE TABLE `$(t.schema)`.`$(t.name)`")[1,1]
+    name = FunSQL.render(db, FunSQL.ID(t.qualifiers, t.name))
+    ddl = run(db, "SHOW CREATE TABLE $name")[1,1]
     cols = match(r"\(\s*([^)]+)\)", ddl)[1]
     toks = split(cols, r"\s+|(?=\W)|\b")
     i = 1
@@ -220,3 +221,11 @@ function parse_punctuation(vals, toks, i)
     tok in vals || error("unexpected token $tok")
     return tok, i
 end
+
+clarity_dict(table_name) =
+    HTML("""<a href="https://datahandbook.epic.com/ClarityDictionary/Details?tblName=$table_name"><code>$table_name</code></a>""")
+
+fhir(table) =
+    HTML("""<a href="https://www.hl7.org/fhir/$(lowercase(string(table))).html"><code>$(string(table))</code></a>""")
+
+export clarity_dict, fhir
