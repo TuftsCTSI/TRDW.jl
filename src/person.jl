@@ -17,12 +17,13 @@ person_current_age() = nvl(datediff_year(birth_datetime, now()), year(now()) - y
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
-with_group(pair::Pair{Symbol, FunSQL.SQLNode}; mandatory = true) = begin
+with_group(pair::Pair{Symbol, FunSQL.SQLNode}; mandatory = true, exclude = false) = begin
     left_join($(pair[1]) => begin
         $(pair[2])
         group(person_id)
     end, person_id == $(pair[1]).person_id)
     $(mandatory ? @funsql(filter(not(is_null($(pair[1]).person_id)))) : @funsql(define()))
+    $(exclude ? @funsql(filter(is_null($(pair[1]).person_id))) : @funsql(define()))
 end
 
 with_group(node::FunSQL.SQLNode) = 
