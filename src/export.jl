@@ -415,14 +415,14 @@ function zipfile(filename, db, pairs...)
     close(z)
 end
 
-function export_keyfile(filename, etl::ETLContext)
+function export_keyfile(filename, etl::ETLContext; include_dob=false)
 
     @debug "export_keyfile($(repr(filename)))"
     @assert isassigned(etl.queries)
-
+    dob = include_dob ? "\n      date(p.birth_datetime dob)," : ""
     mrn_q = """
     SELECT
-      p.person_id,
+      p.person_id,$dob
       array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
       array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
     FROM `temp`.`person_$(etl.suffix)` p
@@ -443,7 +443,7 @@ function export_keyfile(filename, etl::ETLContext)
     password = join(rand(valid_characters, 13))
     @debug "password", password
     @debug "writing", "mrn"
-    p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename.7z`, "w")
+    p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename`, "w")
     CSV.write(p, cr; bufsize = 2^23)
     flush(p)
     close(p)
@@ -784,7 +784,7 @@ function export_zip(filename, etl::ETLContext)
             @funsql from(drug_era).filter(false))
     create_temp_tables!(etl)
     zipfile(
-        "$filename.zip",
+        filename,
         etl.db,
         "person.csv" => person_q,
         "observation_period.csv" => observation_period_q,

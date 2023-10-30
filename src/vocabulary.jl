@@ -213,40 +213,32 @@ function find_by_name(vocabulary::Vocabulary, match_name::String;
                    !ismissing(result[1, :standard_concept]))
 end
 
-function lookup_by_name(vocabulary::Vocabulary, match_name::String)::Concept
+function lookup_by_name(vocabulary::Vocabulary, match_name::String)::Vector{Concept}
     concept = find_by_name(vocabulary, match_name)
     if isnothing(concept)
         vocabulary_id = getfield(vocabulary, :vocabulary_id)
         throw(ArgumentError("'$match_name' did not match in vocabulary $vocabulary_id"))
     end
-    return concept
+    return [concept]
 end
 
+lookup_by_name(category::AbstractCategory, concept::Concept) = [concept]
 lookup_by_name(category::AbstractCategory, match_name::AbstractString) =
     lookup_by_name(category, String(match_name))
 lookup_by_name(category::AbstractCategory, match_name::Symbol) =
     lookup_by_name(category, String(match_name))
-lookup_by_name(category::AbstractCategory, concept::Concept) = concept
-lookup_by_name(category::AbstractCategory, resolved::Int64) = resolved
+lookup_by_name(category::AbstractCategory, items::Tuple) =
+    lookup_by_name(category, collect(items))
 
 function lookup_by_name(category::AbstractCategory, keys::AbstractVector)
-    # TODO: de-duplicated flattened list... is there another way?
-    retval = Vector{Union{Int64, Concept}}()
-    for item in keys
-        nest = lookup_by_name(category, item)
-        if nest in retval
-            continue
-        end
-        if nest isa AbstractVector
-            for part in nest
-                if part in retval
-                    continue
-                end
-                push!(retval, part)
+    retval = Vector{Concept}()
+    for key in keys
+        for value in lookup_by_name(category, key)
+            if value in retval
+                continue
             end
-            continue
+            push!(retval, value)
         end
-        push!(retval, nest)
     end
     return retval
 end

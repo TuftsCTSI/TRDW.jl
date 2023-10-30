@@ -2,7 +2,7 @@
 
 condition_occurrence(match...) = begin
     from(condition_occurrence)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(condition_matches($match)))
+    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(condition_matches($match))))
     left_join(visit_occurrence => visit_occurrence(),
               visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
     define(is_historical => condition_occurrence_id > 1000000000)
