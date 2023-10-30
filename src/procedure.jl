@@ -25,4 +25,18 @@ join_procedure_via_cohort(match...; exclude=nothing) = begin
     define(concept_id => coalesce(procedure_source_concept_id, procedure_concept_id))
 end
 
+to_cpt_hierarchy() = begin
+    as(procedure_occurrence)
+	join(concept_ancestor => from(concept_ancestor),
+		concept_ancestor.descendant_concept_id == procedure_occurrence.procedure_concept_id)
+    join(concept().filter(concept_class_id=="CPT4 Hierarchy"),
+		concept_id == concept_ancestor.ancestor_concept_id)
+    define(person_id => procedure_occurrence.person_id,
+           procedure_occurrence_id => procedure_occurrence.procedure_occurrence_id)
+	partition(procedure_occurrence.procedure_concept_id, name="ancestors")
+    filter(concept_ancestor.min_levels_of_separation ==
+           ancestors.min(concept_ancestor.min_levels_of_separation))
+    group(concept_id, person_id, procedure_occurrence_id)
+end
+
 end

@@ -8,6 +8,9 @@ condition_occurrence(match...) = begin
     define(is_historical => condition_occurrence_id > 1000000000)
 end
 
+is_primary_discharge_diagnosis() =
+    (condition_status_concept_id == 32903)
+
 is_condition_status(args...) =
     in_category($ConditionStatus, $args, condition_status_concept_id)
 

@@ -419,8 +419,7 @@ function export_keyfile(filename, etl::ETLContext; include_dob=false)
 
     @debug "export_keyfile($(repr(filename)))"
     @assert isassigned(etl.queries)
-    dob = include_dob ? "\n      date(p.birth_datetime) dob," : ""
-    gdob = include_dob ? ", dob" : ""
+    dob = include_dob ? "\n      array_join(collect_set(gp.birthDate),';') dob," : ""
     mrn_q = """
     SELECT
       p.person_id,$dob
@@ -432,10 +431,11 @@ function export_keyfile(filename, etl::ETLContext; include_dob=false)
       SELECT DISTINCT
         system_epic_id,
         system_epic_mrn,
-        system_tuftssoarian_mrn
+        system_tuftssoarian_mrn,
+        birthDate
       FROM `main`.`global`.`patient`) AS gp
         ON pm.person_source_value = gp.system_epic_id
-    GROUP BY p.person_id$gdob
+    GROUP BY p.person_id
     """
     create_temp_tables!(etl)
     @debug "execute", "mrn_q", mrn_q
