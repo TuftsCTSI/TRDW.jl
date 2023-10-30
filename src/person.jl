@@ -2,10 +2,6 @@
 
 person() = begin
     from(person)
-    left_join(person_map => from(person_map),
-		person_id == person_map.person_id, optional=true)
-    left_join(soarian_person_map => from(soarian_person_map),
-		person_id == soarian_person_map.person_id, optional=true)
     left_join(death => from(death),
 		person_id == death.person_id, optional=true)
     left_join(race => from(concept),
