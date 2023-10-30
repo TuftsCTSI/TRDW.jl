@@ -419,7 +419,8 @@ function export_keyfile(filename, etl::ETLContext; include_dob=false)
 
     @debug "export_keyfile($(repr(filename)))"
     @assert isassigned(etl.queries)
-    dob = include_dob ? "\n      date(p.birth_datetime dob)," : ""
+    dob = include_dob ? "\n      date(p.birth_datetime) dob," : ""
+    gdob = include_dob ? ", dob" : ""
     mrn_q = """
     SELECT
       p.person_id,$dob
@@ -434,7 +435,7 @@ function export_keyfile(filename, etl::ETLContext; include_dob=false)
         system_tuftssoarian_mrn
       FROM `main`.`global`.`patient`) AS gp
         ON pm.person_source_value = gp.system_epic_id
-    GROUP BY p.person_id
+    GROUP BY p.person_id$gdob
     """
     create_temp_tables!(etl)
     @debug "execute", "mrn_q", mrn_q
@@ -997,7 +998,7 @@ function export_timeline_zip(filename, etl::ETLContext)
     ps = ["$(key.person_id).csv" => subdf
           for (key, subdf) in pairs(groupby(df, :person_id))]
     zipfile(
-        "$filename.zip",
+        filename,
         etl.db,
         ps...)
 end

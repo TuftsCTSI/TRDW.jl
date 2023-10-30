@@ -25,6 +25,9 @@ with_group(pair::Pair{Symbol, FunSQL.SQLNode}; mandatory = true) = begin
     $(mandatory ? @funsql(filter(not(is_null($(pair[1]).person_id)))) : @funsql(define()))
 end
 
+with_group(node::FunSQL.SQLNode) = 
+    $(let name = gensym(); @funsql(with_group($name => $node)) end)
+
 join_by_person(next::FunSQL.SQLNode; carry=[]) = begin
     as(base)
     join($next, base.person_id == person_id)
