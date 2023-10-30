@@ -14,39 +14,22 @@ visit_occurrence() = begin
         is_historical => visit_occurrence_id > 1000000000)
 end
 
-link_visit_occurrence(visit_occurrence=nothing) =
-    link(visit, $(something(visit_occurrence, @funsql visit_occurrence())))
+visit_matches(match...) = concept_matches($match; match_prefix=visit)
 
-with_visit_occurrence(visit_occurrence::FunSQL.SQLNode, extension=nothing) =
-    join(visit_ocurrence => begin
-        $visit_occurrence
-        $(extension == nothing ? @funsql(define()) : extension)
-        group(visit_occurrence_id)
-    end, visit_occurrence_id == visit_occurrence.visit_occurrence_id)
-
-join_visit(ids...; carry=[]) = begin
-    as(base)
-    join(begin
-        visit_occurrence()
-        $(length(ids) == 0 ? @funsql(define()) :
-            @funsql filter(is_descendant_concept(visit_concept_id, $ids...)))
-    end, base.person_id == person_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
+visit_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
+    join_via_cohort(visit_occurrence(), visit; match=$match)
+    pairing_pivot($match, visit, visit_occurrence_id;
+                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-correlated_visit(ids...) = begin
-    visit_occurrence()
-	filter(person_id == :person_id)
-    $(length(ids) == 0 ? @funsql(define()) :
-        @funsql filter(is_descendant_concept(visit_concept_id, $ids...)))
-	bind(:person_id => person_id )
+join_visit_via_cohort(match...; exclude=nothing) = begin
+    join_via_cohort(visit_occurrence(), visit; match=$match)
+    $(isnothing(exclude) ? @funsql(define()) :
+      @funsql(filter(!visit_matches($exclude))))
+    define(concept_id =>
+       coalesce((visit_source_concept_id == 0) ?
+                visit_concept_id : visit_source_concept_id,
+                visit_concept_id))
 end
-
-with_visit_group(extension=nothing) =
-    join(visit_group => begin
-        visit_occurrence()
-        $(extension == nothing ? @funsql(define()) : extension)
-        group(person_id)
-    end, person_id == visit_group.person_id)
 
 end
