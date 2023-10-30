@@ -8,6 +8,7 @@ using FunSQL
 using Dates
 using CSV
 using ZipFile
+using p7zip_jll
 
 include("general.jl")
 include("spark.jl")

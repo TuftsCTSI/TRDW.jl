@@ -16,7 +16,6 @@ struct OMOP_Transform <: OMOP_QuerySet
     specimen::FunSQL.SQLNode
     visit_detail::FunSQL.SQLNode
     visit_occurrence::FunSQL.SQLNode
-    extra_visit_cohort::FunSQL.SQLNode
 
     OMOP_Transform(;
         condition_occurrence = NOOP,
@@ -31,8 +30,7 @@ struct OMOP_Transform <: OMOP_QuerySet
         procedure_occurrence = NOOP,
         specimen = NOOP,
         visit_detail = NOOP,
-        visit_occurrence = NOOP,
-        extra_visit_cohort = NOOP) =
+        visit_occurrence = NOOP) =
             new(condition_occurrence,
                 death,
                 device_exposure,
@@ -45,8 +43,7 @@ struct OMOP_Transform <: OMOP_QuerySet
                 procedure_occurrence,
                 specimen,
                 visit_detail,
-                visit_occurrence,
-                extra_visit_cohort)
+                visit_occurrence)
 end
 
 struct OMOP_Queries <: OMOP_QuerySet
@@ -63,7 +60,6 @@ struct OMOP_Queries <: OMOP_QuerySet
     specimen::FunSQL.SQLNode
     visit_detail::FunSQL.SQLNode
     visit_occurrence::FunSQL.SQLNode
-    extra_visit_cohort::FunSQL.SQLNode
 
     OMOP_Queries(;
         condition_occurrence = @funsql(from(condition_occurrence)),
@@ -78,8 +74,7 @@ struct OMOP_Queries <: OMOP_QuerySet
         procedure_occurrence = @funsql(from(procedure_occurrence)),
         specimen = @funsql(from(specimen)),
         visit_detail = @funsql(from(visit_detail)),
-        visit_occurrence = @funsql(from(visit_occurrence)),
-        extra_visit_cohort = @funsql(from(visit_occurrence))) =
+        visit_occurrence = @funsql(from(visit_occurrence))) =
             new(condition_occurrence,
                 death,
                 device_exposure,
@@ -92,8 +87,7 @@ struct OMOP_Queries <: OMOP_QuerySet
                 procedure_occurrence,
                 specimen,
                 visit_detail,
-                visit_occurrence,
-                extra_visit_cohort)
+                visit_occurrence)
 end
 
 OMOP_Queries(base::OMOP_Queries;
@@ -109,8 +103,7 @@ OMOP_Queries(base::OMOP_Queries;
     procedure_occurrence = nothing,
     specimen = nothing,
     visit_detail = nothing,
-    visit_occurrence = nothing,
-    extra_visit_cohort = nothing) =
+    visit_occurrence = nothing) = 
         OMOP_Queries(
             something(condition_occurrence, base.condition_occurrence),
             something(death, base.death),
@@ -141,8 +134,7 @@ function (rhs::OMOP_Transform)(lhs::T)::T where {T<:OMOP_QuerySet}
         procedure_occurrence = lhs.procedure_occurrence |> rhs.procedure_occurrence,
         specimen = lhs.specimen |> rhs.specimen,
         visit_detail = lhs.visit_detail |> rhs.visit_detail,
-        visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence,
-        extra_visit_cohort = lhs.extra_visit_cohort |> rhs.extra_visit_cohort)
+        visit_occurrence = lhs.visit_occurrence |> rhs.visit_occurrence)
 end
 
 redact_hiv_events(base) =
@@ -181,10 +173,6 @@ redact_text_fields(base) =
             define(snippet => string(missing))
         end))
 
-redact_extra_visits(base) =
-    base |> OMOP_Transform(;
-            extra_visit_cohort = @funsql filter(false))
-
 struct QueryGuard
     qs::OMOP_Queries
 
@@ -194,11 +182,10 @@ struct QueryGuard
 
     function QueryGuard(qs::OMOP_Queries = OMOP_Queries();
                         include_txt = false, include_dob = false,
-                        include_hiv = false, extra_visit = false)
+                        include_hiv = false)
         qs = include_txt ? qs : redact_text_fields(qs)
         qs = include_dob ? qs : redact_person_dob(qs)
         qs = include_hiv ? qs : redact_hiv_events(qs)
-        qs = extra_visit ? qs : redact_extra_visits(qs)
         new(qs)
     end
 
