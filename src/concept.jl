@@ -6,6 +6,8 @@ concept(ids...) = begin
       @funsql(filter(in(concept_id, $ids...))))
 end
 
+concept_like(args...) = concept().filter(icontains(concept_name, $args...))
+
 select_concept(name, include...) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))
