@@ -322,12 +322,12 @@ function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
     visit_occurrence_q =
         temp_table!(
             etl,
-            "visit_occurrence_x_$(etl.suffix)",
+            "visit_occurrence_$(etl.suffix)",
             @funsql $(queries.visit_occurrence).restrict_by($person_q))
     visit_detail_q =
         temp_table!(
             etl,
-            "visit_detail_x_$(etl.suffix)",
+            "visit_detail_$(etl.suffix)",
             @funsql begin
                 $(queries.visit_detail)
                 restrict_by($person_q)
@@ -335,8 +335,10 @@ function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
             end)
     restrict_q = @funsql begin
         restrict_by($person_q)
-        restrict_by(visit_occurrence_id, $visit_occurrence_q)
-        restrict_by(visit_detail_id, $visit_detail_q)
+        left_join(vo => $visit_occurrence_q, vo.visit_occurrence_id == visit_occurrence_id)
+        left_join(vd => $visit_detail_q, vd.visit_detail_id == visit_detail_id)
+        define(visit_occurrence_id => vo.visit_occurrence_id,
+               visit_detail_id => vd.visit_detail_id)
     end
     condition_occurrence_q =
         temp_table!(
@@ -388,50 +390,6 @@ function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
             etl,
             "specimen_$(etl.suffix)",
             @funsql $(queries.specimen).restrict_by($person_q))
-    visit_detail_q =
-        temp_table!(
-            etl,
-            "visit_detail_$(etl.suffix)",
-            @funsql begin
-                $visit_detail_q
-                restrict_by(
-                    visit_detail_id,
-                    append(
-                        $condition_occurrence_q,
-                        $device_exposure_q,
-                        $drug_exposure_q,
-                        $measurement_q,
-                        $note_q,
-                        $observation_q,
-                        $procedure_occurrence_q))
-            end)
-    visit_occurrence_q =
-        temp_table!(
-            etl,
-            "visit_occurrence_$(etl.suffix)",
-            @funsql begin
-                $visit_occurrence_q
-                left_join(required_visits => begin
-                    from(visit_occurrence)
-                    restrict_by($person_q)
-                    restrict_by(
-                        visit_occurrence_id,
-                        append(
-                            $condition_occurrence_q,
-                            $device_exposure_q,
-                            $drug_exposure_q,
-                            $measurement_q,
-                            $note_q,
-                            $observation_q,
-                            $procedure_occurrence_q))
-                end, visit_occurrence_id == required_visits.visit_occurrence_id)
-                left_join(extra_visits => begin
-                    $(queries.extra_visit_cohort)
-                    restrict_by($person_q)
-                end, visit_occurrence_id == extra_visits.visit_occurrence_id)
-                filter(!isnull(required_visits.visit_occurrence_id) ||
-                       !isnull(extra_visits.visit_occurrence_id))
-            end)
 
     etl.queries[] =
       QueryGuard(nothing; bypass=
@@ -470,7 +428,42 @@ function zipfile(filename, db, pairs...)
     close(z)
 end
 
-function export_zip(filename, etl::ETLContext; include_mrn = false)
+function export_keyfile(filename, etl::ETLContext)
+
+    @debug "export_keyfile($(repr(filename)))"
+    @assert isassigned(etl.queries)
+
+    mrn_q = """
+    SELECT
+      p.person_id,
+      array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
+      array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
+    FROM `temp`.`person_$(etl.suffix)` p
+    LEFT JOIN `person_map`.`person_map` pm ON p.person_id = pm.person_id
+    LEFT JOIN (
+      SELECT DISTINCT
+        system_epic_id,
+        system_epic_mrn,
+        system_tuftssoarian_mrn
+      FROM `main`.`global`.`patient`) AS gp
+        ON pm.person_source_value = gp.system_epic_id
+    GROUP BY p.person_id
+    """
+    create_temp_tables!(etl)
+    @debug "execute", "mrn_q", mrn_q
+    cr = DBInterface.execute(etl.db, mrn_q)
+    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwzyz23456789"
+    password = join(rand(valid_characters, 13))
+    @debug "password", password
+    @debug "writing", "mrn"
+    p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename.7z`, "w")
+    CSV.write(p, cr; bufsize = 2^23)
+    flush(p)
+    close(p)
+    return password
+end
+
+function export_zip(filename, etl::ETLContext)
 
     @debug "export_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
@@ -802,28 +795,9 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
             etl,
             "drug_era_$(etl.suffix)",
             @funsql from(drug_era).filter(false))
-    mrn_q = nothing
-    if include_mrn
-        mrn_q = """
-        SELECT
-          p.person_id,
-          array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
-          array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
-        FROM `temp`.`person_$(etl.suffix)` p
-        LEFT JOIN `person_map`.`person_map` pm ON p.person_id = pm.person_id
-        LEFT JOIN (
-          SELECT DISTINCT
-            system_epic_id,
-            system_epic_mrn,
-            system_tuftssoarian_mrn
-          FROM `main`.`global`.`patient`) AS gp
-            ON pm.person_source_value = gp.system_epic_id
-        GROUP BY p.person_id
-        """
-    end
     create_temp_tables!(etl)
     zipfile(
-        filename,
+        "$filename.zip",
         etl.db,
         "person.csv" => person_q,
         "observation_period.csv" => observation_period_q,
@@ -860,8 +834,7 @@ function export_zip(filename, etl::ETLContext; include_mrn = false)
         "concept.csv" => concept_q,
         "concept_synonym.csv" => concept_synonym_q,
         "concept_relationship.csv" => concept_relationship_q,
-        "concept_ancestor.csv" => concept_ancestor_q,
-        "keyfile.csv" => mrn_q)
+        "concept_ancestor.csv" => concept_ancestor_q)
 end
 
 function export_timeline_zip(filename, etl::ETLContext)
@@ -1037,7 +1010,7 @@ function export_timeline_zip(filename, etl::ETLContext)
     ps = ["$(key.person_id).csv" => subdf
           for (key, subdf) in pairs(groupby(df, :person_id))]
     zipfile(
-        filename,
+        "$filename.zip",
         etl.db,
         ps...)
 end
