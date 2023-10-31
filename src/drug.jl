@@ -2,7 +2,7 @@
 
 drug_exposure(match...) = begin
     from(drug_exposure)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(drug_matches($match)))
+    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(drug_matches($match))))
     left_join(visit_occurrence => visit_occurrence(),
               visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
     define(is_historical => drug_exposure_id > 1500000000)
