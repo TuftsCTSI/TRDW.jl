@@ -22,12 +22,14 @@ with_group(pair::Pair{Symbol, FunSQL.SQLNode}; mandatory = true, exclude = false
         $(pair[2])
         group(person_id)
     end, person_id == $(pair[1]).person_id)
-    $(mandatory ? @funsql(filter(not(is_null($(pair[1]).person_id)))) : @funsql(define()))
-    $(exclude ? @funsql(filter(is_null($(pair[1]).person_id))) : @funsql(define()))
+    $(exclude ? @funsql(filter(is_null($(pair[1]).person_id))) :
+      mandatory ? @funsql(filter(not(is_null($(pair[1]).person_id)))) :
+      @funsql(define()))
 end
 
-with_group(node::FunSQL.SQLNode) = 
-    $(let name = gensym(); @funsql(with_group($name => $node)) end)
+with_group(node::FunSQL.SQLNode; mandatory=true, exclude=false) = 
+    $(let name = gensym();
+      @funsql(with_group($name => $node; mandatory=$mandatory, exclude=$exclude)) end)
 
 join_by_person(next::FunSQL.SQLNode; carry=[]) = begin
     as(base)
