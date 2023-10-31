@@ -1,7 +1,8 @@
 @funsql begin
 
-visit_occurrence() = begin
+visit_occurrence(match...) = begin
     from(visit_occurrence)
+    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(visit_matches($match))))
     left_join(person => person(),
               person_id == person.person_id, optional=true)
     left_join(care_site => care_site(),
