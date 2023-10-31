@@ -2,7 +2,7 @@
 
 measurement(match...) = begin
     from(measurement)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(measurement_matches($match)))
+    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(measurement_matches($match))))
     left_join(visit_occurrence => visit_occurrence(),
               visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
     define(is_historical => measurement_id > 1500000000)
