@@ -3,9 +3,18 @@
 measurement(match...) = begin
     from(measurement)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(measurement_matches($match))))
-    left_join(visit_occurrence => visit_occurrence(),
-              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    define(is_historical => measurement_id > 1500000000)
+    left_join(visit => visit_occurrence(),
+        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    join(event => begin
+        from(measurement)
+        define(
+            table_name => "measurement",
+            concept_id => measurement_concept_id,
+            end_date => measurement_date,
+            is_historical => measurement_id > 1500000000,
+            start_date => measurement_date,
+            source_concept_id => measurement_source_concept_id)
+    end, measurement_id == event.measurement_id, optional = true)
 end
 
 measurement_matches(match...) = concept_matches($match; match_prefix=measurement)

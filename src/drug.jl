@@ -3,9 +3,18 @@
 drug_exposure(match...) = begin
     from(drug_exposure)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(drug_matches($match))))
-    left_join(visit_occurrence => visit_occurrence(),
-              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    define(is_historical => drug_exposure_id > 1500000000)
+    left_join(visit => visit_occurrence(),
+        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    join(event => begin
+        from(drug_exposure)
+        define(
+            table_name => "drug_exposure",
+            concept_id => drug_concept_id,
+            end_date => drug_exposure_end_date,
+            is_historical => drug_exposure_id > 1500000000,
+            start_date => drug_exposure_start_date,
+            source_concept_id => drug_source_concept_id)
+    end, drug_exposure_id == event.drug_exposure_id, optional = true)
 end
 
 drug_concept() = concept().filter(domain_id == "Drug")

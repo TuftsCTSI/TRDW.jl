@@ -10,9 +10,13 @@ visit_occurrence(match...) = begin
     left_join(location => location(),
               location.location_id == care_site.location_id, optional=true)
 	define(
+        concept_id => visit_concept_id,
         current_age => nvl(datediff_year(person.birth_datetime, visit_start_date),
                            year(visit_start_date) - person.year_of_birth),
-        is_historical => visit_occurrence_id > 1000000000)
+        end_date => visit_end_date,
+        is_historical => visit_occurrence_id > 1000000000,
+        start_date => visit_start_date,
+        source_concept_id => visit_source_concept_id)
 end
 
 visit_matches(match...) = concept_matches($match; match_prefix=visit)

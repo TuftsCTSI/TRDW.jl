@@ -3,9 +3,18 @@
 observation(match...) = begin
     from(observation)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(observation_matches($match))))
-    left_join(visit_occurrence => visit_occurrence(),
-              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    define(is_historical => observation_id > 1500000000)
+    left_join(visit => visit_occurrence(),
+        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    join(event => begin
+        from(observation)
+        define(
+            table_name => "observation",
+            concept_id => observation_concept_id,
+            end_date => observation_date,
+            is_historical => observation_id > 1500000000,
+            start_date => observation_date,
+            source_concept_id => observation_source_concept_id)
+    end, observation_id == event.observation_id, optional = true)
 end
 
 observation_matches(match...) = concept_matches($match; match_prefix=observation)

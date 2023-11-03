@@ -2,7 +2,16 @@
 
 specimen() = begin
     from(specimen)
-    define(is_historical => specimen_id > 1500000000)
+    join(event => begin
+        from(specimen)
+        define(
+            table_name => "specimen",
+            concept_id => specimen_concept_id,
+            end_date => specimen_date,
+            is_historical => specimen_id > 1500000000,
+            start_date => specimen_date,
+            source_concept_id => specimen_source_concept_id)
+    end, specimen_id == event.specimen_id, optional = true)
 end
 
 specimen_isa(ids...) = is_descendant_concept(specimen_concept_id, $ids...)

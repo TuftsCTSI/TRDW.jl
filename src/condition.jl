@@ -3,9 +3,18 @@
 condition_occurrence(match...) = begin
     from(condition_occurrence)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(condition_matches($match))))
-    left_join(visit_occurrence => visit_occurrence(),
-              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    define(is_historical => condition_occurrence_id > 1000000000)
+    left_join(visit => visit_occurrence(),
+        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    join(event => begin
+        from(condition_occurrence)
+        define(
+            table_name => "condition_occurrence",
+            concept_id => condition_concept_id,
+            end_date => condition_end_date,
+            is_historical => condition_occurrence_id > 1000000000,
+            start_date => condition_start_date,
+            source_concept_id => condition_source_concept_id)
+    end, condition_occurrence_id == event.condition_occurrence_id, optional = true)
 end
 
 is_primary_discharge_diagnosis() =
@@ -22,10 +31,12 @@ condition_pivot(match...; event_total=true, person_total=true, roundup=true) = b
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
+having_condition_via_cohort(match...; exclude=nothing) =
+    filter(exists(correlate_via_cohort(condition_occurrence(), condition;
+                                       match=$match, exclude=$exclude)))
+
 join_condition_via_cohort(match...; exclude=nothing) = begin
-    join_via_cohort(condition_occurrence(), condition; match=$match)
-    $(isnothing(exclude) ? @funsql(define()) :
-      @funsql(filter(!condition_matches($exclude))))
+    join_via_cohort(condition_occurrence(), condition; match=$match, exclude=$exclude)
     define(concept_id => coalesce(condition_source_concept_id, condition_concept_id))
 end
 

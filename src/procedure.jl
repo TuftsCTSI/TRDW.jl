@@ -1,12 +1,23 @@
 @funsql begin
 
-procedure_occurrence(match...) = begin
+procedure(match...) = begin
     from(procedure_occurrence)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(procedure_matches($match))))
-    left_join(visit_occurrence => visit_occurrence(),
-              visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    define(is_historical => procedure_occurrence_id > 1500000000)
+    left_join(visit => visit_occurrence(),
+        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    join(event => begin
+        from(procedure_occurrence)
+        define(
+            table_name => "procedure_occurrence",
+            concept_id => procedure_concept_id,
+            end_date => procedure_date,
+            is_historical => procedure_occurrence_id > 1500000000,
+            start_date => procedure_date,
+            source_concept_id => procedure_source_concept_id)
+    end, procedure_occurrence_id == event.procedure_occurrence_id, optional = true)
 end
+
+procedure_occurrence(match...) = procedure($match...)
 
 procedure_matches(match...) = concept_matches($match; match_prefix=procedure)
 
