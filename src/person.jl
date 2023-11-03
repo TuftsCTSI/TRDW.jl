@@ -12,6 +12,8 @@ person() = begin
 		gender_concept_id == gender.concept_id, optional=true)
 end
 
+is_deceased() = isnotnull(death.person_id)
+	
 person_current_age() = nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth)
 
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
