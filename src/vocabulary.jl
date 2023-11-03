@@ -262,6 +262,7 @@ end
 @make_vocabulary("Condition Status")
 @make_vocabulary("HemOnc")
 @make_vocabulary("ICD10CM", MATCH_SOURCE, match_isa_relatives)
+@make_vocabulary("ICD10PCS")
 @make_vocabulary("ICD9CM", MATCH_SOURCE, match_isa_relatives)
 @make_vocabulary("LOINC")
 @make_vocabulary("NDFRT")
