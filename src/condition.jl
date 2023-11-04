@@ -38,26 +38,105 @@ filter_cohort_on_condition(match...; exclude=nothing, also=nothing) =
 
 join_cohort_on_condition(match...; exclude=nothing) = begin
     join_via_cohort(condition_occurrence(), condition; match=$match, exclude=$exclude)
-    define(concept_id => coalesce(condition_source_concept_id, condition_concept_id))
+    #define(concept_id => coalesce(condition_source_concept_id, condition_concept_id))
 end
 
+crosswalk_from_icd9cm_to_icd10cm(name=nothing) =
+    $(let frame = gensym(),
+          concept_id = (name == nothing) ? :concept_id :
+                         contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id");
+        @funsql(begin
+            left_join($frame => begin
+                from(concept_relationship)
+                filter(relationship_id == "ICD9CM - ICD10CM gem")
+            end, $concept_id == $frame.concept_id_1)
+            define($concept_id => coalesce($frame.concept_id_2, $concept_id))
+        end)
+    end)
+
+overwrite_with_icd10cm(source, target) =
+    $(let frame = gensym(),
+          source_id = contains(string(source), "concept_id") ? source :
+                          Symbol("$(source)_concept_id"),
+          target_id = contains(string(target), "concept_id") ? target :
+                           Symbol("$(target)_concept_id");
+        @funsql(begin
+            left_join($frame => begin
+                from(concept)
+                filter(vocabulary_id == "ICD10CM")
+            end, $source_id == $frame.concept_id)
+            define($target_id => coalesce($frame.concept_id, $target_id))
+        end)
+    end)
+
+truncate_icd10cm_to_3char(name=nothing) =
+    $(let frame = gensym(),
+          concept_id = (name == nothing) ? :concept_id :
+                         contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id");
+        @funsql(begin
+            left_join($frame => begin
+                from(concept_relationship)
+                filter(relationship_id == "Is a")
+                join(icd10cm_3_char => begin
+                    from(concept)
+                    filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
+                end, concept_id_2 == icd10cm_3_char.concept_id)
+            end, $concept_id == $frame.concept_id_1)
+            define($concept_id => coalesce($frame.concept_id_2, $concept_id))
+        end)
+    end)
+
+truncate_snomed_without_finding_site(name=nothing) =
+    $(let frame = gensym(), partname = gensym(),
+          concept_id = (name == nothing) ? :concept_id :
+                         contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id");
+        @funsql(begin
+            left_join($frame => begin
+                from(concept_ancestor)
+                left_join(f => begin
+                    from(concept_relationship)
+                    filter(relationship_id == "Has finding site")
+                    group(concept_id_1)
+                end, f.concept_id_1 == ancestor_concept_id)
+                join(c => from(concept).filter(vocabulary_id == "SNOMED"),
+                     c.concept_id == ancestor_concept_id)
+                filter(isnull(f.concept_id_1))
+            end, $concept_id == $frame.descendant_concept_id)
+            partition($concept_id, name=$partname)
+            filter($frame.min_levels_of_separation ==
+                   $partname.min($frame.min_levels_of_separation))
+            define($concept_id => $frame.ancestor_concept_id)
+        end)
+    end)
+
+backwalk_snomed_to_icd10cm_3char(name=nothing) =
+    $(let frame = gensym(),
+          concept_id = (name == nothing) ? :concept_id :
+                         contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id");
+        @funsql(begin
+            left_join($frame => begin
+                from(concept_relationship)
+                filter(relationship_id == "Mapped from")
+                join(icd10cm => begin
+                    from(concept)
+                    filter(vocabulary_id=="ICD10CM")
+                end, concept_id_2 == icd10cm.concept_id)
+                truncate_icd10cm_to_3char(concept_id_2)
+                deduplicate(concept_id_2)
+            end, $concept_id == $frame.concept_id_1)
+            define($concept_id => coalesce($frame.concept_id_2, $concept_id))
+        end)
+    end)
+
 to_3char_icd10cm() = begin
-    as(condition_occurrence)
-    join(concept_ancestor => from(concept_ancestor),
-        concept_ancestor.descendant_concept_id ==
-        condition_occurrence.condition_source_concept_id)
-    join(begin
-             concept()
-             filter(vocabulary_id == "ICD10CM")
-             filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
-        end,
-        concept_id == concept_ancestor.ancestor_concept_id)
-    define(person_id => condition_occurrence.person_id,
-           condition_occurrence_id => condition_occurrence.condition_occurrence_id)
-    partition(condition_occurrence.condition_source_concept_id, name="ancestors")
-    filter(concept_ancestor.min_levels_of_separation ==
-           ancestors.min(concept_ancestor.min_levels_of_separation))
-    group(concept_id, person_id, condition_occurrence_id)
+    crosswalk_from_icd9cm_to_icd10cm(condition_source)
+	truncate_icd10cm_to_3char(condition_source)
+	overwrite_with_icd10cm(condition_source, condition)
+	backwalk_snomed_to_icd10cm_3char(condition)
 end
 
 group_clinical_finding(concept_id=nothing;carry=[]) = begin
