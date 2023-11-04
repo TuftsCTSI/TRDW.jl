@@ -31,7 +31,13 @@ join_measurement_via_cohort(match...; exclude=nothing) = begin
                     match_prefix=measurement, match=$match)
     $(isnothing(exclude) ? @funsql(define()) :
       @funsql(filter(!measurement_matches($exclude))))
-    define(concept_id => coalesce(measurement_source_concept_id, measurement_concept_id))
 end
+
+truncate_to_loinc_class(name=nothing) = 
+    truncate_to_concept_class($name, "LOINC Class")
+truncate_to_loinc_group(name=nothing) = 
+    truncate_to_concept_class($name, "LOINC Group")
+truncate_to_loinc_hierarchy(name=nothing) = 
+    truncate_to_concept_class($name, "LOINC Hierarchy")
 
 end

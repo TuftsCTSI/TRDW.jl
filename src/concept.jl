@@ -162,6 +162,24 @@ filter_out_descendants() = begin
     deduplicate(concept_id)
 end
 
+truncate_to_concept_class(name, concept_class_id, relationship_id="Is a") =
+    $(let frame = gensym(),
+          concept_id = (name == nothing) ? :concept_id :
+                         contains(string(name), "concept_id") ? name :
+                           Symbol("$(name)_concept_id");
+        @funsql(begin
+            left_join($frame => begin
+                from(concept_relationship)
+                filter(relationship_id==$relationship_id)
+                join(kind => begin
+                    concept()
+                    filter(concept_class_id==$concept_class_id)
+                end, concept_id_2 == kind.concept_id)
+            end, $concept_id == $frame.concept_id_1)
+            define($concept_id => coalesce($frame.concept_id_2, $concept_id))
+        end)
+    end)
+
 concept_cover(category::FunSQL.SQLNode; exclude=[]) = begin
     as(base)
     left_join(

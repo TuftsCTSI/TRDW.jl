@@ -31,7 +31,6 @@ join_observation_via_cohort(match...; exclude=nothing) = begin
                     match_prefix=observation, match=$match)
     $(isnothing(exclude) ? @funsql(define()) :
       @funsql(filter(!observation_matches($exclude))))
-    define(concept_id => coalesce(observation_source_concept_id, observation_concept_id))
 end
 
 end
