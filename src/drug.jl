@@ -35,7 +35,11 @@ drug_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-join_drug_via_cohort(match...; exclude=nothing) = begin
+filter_cohort_on_drug(match...; exclude=nothing) =
+    filter(exists(correlate_via_cohort(condition_occurrence(), drug_exposure;
+                                       match_prefix=drug, match=$match, exclude=$exclude)))
+
+join_cohort_on_drug(match...; exclude=nothing) = begin
     join_via_cohort(drug_exposure(), drug_exposure; match_prefix=drug, match=$match)
     $(isnothing(exclude) ? @funsql(define()) :
       @funsql(filter(!drug_matches($exclude))))

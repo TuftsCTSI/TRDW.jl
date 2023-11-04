@@ -31,11 +31,11 @@ condition_pivot(match...; event_total=true, person_total=true, roundup=true) = b
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-having_condition_via_cohort(match...; exclude=nothing) =
+filter_cohort_on_condition(match...; exclude=nothing) =
     filter(exists(correlate_via_cohort(condition_occurrence(), condition;
                                        match=$match, exclude=$exclude)))
 
-join_condition_via_cohort(match...; exclude=nothing) = begin
+join_cohort_on_condition(match...; exclude=nothing) = begin
     join_via_cohort(condition_occurrence(), condition; match=$match, exclude=$exclude)
     define(concept_id => coalesce(condition_source_concept_id, condition_concept_id))
 end

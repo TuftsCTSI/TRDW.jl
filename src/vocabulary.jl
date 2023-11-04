@@ -407,6 +407,9 @@ macro concepts(expr::Expr)
     return block
 end
 
+#Base.convert(::Type{FunSQL.SQLNode}, v::NamedTuple{<:Any, <:Tuple{Vararg{Vector{Concept}}}}) =
+#   FunSQL.Lit(join(string.([c.concept_id for c in Iterators.flatten(values(v))]), ", "))
+
 function concept_matches(match...; match_prefix=nothing, match_source=nothing)
     match = unnest_concept_set(match)
     match_prefix = isnothing(match_prefix) ? :concept_id : match_prefix

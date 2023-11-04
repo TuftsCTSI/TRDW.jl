@@ -28,7 +28,11 @@ procedure_pivot(match...; event_total=true, person_total=true, roundup=true) = b
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-join_procedure_via_cohort(match...; exclude=nothing) = begin
+filter_cohort_on_procedure(match...; exclude=nothing) =
+    filter(exists(correlate_via_cohort(procedure_occurrence(), procedure_date;
+                                       match_prefix=procedure, match=$match, exclude=$exclude)))
+
+join_cohort_on_procedure(match...; exclude=nothing) = begin
     join_via_cohort(procedure_occurrence(), procedure_date;
                     match_prefix=procedure, match=$match)
     $(isnothing(exclude) ? @funsql(define()) :
