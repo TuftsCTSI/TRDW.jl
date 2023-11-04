@@ -31,10 +31,10 @@ condition_pivot(match...; event_total=true, person_total=true, roundup=true) = b
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-filter_cohort_on_condition(match...; exclude=nothing, extension=nothing) =
+filter_cohort_on_condition(match...; exclude=nothing, also=nothing) =
     filter(exists(correlate_via_cohort(condition_occurrence(), condition;
                                        match=$match, exclude=$exclude,
-                                       extension=$extension)))
+                                       also=$also)))
 
 join_cohort_on_condition(match...; exclude=nothing) = begin
     join_via_cohort(condition_occurrence(), condition; match=$match, exclude=$exclude)
