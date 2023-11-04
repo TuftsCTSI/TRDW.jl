@@ -66,13 +66,15 @@ function group_by_concept(name=nothing; roundup=true,
     if event_threshold > 0
         base = base |> @funsql(filter(n_event>=$event_threshold))
     end
+    base = base |> @funsql(begin
+        join(c => from(concept), c.concept_id == concept_id)
+        order(n_person.desc(), c.concept_name)
+    end)
     if roundup
         base = base |> @funsql(define(n_person => concat("≤", roundup(n_person)),
                                       n_event => concat("≤", roundup(n_event))))
     end
     return base |> @funsql(begin
-        join(c => from(concept), c.concept_id == concept_id)
-        order(n_person.desc(), c.concept_name)
         select(n_person, n_event, c.concept_id, c.vocabulary_id,
                c.concept_code, c.concept_name)
     end)

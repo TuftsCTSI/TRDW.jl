@@ -14,7 +14,7 @@ select_concept(name, include...) = begin
     as(base)
     join(from(concept), base.concept_id == concept_id)
     select($([[@funsql(base.$n) for n in include]...,
-              :concept_id, :vocabulary_id, :concept_code, :concept_name])...)
+              :concept_id, :vocabulary_id, :concept_class_id, :concept_code, :concept_name])...)
 end
 
 select_concept() = select_concept(concept_id)
@@ -86,6 +86,13 @@ concept_ancestors() = begin
         concept(),
         concept_ancestor.ancestor_concept_id == concept_id)
 end
+
+exists_concept_relatives(relationship_id) = exists(begin
+        from(concept_relationship)
+        filter(relationship_id == $relationship_id)
+        filter(concept_id_1 == :concept_id)
+        bind(concept_id => concept_id)
+    end)
 
 concept_relatives(relationship_id) = begin
     as(base)

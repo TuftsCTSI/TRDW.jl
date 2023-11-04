@@ -136,7 +136,7 @@ to_3char_icd10cm() = begin
     crosswalk_from_icd9cm_to_icd10cm(condition_source)
 	truncate_icd10cm_to_3char(condition_source)
 	overwrite_with_icd10cm(condition_source, condition)
-	backwalk_snomed_to_icd10cm_3char(condition)
+	#backwalk_snomed_to_icd10cm_3char(condition)
 end
 
 group_clinical_finding(concept_id=nothing;carry=[]) = begin

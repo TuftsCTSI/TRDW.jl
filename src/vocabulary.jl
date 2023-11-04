@@ -450,6 +450,9 @@ function concept_matches(match...; match_prefix=nothing, match_source=nothing)
             push!(tests, strategy(ids, source_concept_id))
         end
     end
+    if length(tests) == 0
+        return @funsql(false)
+    end
     if length(tests) == 1
         return tests[1]
     end
