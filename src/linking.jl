@@ -66,7 +66,7 @@ end
 This constructs a correlated query that links via person and cohort date.
 """
 function correlate_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
-                              match=[], exclude=nothing,
+                              match=[], exclude=nothing, extension=nothing,
                               match_prefix= nothing, match_source=nothing)
     match_prefix = something(match_prefix, date_prefix)
     start_date = contains(string(date_prefix), "_date") ? date_prefix :
@@ -78,6 +78,7 @@ function correlate_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
         filter(person_id == :person_id &&
                coalesce($end_date, $start_date) >= :cohort_start_date &&
                $start_date <= :cohort_end_date)
+        $(isnothing(extension) ? @funsql(define()) : extension)
         $(length(match) == 0 ? @funsql(define()) :
           @funsql filter(concept_matches($match; match_prefix=$match_prefix,
                                          match_source=$match_source)))

@@ -31,16 +31,17 @@ condition_pivot(match...; event_total=true, person_total=true, roundup=true) = b
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-filter_cohort_on_condition(match...; exclude=nothing) =
+filter_cohort_on_condition(match...; exclude=nothing, extension=nothing) =
     filter(exists(correlate_via_cohort(condition_occurrence(), condition;
-                                       match=$match, exclude=$exclude)))
+                                       match=$match, exclude=$exclude,
+                                       extension=$extension)))
 
 join_cohort_on_condition(match...; exclude=nothing) = begin
     join_via_cohort(condition_occurrence(), condition; match=$match, exclude=$exclude)
     define(concept_id => coalesce(condition_source_concept_id, condition_concept_id))
 end
 
-group_3char_icd10cm(;carry=[]) = begin
+to_3char_icd10cm() = begin
     as(condition_occurrence)
     join(concept_ancestor => from(concept_ancestor),
         concept_ancestor.descendant_concept_id ==
@@ -51,11 +52,12 @@ group_3char_icd10cm(;carry=[]) = begin
              filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
         end,
         concept_id == concept_ancestor.ancestor_concept_id)
-    define($([@funsql($n => condition_occurrence.$n) for n in carry]...))
+    define(person_id => condition_occurrence.person_id,
+           condition_occurrence_id => condition_occurrence.condition_occurrence_id)
     partition(condition_occurrence.condition_source_concept_id, name="ancestors")
     filter(concept_ancestor.min_levels_of_separation ==
            ancestors.min(concept_ancestor.min_levels_of_separation))
-    group(concept_id)
+    group(concept_id, person_id, condition_occurrence_id)
 end
 
 group_clinical_finding(concept_id=nothing;carry=[]) = begin

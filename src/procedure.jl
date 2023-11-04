@@ -28,9 +28,10 @@ procedure_pivot(match...; event_total=true, person_total=true, roundup=true) = b
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-filter_cohort_on_procedure(match...; exclude=nothing) =
+filter_cohort_on_procedure(match...; exclude=nothing, extension=nothing) =
     filter(exists(correlate_via_cohort(procedure_occurrence(), procedure_date;
-                                       match_prefix=procedure, match=$match, exclude=$exclude)))
+                                       match_prefix=procedure, match=$match,
+                                       exclude=$exclude, extension=$extension)))
 
 join_cohort_on_procedure(match...; exclude=nothing) = begin
     join_via_cohort(procedure_occurrence(), procedure_date;
