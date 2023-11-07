@@ -36,7 +36,7 @@ drug_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
 end
 
 filter_cohort_on_drug(match...; exclude=nothing, also=nothing) =
-    filter(exists(correlate_via_cohort(condition_occurrence(), drug_exposure;
+    filter(exists(correlate_via_cohort(drug_exposure(), drug_exposure;
                                        match_prefix=drug, match=$match,
                                        exclude=$exclude, also=$also)))
 
