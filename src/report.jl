@@ -53,13 +53,23 @@ const var"funsql#pairing_roundups" = pairing_roundups
 function group_by_concept(name=nothing; roundup=true,
                           person_threshold=0, event_threshold=0)
     concept_id = (name == nothing) ? :concept_id :
-                 contains(string(name), "concept_id") ? name :
-                 Symbol("$(name)_concept_id")
+                contains(string(name), "concept_id") ? name :
+                Symbol("$(name)_concept_id")
+
+    # There must be a better way to do this...
+    # at very least, how do I test if cohort() is defined?
+    cohort_n_person = begin
+        n = @query cohort().group().count_n_person(; roundup=false)
+        n[1,1]
+    end
+
     base = @funsql(begin
         group(concept_id => $concept_id)
         define(n_event => count(),
-               n_person => count_distinct(person_id))
+            n_person => count_distinct(person_id),
+                pct_cohort => 100 * count_distinct(person_id)/$cohort_n_person)
     end)
+    
     if person_threshold > 0
         base = base |> @funsql(filter(n_person>=$person_threshold))
     end
@@ -72,11 +82,13 @@ function group_by_concept(name=nothing; roundup=true,
     end)
     if roundup
         base = base |> @funsql(define(n_person => concat("≤", roundup(n_person)),
-                                      n_event => concat("≤", roundup(n_event))))
+                                    n_event => concat("≤", roundup(n_event)),
+                            # How to restrict significant digits to 2?
+                                    pct_cohort => concat("≤", 100 * roundup(count_distinct(person_id))/roundup($cohort_n_person))))
     end
     return base |> @funsql(begin
-        select(n_person, n_event, c.concept_id, c.vocabulary_id,
-               c.concept_code, c.concept_name)
+        select(n_person, n_event, pct_cohort, c.concept_id, c.vocabulary_id,
+            c.concept_code, c.concept_name)
     end)
 end
 const var"funsql#group_by_concept" = group_by_concept
