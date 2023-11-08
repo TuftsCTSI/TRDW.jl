@@ -26,11 +26,12 @@ measurement_pivot(match...; event_total=true, person_total=true, roundup=true) =
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-join_measurement_via_cohort(match...; exclude=nothing) = begin
+join_cohort_on_measurement(match...; exclude=nothing) = begin
     join_via_cohort(measurement(), measurement_date;
                     match_prefix=measurement, match=$match)
     $(isnothing(exclude) ? @funsql(define()) :
       @funsql(filter(!measurement_matches($exclude))))
+    define(concept_id => measurement_concept_id)
 end
 
 truncate_to_loinc_class(name=nothing) = 
