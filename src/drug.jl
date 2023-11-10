@@ -40,11 +40,9 @@ filter_cohort_on_drug(match...; exclude=nothing, also=nothing) =
                                        match_prefix=drug, match=$match,
                                        exclude=$exclude, also=$also)))
 
-join_cohort_on_drug(match...; exclude=nothing) = begin
-    join_via_cohort(drug_exposure(), drug_exposure; match_prefix=drug, match=$match)
-    $(isnothing(exclude) ? @funsql(define()) :
-      @funsql(filter(!drug_matches($exclude))))
-    define(concept_id => coalesce(drug_source_concept_id, drug_concept_id))
+join_cohort_on_drug(match...; exclude=nothing, carry=nothing) = begin
+    join_via_cohort(drug_exposure(), drug_exposure; match_prefix=drug,
+                    match=$match, exclude=$exclude, carry=$carry)
 end
 
 isa_component_class() = isa_concept_class("Component Class")

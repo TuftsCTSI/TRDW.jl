@@ -26,12 +26,9 @@ observation_pivot(match...; event_total=true, person_total=true, roundup=true) =
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-join_cohort_on_observation(match...; exclude=nothing) = begin
-    join_via_cohort(observation(), observation_date;
-                    match_prefix=observation, match=$match)
-    $(isnothing(exclude) ? @funsql(define()) :
-      @funsql(filter(!observation_matches($exclude))))
-    define(concept_id => observation_concept_id)
+join_cohort_on_observation(match...; exclude=nothing, carry=nothing) = begin
+    join_via_cohort(observation(), observation_date; match_prefix=observation,
+                    match=$match, carry=$carry, exclude=$exclude)
 end
 
 end

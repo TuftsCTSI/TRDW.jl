@@ -36,9 +36,9 @@ filter_cohort_on_condition(match...; exclude=nothing, also=nothing) =
                                        match=$match, exclude=$exclude,
                                        also=$also)))
 
-join_cohort_on_condition(match...; exclude=nothing) = begin
-    join_via_cohort(condition_occurrence(), condition; match=$match, exclude=$exclude)
-    #define(concept_id => coalesce(condition_source_concept_id, condition_concept_id))
+join_cohort_on_condition(match...; exclude=nothing, carry=nothing) = begin
+    join_via_cohort(condition_occurrence(), condition;
+                    match=$match, exclude=$exclude, carry=$carry)
 end
 
 crosswalk_from_icd9cm_to_icd10cm(name=nothing) =

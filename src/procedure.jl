@@ -33,11 +33,10 @@ filter_cohort_on_procedure(match...; exclude=nothing, also=nothing) =
                                        match_prefix=procedure, match=$match,
                                        exclude=$exclude, also=$also)))
 
-join_cohort_on_procedure(match...; exclude=nothing) = begin
+join_cohort_on_procedure(match...; exclude=nothing, carry=nothing) = begin
     join_via_cohort(procedure_occurrence(), procedure_date;
-                    match_prefix=procedure, match=$match)
-    $(isnothing(exclude) ? @funsql(define()) :
-      @funsql(filter(!procedure_matches($exclude))))
+                    match_prefix=procedure, match=$match,
+                    exclude=$exclude, carry=$carry)
 end
 
 truncate_icd9proc_to_3dig(name=nothing) =

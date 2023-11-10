@@ -37,9 +37,9 @@ query as filtered by person and cohort date. The carry parameter can be used to
 bring base columns into the new context.
 """
 function join_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
-                         match=[], exclude=nothing,
+                         match=nothing, exclude=nothing,
                          match_prefix= nothing, match_source=nothing,
-                         carry=[])
+                         carry=nothing)
     base = gensym()
     match_prefix = something(match_prefix, date_prefix)
     start_date = contains(string(date_prefix), "_date") ? date_prefix :
@@ -51,13 +51,13 @@ function join_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
         join($query, person_id == $base.person_id)
         filter(coalesce($end_date, $start_date) >= $base.cohort_start_date &&
                $start_date <= $base.cohort_end_date)
-        $(length(match) == 0 ? @funsql(define()) :
+        $(isnothing(match) || length(match) == 0 ? @funsql(define()) :
           @funsql filter(concept_matches($match; match_prefix=$match_prefix,
                                          match_source=$match_source)))
-        $(isnothing(exclude) ? @funsql(define()) :
+        $(isnothing(exclude) || length(exclude) == 0 ? @funsql(define()) :
           @funsql filter(!concept_matches($exclude; match_prefix=$match_prefix,
                                           match_source=$match_source)))
-        define($([@funsql($n => $base.$n) for n in carry]...))
+        define($([@funsql($n => $base.$n) for n in something(carry,[])]...))
     end)
 end
 

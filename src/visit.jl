@@ -27,14 +27,8 @@ visit_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
                   event_total=$event_total, person_total=$person_total, roundup=$roundup)
 end
 
-join_visit_via_cohort(match...; exclude=nothing) = begin
-    join_via_cohort(visit_occurrence(), visit; match=$match)
-    $(isnothing(exclude) ? @funsql(define()) :
-      @funsql(filter(!visit_matches($exclude))))
-    define(concept_id =>
-       coalesce((visit_source_concept_id == 0) ?
-                visit_concept_id : visit_source_concept_id,
-                visit_concept_id))
+join_visit_via_cohort(match...; exclude=nothing, carry=nothing) = begin
+    join_via_cohort(visit_occurrence(), visit; match=$match, exclude=$exclude, carry=$carry)
 end
 
 end
