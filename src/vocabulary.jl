@@ -272,6 +272,7 @@ end
 @make_vocabulary("RxNorm Extension")
 @make_vocabulary("RxNorm")
 @make_vocabulary("SNOMED")
+@make_vocabulary("Type Concept")
 @make_vocabulary("Visit")
 
 struct Category <: AbstractCategory
