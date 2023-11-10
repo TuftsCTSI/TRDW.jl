@@ -29,7 +29,7 @@ with_group(pair::Pair{Symbol, FunSQL.SQLNode}; mandatory = true, exclude = false
       @funsql(define()))
 end
 
-with_group(node::FunSQL.SQLNode; mandatory=true, exclude=false) = 
+with_group(node::FunSQL.SQLNode; mandatory=true, exclude=false) =
     $(let name = gensym();
       @funsql(with_group($name => $node; mandatory=$mandatory, exclude=$exclude)) end)
 
@@ -49,32 +49,45 @@ stratify_by_age(; roundup=true) = begin
     join(p => from(person), p.person_id == person_id)
     define(age => 2023 - p.year_of_birth)
     group(age => case(
-        age >= 80, "80+",
+        age >= 90, "90+",
+        age >= 80, "80-89",
+        age >= 70, "70-79",
         age >= 70, "70-79",
         age >= 60, "60-69",
         age >= 50, "50-59",
         age >= 40, "40-49",
         age >= 30, "30-39",
-        "29 or less"))
+        age >= 20, "20-29",
+        "19 or less"))
     count_n_person(; roundup=$roundup)
     order(age)
     select(n_person, age)
 end
 
 stratify_by_race(; roundup=true) = begin
-    join(p => person(), p.person_id == person_id)
-    filter(p.race_concept_id > 0 )
-    group(race => p.race.concept_name)
+    deduplicate(person_id)
+    join(p => from(person), p.person_id == person_id)
+    left_join(race => from(concept),
+        p.race_concept_id == race.concept_id)
+    define(race_name =>
+        p.race_concept_id == 0 ?
+        "Unspecified" : race.concept_name)
+    group(race_name)
     count_n_person(; roundup=$roundup)
-    select(n_person, race)
+    select(n_person, race_name)
 end
 
 stratify_by_ethnicity(; roundup=true) = begin
-    join(p => person(), p.person_id == person_id)
-    filter(p.ethnicity_concept_id > 0 )
-    group(ethnicity => p.ethnicity.concept_name)
+    deduplicate(person_id)
+    join(p => from(person), p.person_id == person_id)
+    left_join(ethnicity => from(concept),
+        p.ethnicity_concept_id == ethnicity.concept_id)
+    define(ethnicity_name =>
+        p.ethnicity_concept_id == 0 ?
+        "Unspecified" : ethnicity.concept_name)
+    group(ethnicity_name)
     count_n_person(; roundup=$roundup)
-    select(n_person, ethnicity)
+    select(n_person, ethnicity_name)
 end
 
 end
