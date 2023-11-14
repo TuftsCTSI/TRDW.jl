@@ -2,6 +2,8 @@
 
 provider() = begin
     from(provider)
+    left_join(specialty_concept => concept(),
+              specialty_concept_id == concept.concept_id, optional=true)
     define(is_historical => provider_id > 1000000000)
 end
 

@@ -5,6 +5,12 @@ visit_occurrence(match...) = begin
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(visit_matches($match))))
     left_join(person => person(),
               person_id == person.person_id, optional=true)
+    left_join(concept => concept(),
+              visit_concept_id == concept.concept_id, optional=true)
+    left_join(type_concept => concept(),
+              visit_type_concept_id == concept.concept_id, optional=true)
+    left_join(source_concept => concept(),
+              visit_source_concept_id == concept.concept_id, optional=true)
     left_join(care_site => care_site(),
               care_site_id == care_site.care_site_id, optional=true)
     left_join(location => location(),
