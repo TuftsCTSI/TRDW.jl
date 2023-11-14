@@ -5,4 +5,6 @@ first_event() = begin
     filter(first_event.row_number() <= 1)
 end
 
+event_length() = datediff_day(event.start_datetime, event.end_datetime) + 1
+
 end
