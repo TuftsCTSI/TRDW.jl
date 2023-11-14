@@ -8,9 +8,9 @@ visit_occurrence(match...) = begin
     left_join(concept => concept(),
               visit_concept_id == concept.concept_id, optional=true)
     left_join(type_concept => concept(),
-              visit_type_concept_id == concept.concept_id, optional=true)
+              visit_type_concept_id == type_concept.concept_id, optional=true)
     left_join(source_concept => concept(),
-              visit_source_concept_id == concept.concept_id, optional=true)
+              visit_source_concept_id == source_concept.concept_id, optional=true)
     left_join(care_site => care_site(),
               care_site_id == care_site.care_site_id, optional=true)
     left_join(location => location(),

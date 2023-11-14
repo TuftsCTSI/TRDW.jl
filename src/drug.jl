@@ -3,8 +3,18 @@
 drug_exposure(match...) = begin
     from(drug_exposure)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(drug_matches($match))))
+    left_join(concept => concept(),
+              drug_concept_id == concept.concept_id, optional=true)
+    left_join(type_concept => concept(),
+              drug_type_concept_id == type_concept.concept_id, optional=true)
+    left_join(route_concept => concept(),
+              route_concept_id == route_concept.concept_id, optional=true)
+    left_join(source_concept => concept(),
+              drug_source_concept_id == source_concept.concept_id, optional=true)
     left_join(visit => visit_occurrence(),
         visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+    left_join(provider => provider(),
+              provider.provider_id == provider.provider_id, optional=true)
     join(event => begin
         from(drug_exposure)
         define(

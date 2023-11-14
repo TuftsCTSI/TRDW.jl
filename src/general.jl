@@ -135,6 +135,11 @@ macro run_funsql(db, q)
     :(run($db, @funsql($q)))
 end
 
+function create_table(db, schema, table, query)
+    query = FunSQL.render(db, query)
+    DBInterface.execute(db, "CREATE OR REPLACE TABLE $(schema).$(table) AS ($query)")
+end
+
 function describe_all(db)
     tables = Pair{Symbol, Any}[]
     for name in sort(collect(keys(db.catalog)))
