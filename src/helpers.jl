@@ -47,4 +47,6 @@ value_isa(ids...) = is_descendant_concept(value_as_concept_id, $ids...)
 qualifier_isa(ids...) = is_descendant_concept(qualifier_concept_id, $ids...)
 unit_isa(ids...) = is_descendant_concept(unit_concept_id, $ids...)
 
+end_of_day(date) = to_timestamp($date)+make_interval(0, 0, 0, 0, 23, 59, 59.999999)
+
 end

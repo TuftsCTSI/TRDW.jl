@@ -13,6 +13,7 @@ using p7zip_jll
 include("general.jl")
 include("spark.jl")
 include("helpers.jl")
+include("event.jl")
 include("export.jl")
 include("vocabulary.jl")
 include("filters.jl")

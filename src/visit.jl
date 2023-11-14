@@ -15,9 +15,9 @@ visit_occurrence(match...) = begin
             concept_id => visit_concept_id,
             current_age => nvl(datediff_year(person.birth_datetime, visit_start_date),
                             year(visit_start_date) - person.year_of_birth),
-            end_date => visit_end_date,
+            end_datetime => coalesce(visit_end_datetime, end_of_day(visit_end_date)),
             is_historical => visit_occurrence_id > 1000000000,
-            start_date => visit_start_date)
+            start_datetime => coalesce(visit_start_datetime, to_timestamp(visit_start_date)))
     end, visit_occurrence_id == event.visit_occurrence_id, optional = true)
 end
 
