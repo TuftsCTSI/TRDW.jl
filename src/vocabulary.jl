@@ -273,6 +273,7 @@ end
 @make_vocabulary("RxNorm")
 @make_vocabulary("SNOMED")
 @make_vocabulary("Type Concept")
+@make_vocabulary("CMS Place of Service")
 @make_vocabulary("Visit")
 
 struct Category <: AbstractCategory
