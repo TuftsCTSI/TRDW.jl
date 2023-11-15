@@ -19,6 +19,18 @@ end
 
 select_concept() = select_concept(concept_id)
 
+find_concept(table, concept_id, names...) = begin
+	as(base)
+	join(begin
+		$table
+		join(c => concept(), c.concept_id == $concept_id)
+		filter(icontains(c.concept_name, $names...))
+	end, person_id == base.person_id)
+	group($concept_id)
+	select_concept($concept_id, n_event => count(), n_person => count_distinct(person_id))
+	order(n_person.desc())
+end
+
 repr_concept(name=nothing) = begin
     define(concept_id => $(name == nothing ? :concept_id :
                            contains(string(name), "concept_id") ? name :
@@ -161,6 +173,8 @@ filter_out_descendants() = begin
     end)
     deduplicate(concept_id)
 end
+
+
 
 truncate_to_concept_class(name, concept_class_id, relationship_id="Is a") =
     $(let frame = gensym(),
