@@ -54,6 +54,7 @@ match_children(concepts, concept_id::Symbol) =
 
 match_isa_relatives(concepts, concept_id::Symbol) =
     @funsql begin
+        in($concept_id, $concepts...) ||
         exists(begin
             from(concept_relationship)
             filter(relationship_id == "Is a" &&
