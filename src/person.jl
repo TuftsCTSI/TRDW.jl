@@ -46,8 +46,10 @@ count_n_person(; roundup=true) = begin
 end
 
 stratify_by_age(; roundup=true) = begin
-    join(p => from(person), p.person_id == person_id)
-    define(age => 2023 - p.year_of_birth)
+    deduplicate(person_id)
+    as(base)
+    join(from(person), base.person_id == person_id)
+    define(age => 2023 - year_of_birth)
     group(age => case(
         age >= 90, "90+",
         age >= 80, "80-89",
@@ -66,11 +68,12 @@ end
 
 stratify_by_race(; roundup=true) = begin
     deduplicate(person_id)
-    join(p => from(person), p.person_id == person_id)
+    as(base)
+    join(from(person), base.person_id == person_id)
     left_join(race => from(concept),
-        p.race_concept_id == race.concept_id)
+        race_concept_id == race.concept_id)
     define(race_name =>
-        p.race_concept_id == 0 ?
+        race_concept_id == 0 ?
         "Unspecified" : race.concept_name)
     group(race_name)
     count_n_person(; roundup=$roundup)
@@ -79,11 +82,12 @@ end
 
 stratify_by_ethnicity(; roundup=true) = begin
     deduplicate(person_id)
-    join(p => from(person), p.person_id == person_id)
+    as(base)
+    join(from(person), base.person_id == person_id)
     left_join(ethnicity => from(concept),
-        p.ethnicity_concept_id == ethnicity.concept_id)
+        ethnicity_concept_id == ethnicity.concept_id)
     define(ethnicity_name =>
-        p.ethnicity_concept_id == 0 ?
+        ethnicity_concept_id == 0 ?
         "Unspecified" : ethnicity.concept_name)
     group(ethnicity_name)
     count_n_person(; roundup=$roundup)
