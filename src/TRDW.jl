@@ -19,6 +19,7 @@ include("vocabulary.jl")
 include("filters.jl")
 include("linking.jl")
 include("report.jl")
+include("wiise.jl")
 
 include("care_site.jl")
 include("concept.jl")
