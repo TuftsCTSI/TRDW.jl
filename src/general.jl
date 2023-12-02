@@ -124,8 +124,24 @@ function cursor_to_dataframe(cr)
     df = DataFrame(cr)
     # Remove `Missing` from column types where possible.
     disallowmissing!(df, error = false)
+    # Render columns that are named `html` or `*_html` as HTML.
+    htmlize!(df)
     df
 end
+
+function htmlize!(df)
+    for col in names(df)
+        if col == "html" || endswith(col, "_html")
+            df[!, col] = htmlize.(df[!, col])
+        end
+    end
+end
+
+htmlize(str::AbstractString) =
+    HTML(str)
+
+htmlize(val) =
+    val
 
 run(db, q) =
     DBInterface.execute(db, q) |>
