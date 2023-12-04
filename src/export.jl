@@ -214,6 +214,20 @@ function denormalize_concepts(base)
     base |> OMOP_Transform(; trs...)
 end
 
+export_period(start_date, end_date) =
+    OMOP_Transform(;
+        condition_occurrence = @funsql(filter(between(condition_start_date, $start_date, $end_date))),
+        death = @funsql(filter(between(death_date, $start_date, $end_date))),
+        device_exposure = @funsql(filter(between(device_exposure_start_date, $start_date, $end_date))),
+        drug_exposure = @funsql(filter(between(drug_exposure_start_date, $start_date, $end_date))),
+        measurement = @funsql(filter(between(measurement_date, $start_date, $end_date))),
+        note = @funsql(filter(between(note_date, $start_date, $end_date))),
+        observation = @funsql(filter(between(observation_date, $start_date, $end_date))),
+        procedure_occurrence = @funsql(filter(between(procedure_date, $start_date, $end_date))),
+        specimen = @funsql(filter(between(specimen_date, $start_date, $end_date))),
+        visit_detail = @funsql(filter(between(visit_detail_start_date, $start_date, $end_date))),
+        visit_occurrence = @funsql(filter(between(visit_start_date, $start_date, $end_date))))
+
 struct QueryGuard
     qs::OMOP_Queries
 
