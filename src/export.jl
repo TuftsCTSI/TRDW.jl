@@ -173,6 +173,47 @@ redact_text_fields(base) =
             define(snippet => string(missing))
         end))
 
+function denormalize_concepts(base)
+    trs = Pair{Symbol, FunSQL.SQLNode}[]
+    for tbl_name in [:condition_occurrence,
+                     :death,
+                     :device_exposure,
+                     :drug_exposure,
+                     :measurement,
+                     :note,
+                     :note_nlp,
+                     :observation,
+                     :person,
+                     :procedure_occurrence,
+                     :specimen,
+                     :visit_detail,
+                     :visit_occurrence]
+        tbl = omop_catalog[tbl_name]
+        tr = @funsql as(base)
+        for col_name in tbl.columns
+            col_name_s = string(col_name)
+            endswith(col_name_s, "_concept_id") || continue
+            prefix = Symbol(col_name_s[1:end-11])
+            tr = tr |> @funsql left_join($prefix => from(concept), base.$col_name == $prefix.concept_id)
+        end
+        for col_name in tbl.columns
+            tr = tr |> @funsql define(base.$col_name)
+            col_name_s = string(col_name)
+            endswith(col_name_s, "_concept_id") || continue
+            prefix = Symbol(col_name_s[1:end-11])
+            vocabulary_id = Symbol("$(prefix)_vocabulary_id")
+            concept_code = Symbol("$(prefix)_concept_code")
+            concept_name = Symbol("$(prefix)_concept_name")
+            tr = tr |> @funsql define(
+                $vocabulary_id => $prefix.vocabulary_id,
+                $concept_code => $prefix.concept_code,
+                $concept_name => $prefix.concept_name)
+        end
+        push!(trs, tbl_name => tr)
+    end
+    base |> OMOP_Transform(; trs...)
+end
+
 struct QueryGuard
     qs::OMOP_Queries
 
