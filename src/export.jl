@@ -171,6 +171,10 @@ redact_text_fields(base) =
         end),
         note_nlp = @funsql(begin
             define(snippet => string(missing))
+        end),
+        visit_occurrence = @funsql(begin
+            define(discharged_to_source_value => string(missing),
+                   admitted_from_source_value => string(missing))
         end))
 
 function denormalize_concepts(base)

@@ -40,9 +40,15 @@ join_by_person(next::FunSQL.SQLNode; carry=[]) = begin
 end
 
 count_n_person(; roundup=true) = begin
-    define(n_person => count())
+    define(n_person => count_distinct(person_id))
     order(n_person.desc())
     define(n_person => roundups(n_person, $roundup))
+end
+
+cohort_count(; roundup=true) = begin
+    count_n_person(;roundup=$roundup)
+    define(n_event => count(person_id))
+    define(n_event => roundups(n_event, $roundup))
 end
 
 stratify_by_age(; roundup=true) = begin

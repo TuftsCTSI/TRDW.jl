@@ -4,7 +4,7 @@ condition_occurrence(match...) = begin
     from(condition_occurrence)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(condition_matches($match))))
     left_join(visit => visit_occurrence(),
-        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
+        visit_occurrence_id == visit.visit_occurrence_id, optional = true)
     join(event => begin
         from(condition_occurrence)
         define(
@@ -20,9 +20,8 @@ end
 is_primary_discharge_diagnosis() =
     (condition_status_concept_id == 32903)
 
-is_condition_status(args...) =
-    in_category($ConditionStatus, $args, condition_status_concept_id)
-
+condition_status_isa(args...) =
+    category_isa($Condition_Status, $args, condition_status_concept_id)
 condition_matches(match...) = concept_matches($match; match_prefix=condition)
 
 condition_pivot(match...; event_total=true, person_total=true, roundup=true) = begin

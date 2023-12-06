@@ -30,6 +30,12 @@ visit_occurrence(match...) = begin
 end
 
 visit_matches(match...) = concept_matches($match; match_prefix=visit)
+visit_isa(args...) = category_isa($Visit, $args, visit_concept_id)
+
+join_visit(match...) = begin
+    as(base)
+    join(visit_occurrence($match...), base.visit_occurrence_id == visit_occurrence_id)
+end
 
 visit_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
     join_via_cohort(visit_occurrence(), visit; match=$match)

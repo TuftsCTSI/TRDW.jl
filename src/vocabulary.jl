@@ -352,7 +352,7 @@ function print_concepts(df::DataFrame, prefix="        ")
         !first && println(",")
         print(prefix)
         print(replace(row.vocabulary_id, " " => "_"))
-        print("($(row.concept_code),\"$(row.concept_name)\")")
+        print("(\"$(row.concept_code)\",\"$(row.concept_name)\")")
         first = false
     end
     println()
