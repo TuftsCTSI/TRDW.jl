@@ -159,18 +159,27 @@ end
 function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
-    if eltype(vocabulary_data.concept_code) <: Integer
-        if !(concept_code isa Integer)
-            concept_code = parse(Int, string(concept_code))
+    if concept_code == nothing
+        match_name = normalize_name(match_name)
+        test = row -> normalize_name(row.concept_name) == match_name
+        result = filter(test, vocabulary_data)
+        if 1 != size(result)[1]
+            throw(ArgumentError("'$match_name' not a concept_name in vocabulary $vocabulary_id"))
         end
-        test = row -> row.concept_code == concept_code
     else
-        concept_code = normalize_name(string(concept_code))
-        test = row -> normalize_name(row.concept_code) == concept_code
-    end
-    result = filter(test, vocabulary_data)
-    if 1 != size(result)[1]
-        throw(ArgumentError("'$concept_code' not found in vocabulary $vocabulary_id"))
+        if eltype(vocabulary_data.concept_code) <: Integer
+            if !(concept_code isa Integer)
+                concept_code = parse(Int, string(concept_code))
+            end
+            test = row -> row.concept_code == concept_code
+        else
+            concept_code = normalize_name(string(concept_code))
+            test = row -> normalize_name(row.concept_code) == concept_code
+        end
+        result = filter(test, vocabulary_data)
+        if 1 != size(result)[1]
+            throw(ArgumentError("'$concept_code' not found in vocabulary $vocabulary_id"))
+        end
     end
     concept = Concept(vocabulary,
                    result[1, :concept_id],
