@@ -161,10 +161,10 @@ function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing
     vocabulary_data = vocabulary_data!(vocabulary)
     if concept_code == nothing
         match_name = normalize_name(match_name)
-        test = row -> normalize_name(row.concept_name) == match_name
+        test = row -> is_concept_name_match(row.concept_name, match_name)
         result = filter(test, vocabulary_data)
         if 1 != size(result)[1]
-            throw(ArgumentError("'$match_name' not a concept_name in vocabulary $vocabulary_id"))
+            throw(ArgumentError("'$match_name' not singular in vocabulary $vocabulary_id"))
         end
     else
         if eltype(vocabulary_data.concept_code) <: Integer
