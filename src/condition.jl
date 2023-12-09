@@ -1,5 +1,26 @@
 @funsql begin
 
+condition(; prefer_icd = false) = begin
+    from(condition_occurrence)
+    as(omop)
+    define(
+        domain_id => "Condition",
+        occurrence_id => omop.condition_occurrence_id,
+        is_historical => omop.condition_occurrence_id > 1000000000,
+        person_id => omop.person_id,
+        concept_id => $prefer_icd ? omop.condition_source_concept_id : omop.condition_concept_id,
+        datetime => omop.condition_start_datetime,
+        end_datetime => omop.condition_end_datetime,
+        type_concept_id => omop.condition_type_concept_id,
+        status_concept_id => omop.condition_status_concept_id,
+        stop_reason => omop.stop_reason,
+        provider_id => omop.provider_id,
+        visit_occurrence_id => omop.visit_occurrence_id)
+end
+
+condition(match...) =
+    condition().filter(concept_matches($match))
+
 condition_occurrence(match...) = begin
     from(condition_occurrence)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(condition_matches($match))))

@@ -1,9 +1,11 @@
 @funsql begin
 
-concept(ids...) = begin
+concept() =
     from(concept)
-    $(length(ids) == 0 ? @funsql(define()) :
-      @funsql(filter(in(concept_id, $ids...))))
+
+concept(ids...) = begin
+    concept()
+    filter(in(concept_id, $ids...))
 end
 
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))

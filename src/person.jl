@@ -2,18 +2,27 @@
 
 person() = begin
     from(person)
-    left_join(death => from(death),
-		person_id == death.person_id, optional=true)
-    left_join(race => from(concept),
-		race_concept_id == race.concept_id, optional=true)
-    left_join(ethnicity => from(concept),
-		ethnicity_concept_id == ethnicity.concept_id, optional=true)
-    left_join(gender => from(concept),
-		gender_concept_id == gender.concept_id, optional=true)
+    as(omop)
+    left_join(
+        death => from(death),
+        omop.person_id == death.person_id,
+        optional = true)
+    define(
+        person_id => omop.person_id,
+        gender_concept_id => omop.gender_concept_id,
+        birth_datetime => omop.birth_datetime,
+        death_datetime => death.death_datetime,
+        death_concept_id => death.cause_concept_id,
+        death_type_concept_id => death.death_type_concept_id,
+        race_concept_id => omop.race_concept_id,
+        ethnicity_concept_id => omop.ethnicity_concept_id,
+        location_id => omop.location_id,
+        provider_id => omop.provider_id,
+        care_site_id => omop.care_site_id)
 end
 
 is_deceased() = isnotnull(death.person_id)
-	
+
 person_current_age() = nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth)
 
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
