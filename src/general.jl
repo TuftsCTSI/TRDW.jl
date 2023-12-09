@@ -120,12 +120,14 @@ function _tables_from_column_list(rows)
     tables
 end
 
-function cursor_to_dataframe(cr)
+function cursor_to_dataframe(db, cr)
     df = DataFrame(cr)
     # Remove `Missing` from column types where possible.
     disallowmissing!(df, error = false)
     # Render columns that are named `html` or `*_html` as HTML.
     htmlize!(df)
+    # Enrich `concept_id` and other key columns.
+    annotate_keys!(db, df)
     df
 end
 
@@ -143,9 +145,108 @@ htmlize(str::AbstractString) =
 htmlize(val) =
     val
 
+struct AnnotatedKey
+    id::Int32
+    text::String
+end
+
+Base.show(io::IO, k::AnnotatedKey) =
+    show(io, k.id)
+
+Base.show(io::IO, ::MIME"text/plain", k::AnnotatedKey) =
+    isempty(k.text) ? print(io, k.id) : print(io, k.id, ' ', '[', k.text, ']')
+
+function Base.show(io::IO, ::MIME"text/html", k::AnnotatedKey)
+    if isempty(k.text)
+        print(io, k.id)
+    else
+        text = replace(k.text, '&' => "&amp;", '<' => "&lt;", '>' => "&gt;", '"' => "&quot;")
+        print(io, """<pre class="no-block">$(k.id) [$text]</pre>""")
+    end
+end
+
+const g_annotation_cache = Dict{Tuple{Symbol, Int32}, String}()
+
+const annotate_keys_columns = [
+    :concept_id => :concept,
+    :person_id => :person,
+]
+
+annotate_keys_query(::Val{:concept}, ids) = @funsql begin
+    from(concept)
+    filter(in(concept_id, $(ids...)))
+    select(
+        concept_id,
+        if concept_id == 0
+            ""
+        elseif in(vocabulary_id, "ICD9CM", "ICD10CM")
+            concat(concept_code, " ", concept_name)
+        else
+            concept_name
+        end)
+end
+
+annotate_keys_query(::Val{:person}, ids) = @funsql begin
+    from(person)
+    filter(in(person_id, $(ids...)))
+    select(
+        person_id,
+        concat(
+            gender_concept_id == 8507 ? "M" : gender_concept_id == 8532 ? "F" : "",
+            year_of_birth))
+end
+
+function annotate_keys!(db, df)
+    for (column_name, table_name) in annotate_keys_columns
+        in(table_name, keys(db.catalog.tables)) || continue
+        cols = [col for col in names(df) if col == "$column_name" || endswith(col, "_$column_name")]
+        !isempty(cols) || continue
+        new_keys = _collect_new_keys(table_name, df[!, cols])
+        if length(new_keys) > 10000
+            @warn "Too many new $column_name, will annotate a subset of them" length(new_keys)
+            new_keys = new_keys[1:10000]
+        end
+        if !isempty(new_keys)
+            new_keys_df = DataFrame(DBInterface.execute(db, annotate_keys_query(Val(table_name), new_keys)))
+            update_annotation_cache(table_name, new_keys_df[!, 1], new_keys_df[!, 2])
+        end
+        for col in cols
+            df[!, col] = annotate_key.(table_name, df[!, col])
+        end
+    end
+end
+
+function _collect_new_keys(table_name, df)
+    new_keys = Set{Int32}()
+    for col in eachcol(df)
+        _push_new_keys!(new_keys, table_name, col)
+    end
+    return collect(new_keys)
+end
+
+function _push_new_keys!(new_keys, table_name, vals)
+    for val in vals
+        val !== missing || continue
+        !in((table_name, val), keys(g_annotation_cache)) || continue
+        push!(new_keys, val)
+    end
+end
+
+function update_annotation_cache(table_name, keys, strs)
+    for (key, str) in zip(keys, strs)
+        str !== missing || continur
+        g_annotation_cache[(table_name, key)] = str
+    end
+end
+
+annotate_key(table_name, ::Missing) =
+    missing
+
+annotate_key(table_name, id::Int32) =
+    AnnotatedKey(id, get(g_annotation_cache, (table_name, id), ""))
+
 run(db, q) =
-    DBInterface.execute(db, q) |>
-    cursor_to_dataframe
+    cursor_to_dataframe(db, DBInterface.execute(db, q))
 
 macro run_funsql(db, q)
     :(run($db, @funsql($q)))
