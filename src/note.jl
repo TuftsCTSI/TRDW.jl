@@ -2,6 +2,8 @@
 
 note() = begin
     from(note)
+    left_join(person => person(),
+              person_id == person.person_id, optional=true)
 end
 
 join_cohort_on_note(match...; exclude=nothing, carry=nothing) = begin

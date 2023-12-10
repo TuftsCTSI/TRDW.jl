@@ -3,6 +3,8 @@
 drug_exposure(match...) = begin
     from(drug_exposure)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(drug_matches($match))))
+    left_join(person => person(),
+              person_id == person.person_id, optional=true)
     left_join(concept => concept(),
               drug_concept_id == concept.concept_id, optional=true)
     left_join(type_concept => concept(),

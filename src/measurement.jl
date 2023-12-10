@@ -3,6 +3,8 @@
 measurement(match...) = begin
     from(measurement)
     $(length(match) == 0 ? @funsql(define()) : @funsql(filter(measurement_matches($match))))
+    left_join(person => person(),
+              person_id == person.person_id, optional=true)
     left_join(visit => visit_occurrence(),
         visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
     join(event => begin
