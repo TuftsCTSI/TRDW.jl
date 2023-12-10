@@ -463,7 +463,7 @@ function concept_matches(match...; match_prefix=nothing, match_source=nothing)
     if length(tests) == 1
         return tests[1]
     end
-    return FunSQL.Fun.Or(tests...)
+    return @funsql(or($tests...))
 end
 const var"funsql#concept_matches" = concept_matches
 
