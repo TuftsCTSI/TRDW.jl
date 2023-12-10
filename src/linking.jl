@@ -49,8 +49,10 @@ function join_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
     return @funsql(begin
         as($base)
         join($query, person_id == $base.person_id)
-        filter(coalesce($end_date, $start_date) >= $base.cohort_start_date &&
-               $start_date <= $base.cohort_end_date)
+        define(cohort_start_date => $base.cohort_start_date)
+        define(cohort_end_date => $base.cohort_end_date)
+        filter(coalesce($end_date, $start_date) >= cohort_start_date &&
+               $start_date <= cohort_end_date)
         $(isnothing(match) || length(match) == 0 ? @funsql(define()) :
           @funsql filter(concept_matches($match; match_prefix=$match_prefix,
                                          match_source=$match_source)))
