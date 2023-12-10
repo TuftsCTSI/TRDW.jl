@@ -94,7 +94,8 @@ function vocabulary_data!(vocabulary)
                        @funsql(from(concept).filter(vocabulary_id==$vocabulary_id)))
         CSV.write(vocabulary_filename, concepts)
     end
-    vocabulary_data = CSV.read(vocabulary_filename, DataFrame)
+    column_types = Dict("concept_code" => String)
+    vocabulary_data = CSV.read(vocabulary_filename, DataFrame; types=column_types)
     setfield!(vocabulary, :dataframe, vocabulary_data)
     return vocabulary_data
 end
@@ -102,7 +103,7 @@ end
 struct Concept
     vocabulary::Vocabulary
     concept_id::Int64
-    concept_code::Union{Int64, AbstractString}
+    concept_code::AbstractString
     concept_name::AbstractString
     is_standard::Bool
 end
@@ -167,15 +168,8 @@ function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing
             throw(ArgumentError("'$match_name' not singular in vocabulary $vocabulary_id"))
         end
     else
-        if eltype(vocabulary_data.concept_code) <: Integer
-            if !(concept_code isa Integer)
-                concept_code = parse(Int, string(concept_code))
-            end
-            test = row -> row.concept_code == concept_code
-        else
-            concept_code = normalize_name(string(concept_code))
-            test = row -> normalize_name(row.concept_code) == concept_code
-        end
+        concept_code = normalize_name(string(concept_code))
+        test = row -> normalize_name(row.concept_code) == concept_code
         result = filter(test, vocabulary_data)
         if 1 != size(result)[1]
             throw(ArgumentError("'$concept_code' not found in vocabulary $vocabulary_id"))
@@ -273,6 +267,7 @@ end
 @make_vocabulary("HemOnc")
 @make_vocabulary("ICD10CM", MATCH_SOURCE, match_isa_relatives)
 @make_vocabulary("ICD10PCS")
+@make_vocabulary("ICD9Proc", MATCH_SOURCE, match_isa_relatives)
 @make_vocabulary("ICD9CM", MATCH_SOURCE, match_isa_relatives)
 @make_vocabulary("LOINC")
 @make_vocabulary("NDFRT")
