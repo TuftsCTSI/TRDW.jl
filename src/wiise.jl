@@ -87,11 +87,16 @@ The input dataset is expected to contain column `person_id`.
                 trdw_to_wiise => begin
                     from(person)
                     trdw_to_wiise()
-                    define(wiise_id_html => wiise_id_to_html(wiise_id, system_name))
+                    define(
+                        wiise_id_text => concat(system_name, ":", wiise_id),
+                        wiise_id_html => wiise_id_to_html(wiise_id, system_name))
+                    define(`struct`(system_name, wiise_id, $(html ? :wiise_id_html : :wiise_id_text)))
                     group(person_id)
                 end,
                 person_id == trdw_to_wiise.person_id)
-            define(array_join(trdw_to_wiise.collect_set($(html ? :wiise_id_html : :wiise_id)), " ").as($(html ? :wiise_id_html : :wiise_id)))
+            define(
+                $(html ? :wiise_id_html : :wiise_id) =>
+                    array_join(fun(`?.col3`, array_sort(trdw_to_wiise.collect_set(`struct`))), " "))
         end)
 end
 
