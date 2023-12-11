@@ -13,7 +13,7 @@ The output preserves `person_id` from the input dataset and adds column `wiise_i
         append(
             begin
                 person => from(person)
-                join(
+                left_join(
                     epicpatientid_omoppersonid_map => begin
                         from(map)
                         join(related => from(map), EpicPatientId == related.EpicPatientId)
@@ -29,7 +29,7 @@ The output preserves `person_id` from the input dataset and adds column `wiise_i
                     person.person_id == epicpatientid_omoppersonid_map.person_id)
                 join(
                     omop_common_person_map => from(`trdwlegacysoarian.omop_common_person_map`),
-                    epicpatientid_omoppersonid_map.related_person_id == omop_common_person_map.person_id)
+                    coalesce(epicpatientid_omoppersonid_map.related_person_id, person.person_id) == omop_common_person_map.person_id)
                 join(
                     wiise_patient => begin
                         from(`wiise.patient`)
