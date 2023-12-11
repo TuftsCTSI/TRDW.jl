@@ -109,5 +109,5 @@ Convert a WIISE patient identifier to a WIISE Viewer link.
             "?system_name=",
             $system_name,
             """\">""",
-            substr($wiise_id, 1, 8),
+            concat($system_name, ":", substr($wiise_id, 1, 8)),
             """</a>"""))
