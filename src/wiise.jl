@@ -104,7 +104,7 @@ Convert a WIISE patient identifier to a WIISE Viewer link.
     case(
         fun(`(? RLIKE ?)`, $wiise_id, "^[0-9A-Fa-f-]+\$") && fun(`(? RLIKE ?)`, $system_name, "^[a-z]+\$"),
         concat(
-            """<a target="_blank" href="https://wellforce.muspell.314ecorp.com/patient-info/""",
+            """<a href="https://wellforce.muspell.314ecorp.com/patient-info/""",
             $wiise_id,
             "?system_name=",
             $system_name,
