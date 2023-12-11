@@ -3,7 +3,7 @@
 
 Correlate `person` records with WIISE identifiers.
 
-The input dataset must contain columns `person_id` and `person_source_value`.
+The input dataset must contain column `person_id`.
 
 The output preserves `person_id` from the input dataset and adds column `wiise_id`, which identifies the record in the table `wiise.patient` and in the WIISE Viewer.
 """
@@ -41,18 +41,23 @@ The output preserves `person_id` from the input dataset and adds column `wiise_i
             begin
                 person => from(person)
                 join(
+                    person_map => from(`person_map.person_map`),
+                    person.person_id == person_map.person_id)
+                join(
                     wiise_patient => begin
                         from(`wiise.patient`)
                         filter(meta >> source == "tuftsmedicineclarity")
                         define(pat_id => fun(`filter(?, i -> i.system = ?)[0].value`, identifier, "EpicWFPatientEPICId"))
                     end,
-                    person.person_source_value == wiise_patient.pat_id)
+                    person_map.person_source_value == wiise_patient.pat_id)
             end))
     with(
         `trdwlegacyred.epicpatientid_omoppersonid_map` =>
             from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacyred], name = :epicpatientid_omoppersonid_map, columns = [:person_id, :EpicPatientId]))),
         `trdwlegacysoarian.omop_common_person_map` =>
             from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian], name = :omop_common_person_map, columns = [:person_id, :mrn]))),
+        `person_map.person_map` =>
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :person_map], name = :person_map, columns = [:person_id, :person_source_value]))),
         `wiise.patient` =>
             from($(FunSQL.SQLTable(qualifiers = [:main, :wiise], name = :patient, columns = [:id, :meta, :identifier]))))
     define(
