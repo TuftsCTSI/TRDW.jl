@@ -5,7 +5,7 @@ Correlate `person` records with WIISE identifiers.
 
 The input dataset must contain column `person_id`.
 
-The output preserves `person_id` from the input dataset and adds column `wiise_id`, which identifies the record in the table `wiise.patient` and in the WIISE Viewer.
+The output preserves `person_id` from the input dataset and adds columns `wiise_id` and `system_name` that identify the record in the WIISE Viewer.
 """
 @funsql trdw_to_wiise() = begin
     as(person)
@@ -33,7 +33,8 @@ The output preserves `person_id` from the input dataset and adds column `wiise_i
                 join(
                     wiise_patient => begin
                         from(`wiise.patient`)
-                        filter(meta >> source == "tuftssoarian")
+                        define(source => meta >> source)
+                        filter(source == "tuftssoarian")
                         define(legacy_mrn => fun(`filter(?, i -> i.system = ?)[0].value`, identifier, "2.16.840.1.113883.3.650.387"))
                     end,
                     omop_common_person_map.mrn == wiise_patient.legacy_mrn)
@@ -45,11 +46,11 @@ The output preserves `person_id` from the input dataset and adds column `wiise_i
                     person.person_id == person_map.person_id)
                 join(
                     wiise_patient => begin
-                        from(`wiise.patient`)
-                        filter(meta >> source == "tuftsmedicineclarity")
-                        define(pat_id => fun(`filter(?, i -> i.system = ?)[0].value`, identifier, "EpicWFPatientEPICId"))
+                        from(`global.patient`)
+                        group(id, system_epic_id)
+                        define(source => "epic")
                     end,
-                    person_map.person_source_value == wiise_patient.pat_id)
+                    person_map.person_source_value == wiise_patient.system_epic_id)
             end))
     with(
         `trdwlegacyred.epicpatientid_omoppersonid_map` =>
@@ -59,10 +60,13 @@ The output preserves `person_id` from the input dataset and adds column `wiise_i
         `person_map.person_map` =>
             from($(FunSQL.SQLTable(qualifiers = [:ctsi, :person_map], name = :person_map, columns = [:person_id, :person_source_value]))),
         `wiise.patient` =>
-            from($(FunSQL.SQLTable(qualifiers = [:main, :wiise], name = :patient, columns = [:id, :meta, :identifier]))))
+            from($(FunSQL.SQLTable(qualifiers = [:main, :wiise], name = :patient, columns = [:id, :meta, :identifier]))),
+        `global.patient` =>
+            from($(FunSQL.SQLTable(qualifiers = [:main, :global], name = :patient, columns = [:id, :system_epic_id]))))
     define(
         person.person_id,
-        wiise_id => wiise_patient.id)
+        wiise_id => wiise_patient.id,
+        system_name => wiise_patient.source)
 end
 
 """
@@ -72,7 +76,7 @@ Add a column `wiise_id` containing a space-separated list of WIISE patient ident
 
 When `html` is `true`, the column is called `wiise_id_html` and is rendered as a link to the WIISE Viewer.
 
-The input dataset is expected to contain columns `person_id` and `person_source_value`.
+The input dataset is expected to contain column `person_id`.
 """
 @funsql join_wiise_id(; html = false) = begin
     as(person)
@@ -83,7 +87,7 @@ The input dataset is expected to contain columns `person_id` and `person_source_
                 trdw_to_wiise => begin
                     from(person)
                     trdw_to_wiise()
-                    define(wiise_id_html => wiise_id_to_html(wiise_id))
+                    define(wiise_id_html => wiise_id_to_html(wiise_id, system_name))
                     group(person_id)
                 end,
                 person_id == trdw_to_wiise.person_id)
@@ -92,16 +96,18 @@ The input dataset is expected to contain columns `person_id` and `person_source_
 end
 
 """
-    @funsql wiise_id_to_html(str)
+    @funsql wiise_id_to_html(wiise_id, system_name)
 
 Convert a WIISE patient identifier to a WIISE Viewer link.
 """
-@funsql wiise_id_to_html(str) =
+@funsql wiise_id_to_html(wiise_id, system_name) =
     case(
-        fun(`(? RLIKE ?)`, $str, "^[0-9A-Fa-f-]+\$"),
+        fun(`(? RLIKE ?)`, $wiise_id, "^[0-9A-Fa-f-]+\$") && fun(`(? RLIKE ?)`, $system_name, "^[a-z]+\$"),
         concat(
             """<a href="https://wellforce.muspell.314ecorp.com/patient-info/""",
-            $str,
+            $wiise_id,
+            "?system_name=",
+            $system_name,
             """\">""",
-            substr($str, 1, 8),
+            substr($wiise_id, 1, 8),
             """</a>"""))
