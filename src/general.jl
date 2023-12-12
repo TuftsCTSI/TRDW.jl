@@ -163,6 +163,7 @@ function create_table(db, schema, table, def)
     FunSQL.render(db, q)
     t, c = ref[]
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
+    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
     return t
 end
