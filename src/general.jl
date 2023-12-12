@@ -151,6 +151,19 @@ macro run_funsql(db, q)
     :(run($db, @funsql($q)))
 end
 
+"""
+create_table(db, schema, table, def)
+
+Example usage
+-------------
+
+```
+let t = TRDW.create_table(db, "rr_58599", "cohort", @funsql cohort_definition())
+    global @funsql cohort() = from(\$t)
+end
+```
+
+"""
 function create_table(db, schema, table, def)
     catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
     schema_name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema))

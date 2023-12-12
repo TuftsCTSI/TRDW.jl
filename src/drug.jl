@@ -79,6 +79,12 @@ drug_ingredient_via_NDFRT(code, name) = begin
     filter_out_descendants()
 end
 
+drug_ingredient_via_HemOnc(code, name) = begin
+    concept(HemOnc($code, $name))
+    concept_children()
+    filter(concept_class_id=="Ingredient")
+end
+
 to_ingredient() = begin
     as(drug_exposure)
 	join(concept_ancestor => from(concept_ancestor),
