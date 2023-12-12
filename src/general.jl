@@ -151,9 +151,20 @@ macro run_funsql(db, q)
     :(run($db, @funsql($q)))
 end
 
-function create_table(db, schema, table, query)
-    query = FunSQL.render(db, query)
-    DBInterface.execute(db, "CREATE OR REPLACE TABLE $(schema).$(table) AS ($query)")
+function create_table(db, schema, table, def)
+    catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
+    schema_name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema))
+    name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema) |> FunSQL.ID(table))
+    sql = FunSQL.render(db, def)
+    ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
+    q = FunSQL.From(table) |> FunSQL.WithExternal(table => def,
+                                                  qualifiers = (catalog, schema),
+                                                  handler = (p -> ref[] = p))
+    FunSQL.render(db, q)
+    t, c = ref[]
+    DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
+    DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
+    return t
 end
 
 function describe_all(db)
