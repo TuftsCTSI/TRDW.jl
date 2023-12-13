@@ -168,9 +168,18 @@ end
 const g_annotation_cache = Dict{Tuple{Symbol, Int32}, String}()
 
 const annotate_keys_columns = [
+    :care_site_id => :care_site,
     :concept_id => :concept,
+    :location_id => :location,
     :person_id => :person,
+    :provider_id => :provider,
 ]
+
+annotate_keys_query(::Val{:care_site}, ids) = @funsql begin
+    from(care_site)
+    filter(in(care_site_id, $(ids...)))
+    select(care_site_id, care_site_name)
+end
 
 annotate_keys_query(::Val{:concept}, ids) = @funsql begin
     from(concept)
@@ -186,6 +195,14 @@ annotate_keys_query(::Val{:concept}, ids) = @funsql begin
         end)
 end
 
+annotate_keys_query(::Val{:location}, ids) = @funsql begin
+    from(location)
+    filter(in(location_id, $(ids...)))
+    select(
+        location_id,
+        concat(city, ", ", state))
+end
+
 annotate_keys_query(::Val{:person}, ids) = @funsql begin
     from(person)
     filter(in(person_id, $(ids...)))
@@ -194,6 +211,18 @@ annotate_keys_query(::Val{:person}, ids) = @funsql begin
         concat(
             gender_concept_id == 8507 ? "M" : gender_concept_id == 8532 ? "F" : "",
             year_of_birth))
+end
+
+annotate_keys_query(::Val{:provider}, ids) = @funsql begin
+    from(provider)
+    filter(specialty_concept_id != 0)
+    filter(in(provider_id, $(ids...)))
+    join(
+        specialty_concept => from(concept),
+        specialty_concept_id == specialty_concept.concept_id)
+    select(
+        provider_id,
+        specialty_concept.concept_name)
 end
 
 function annotate_keys!(db, df)
@@ -234,7 +263,7 @@ end
 
 function update_annotation_cache(table_name, keys, strs)
     for (key, str) in zip(keys, strs)
-        str !== missing || continur
+        str !== missing || continue
         g_annotation_cache[(table_name, key)] = str
     end
 end
