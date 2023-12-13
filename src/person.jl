@@ -2,17 +2,18 @@
 
 person() = begin
     from(person)
-    as(omop)
     left_join(
         death => from(death),
-        omop.person_id == death.person_id,
+        person_id == death.person_id,
         optional = true)
+    as(omop)
     define(
         person_id => omop.person_id,
         gender_concept_id => omop.gender_concept_id,
         birth_datetime => omop.birth_datetime,
-        death_datetime => death.death_datetime,
-        death_concept_id => death.cause_concept_id,
+        death_datetime => omop.death.death_datetime,
+        death_concept_id =>
+            case(is_not_null(omop.death.person_id), coalesce(omop.death.cause_concept_id, 0)),
         death_type_concept_id => death.death_type_concept_id,
         race_concept_id => omop.race_concept_id,
         ethnicity_concept_id => omop.ethnicity_concept_id,

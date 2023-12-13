@@ -1,14 +1,20 @@
 @funsql begin
 
-condition(; prefer_icd = false) = begin
+condition() = begin
     from(condition_occurrence)
+    left_join(
+        condition_source_concept => from(concept),
+        condition_source_concept_id == condition_source_concept.concept_id,
+        optional = true)
     as(omop)
     define(
         domain_id => "Condition",
         occurrence_id => omop.condition_occurrence_id,
         is_historical => omop.condition_occurrence_id > 1000000000,
         person_id => omop.person_id,
-        concept_id => $prefer_icd ? omop.condition_source_concept_id : omop.condition_concept_id,
+        concept_id => omop.condition_concept_id,
+        icd_concept_id =>
+            case(in(omop.condition_source_concept.vocabulary_id, "ICD9CM", "ICD10CM"), omop.condition_source_concept_id),
         datetime => omop.condition_start_datetime,
         end_datetime => omop.condition_end_datetime,
         type_concept_id => omop.condition_type_concept_id,
