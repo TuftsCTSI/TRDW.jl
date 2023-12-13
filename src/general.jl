@@ -145,25 +145,13 @@ htmlize(str::AbstractString) =
 htmlize(val) =
     val
 
-struct AnnotatedKey
-    id::Int32
+struct Annotated{T}
+    value::T
     text::String
 end
 
-Base.show(io::IO, k::AnnotatedKey) =
-    show(io, k.id)
-
-Base.show(io::IO, ::MIME"text/plain", k::AnnotatedKey) =
-    isempty(k.text) ? print(io, k.id) : print(io, k.id, ' ', '[', k.text, ']')
-
-function Base.show(io::IO, ::MIME"text/html", k::AnnotatedKey)
-    if isempty(k.text)
-        print(io, k.id)
-    else
-        text = replace(k.text, '&' => "&amp;", '<' => "&lt;", '>' => "&gt;", '"' => "&quot;")
-        print(io, """<pre class="no-block">$(k.id) [$text]</pre>""")
-    end
-end
+Base.show(io::IO, k::Annotated) =
+    isempty(k.text) ? print(io, k.value) : print(io, k.value, ' ', '[', k.text, ']')
 
 const g_annotation_cache = Dict{Tuple{Symbol, Int32}, String}()
 
@@ -240,7 +228,7 @@ function annotate_keys!(db, df)
             update_annotation_cache(table_name, new_keys_df[!, 1], new_keys_df[!, 2])
         end
         for col in cols
-            df[!, col] = annotate_key.(table_name, df[!, col])
+            df[!, col] = annotate_key(table_name, df[!, col])
         end
     end
 end
@@ -268,11 +256,20 @@ function update_annotation_cache(table_name, keys, strs)
     end
 end
 
+annotate_key(table_name, vals::Vector{Union{Missing, T}}) where {T} =
+    Union{Missing, Annotated{T}}[annotate_key(table_name, val) for val in vals]
+
+annotate_key(table_name, vals::Vector{Missing}) =
+    vals
+
+annotate_key(table_name, vals::Vector{T}) where {T} =
+    Annotated{T}[annotate_key(table_name, val) for val in vals]
+
 annotate_key(table_name, ::Missing) =
     missing
 
-annotate_key(table_name, id::Int32) =
-    AnnotatedKey(id, get(g_annotation_cache, (table_name, id), ""))
+annotate_key(table_name, val::T) where {T} =
+    Annotated{T}(val, get(g_annotation_cache, (table_name, val), ""))
 
 run(db, q) =
     cursor_to_dataframe(db, DBInterface.execute(db, q))
