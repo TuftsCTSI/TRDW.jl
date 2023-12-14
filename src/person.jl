@@ -20,6 +20,34 @@ person() = begin
         location_id => omop.location_id,
         provider_id => omop.provider_id,
         care_site_id => omop.care_site_id)
+    join(
+        gender_concept => concept(),
+        concept_id == gender_concept.concept_id,
+        optional = true)
+    left_join(
+        death_concept => concept(),
+        death_concept_id == death_concept.concept_id,
+        optional = true)
+    left_join(
+        race_concept => concept(),
+        race_concept_id == race_concept.concept_id,
+        optional = true)
+    left_join(
+        ethnicity_concept => concept(),
+        ethnicity_concept_id == ethnicity_concept.concept_id,
+        optional = true)
+    left_join(
+        location => location(),
+        location_id == location.location_id,
+        optional = true)
+    left_join(
+        provider => provider(),
+        provider_id == provider.provider_id,
+        optional = true)
+    left_join(
+        care_site => care_site(),
+        care_site_id == care_site.care_site_id,
+        optional = true)
 end
 
 is_deceased() = isnotnull(omop.death.person_id)

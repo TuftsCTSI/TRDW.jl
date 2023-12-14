@@ -14,6 +14,10 @@ location() = begin
         omop.country_concept_id,
         omop.latitude,
         omop.longitude)
+    left_join(
+        country_concept => concept(),
+        country_concept_id == country_concept.concept_id,
+        optional = true)
 end
 
 end

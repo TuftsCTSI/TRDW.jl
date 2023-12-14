@@ -15,6 +15,34 @@ visit() = begin
         care_site_id => omop.care_site_id,
         admitted_from_concept_id => omop.admitted_from_concept_id,
         discharged_to_concept_id => omop.discharged_to_concept_id)
+    join(
+        person => person(),
+        person_id == person.person_id,
+        optional = true)
+    join(
+        concept => concept(),
+        concept_id == concept.concept_id,
+        optional = true)
+    left_join(
+        type_concept => concept(),
+        type_concept_id == type_concept.concept_id,
+        optional = true)
+    left_join(
+        provider => provider(),
+        provider_id == provider.provider_id,
+        optional = true)
+    left_join(
+        care_site => care_site(),
+        care_site_id == care_site.care_site_id,
+        optional = true)
+    left_join(
+        admitted_from_concept => concept(),
+        admitted_from_concept_id == admitted_from_concept.concept_id,
+        optional = true)
+    left_join(
+        discharged_to_concept => concept(),
+        discharged_to_concept_id == discharged_to_concept.concept_id,
+        optional = true)
 end
 
 visit(match...) =
