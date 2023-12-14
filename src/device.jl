@@ -1,23 +1,25 @@
 @funsql begin
 
-device(match...) = begin
+device() = begin
     from(device_exposure)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(device_matches($match))))
-    left_join(visit => visit_occurrence(),
-        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    join(event => begin
-        from(device_exposure)
-        define(
-            table_name => "device_exposure",
-            concept_id => device_concept_id,
-            end_date => device_exposure_end_date,
-            is_historical => device_exposure_id > 1500000000,
-            start_date => device_exposure_start_date,
-            source_concept_id => device_source_concept_id)
-    end, device_exposure_id == event.device_exposure_id, optional = true)
+    as(omop)
+    define(
+        domain_id => "Device",
+        occurrence_id => omop.device_exposure_id,
+        person_id => omop.person_id,
+        concept_id => omop.device_concept_id,
+        datetime => omop.device_exposure_start_datetime,
+        end_datetime => omop.device_exposure_end_datetime,
+        type_concept_id => omop.device_type_concept_id,
+        unique_device_id => omop.unique_device_id,
+        production_id => omop.production_id,
+        quantity => omop.quantity,
+        unit_concept_id => omop.unit_concept_id,
+        provider_id => omop.provider_id,
+        visit_occurrence_id => omop.visit_occurrence_id)
 end
 
-device_exposure(match...) = device($match...)
-device_matches(match...) = concept_matches($match; match_prefix=device)
+device(match...) =
+    device().filter(concept_matches($match))
 
 end

@@ -1,6 +1,6 @@
 @funsql begin
 
-concept() =
+concept() = begin
     from(concept)
     as(omop)
     define(
@@ -12,6 +12,7 @@ concept() =
         omop.standard_concept,
         omop.concept_code,
         omop.invalid_reason)
+end
 
 concept(ids...) = begin
     concept()

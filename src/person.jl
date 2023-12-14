@@ -14,7 +14,7 @@ person() = begin
         death_datetime => omop.death.death_datetime,
         death_concept_id =>
             case(is_not_null(omop.death.person_id), coalesce(omop.death.cause_concept_id, 0)),
-        death_type_concept_id => death.death_type_concept_id,
+        death_type_concept_id => omop.death.death_type_concept_id,
         race_concept_id => omop.race_concept_id,
         ethnicity_concept_id => omop.ethnicity_concept_id,
         location_id => omop.location_id,
@@ -22,7 +22,7 @@ person() = begin
         care_site_id => omop.care_site_id)
 end
 
-is_deceased() = isnotnull(death.person_id)
+is_deceased() = isnotnull(omop.death.person_id)
 
 person_current_age() = nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth)
 

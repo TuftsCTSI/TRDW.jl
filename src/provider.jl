@@ -2,41 +2,19 @@
 
 provider() = begin
     from(provider)
-    left_join(specialty_concept => concept(),
-              specialty_concept_id == specialty_concept.concept_id, optional=true)
-    define(is_historical => provider_id > 1000000000)
+    as(omop)
+    define(
+        provider_id => omop.provider_id,
+        provider_name => omop.provider_name,
+        npi => omop.npi,
+        dea => omop.dea,
+        concept_id => omop.specialty_concept_id,
+        care_site_id => omop.care_site_id,
+        year_of_birth => omop.year_of_birth,
+        gender_concept_id => omop.gender_concept_id)
 end
 
-specialty_isa(args...) = category_isa($Provider, $args, specialty_concept_id)
-
-provider_specialty_isa(args...) =
-    in(provider_id, begin
-        from(provider)
-        filter(specialty_isa($args...))
-        select(provider_id)
-    end)
-
-join_provider(ids...; carry=[]) = begin
-    as(base)
-    join(begin
-        provider()
-        $(length(ids) == 0 ? @funsql(define()) : @funsql filter(specialty_isa($ids...)))
-    end, base.person_id == person_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
-end
-
-correlated_provider(ids...) = begin
-	from(provider)
-	filter(person_id == :person_id)
-    $(length(ids) == 0 ? @funsql(define()) : @funsql filter(specialty_isa($ids...)))
-	bind(:person_id => person_id )
-end
-
-with_provider_group(extension=nothing) =
-    join(provider_group => begin
-      from(provider)
-      $(extension == nothing ? @funsql(define()) : extension)
-      group(person_id)
-    end, person_id == provider_group.person_id)
+provider(match...) =
+    provider().filter(concept_matches($match))
 
 end

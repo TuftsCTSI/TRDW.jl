@@ -1,43 +1,26 @@
 @funsql begin
 
-measurement(match...) = begin
+measurement() = begin
     from(measurement)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(measurement_matches($match))))
-    left_join(person => person(),
-              person_id == person.person_id, optional=true)
-    left_join(visit => visit_occurrence(),
-        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    join(event => begin
-        from(measurement)
-        define(
-            table_name => "measurement",
-            concept_id => measurement_concept_id,
-            end_date => measurement_date,
-            is_historical => measurement_id > 1500000000,
-            start_date => measurement_date,
-            source_concept_id => measurement_source_concept_id)
-    end, measurement_id == event.measurement_id, optional = true)
+    as(omop)
+    define(
+        domain_id => "Measurement",
+        occurrence_id => omop.measurement_id,
+        person_id => omop.person_id,
+        concept_id => omop.measurement_concept_id,
+        datetime => omop.measurement_datetime,
+        type_concept_id => omop.measurement_type_concept_id,
+        operator_concept_id => omop.operator_concept_id,
+        value_as_number => omop.value_as_number,
+        value_as_concept_id => omop.value_as_concept_id,
+        unit_concept_id => omop.unit_concept_id,
+        range_low => omop.range_low,
+        range_high => omop.range_high,
+        provider_id => omop.provider_id,
+        visit_occurrence_id => omop.visit_occurrence_id)
 end
 
-measurement_matches(match...) = concept_matches($match; match_prefix=measurement)
-
-measurement_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
-    join_via_cohort(measurement(), measurement_date;
-                    match_prefix=measurement, match=$match)
-    pairing_pivot($match, measurement, measurement_id;
-                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
-end
-
-join_cohort_on_measurement(match...; exclude=nothing, carry=nothing) = begin
-    join_via_cohort(measurement(), measurement_date; match_prefix=measurement,
-                    match=$match, exclude=$exclude, carry=$carry)
-end
-
-truncate_to_loinc_class(name=nothing) = 
-    truncate_to_concept_class($name, "LOINC Class")
-truncate_to_loinc_group(name=nothing) = 
-    truncate_to_concept_class($name, "LOINC Group")
-truncate_to_loinc_hierarchy(name=nothing) = 
-    truncate_to_concept_class($name, "LOINC Hierarchy")
+measurement(match...) =
+    measurement().filter(concept_matches($match))
 
 end

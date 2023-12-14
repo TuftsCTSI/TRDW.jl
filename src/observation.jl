@@ -1,36 +1,24 @@
 @funsql begin
 
-observation(match...) = begin
+observation() = begin
     from(observation)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(observation_matches($match))))
-    left_join(person => person(),
-              person_id == person.person_id, optional=true)
-    left_join(visit => visit_occurrence(),
-        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    join(event => begin
-        from(observation)
-        define(
-            table_name => "observation",
-            concept_id => observation_concept_id,
-            end_date => observation_date,
-            is_historical => observation_id > 1500000000,
-            start_date => observation_date,
-            source_concept_id => observation_source_concept_id)
-    end, observation_id == event.observation_id, optional = true)
+    as(omop)
+    define(
+        domain_id => "Observation",
+        occurrence_id => omop.observation_id,
+        concept_id => omop.observation_concept_id,
+        datetime => omop.observation_datetime,
+        type_concept_id => omop.observation_type_concept_id,
+        value_as_number => omop.value_as_number,
+        value_as_string => omop.value_as_string,
+        value_as_concept_id => omop.value_as_concept_id,
+        qualifier_concept_id => omop.qualifier_concept_id,
+        unit_concept_id => omop.unit_concept_id,
+        provider_id => omop.provider_id,
+        visit_occurrence_id => omop.visit_occurrence_id)
 end
 
-observation_matches(match...) = concept_matches($match; match_prefix=observation)
-
-observation_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
-    join_via_cohort(observation(), observation_date;
-                    match_prefix=observation, match=$match)
-    pairing_pivot($match, observation, observation_id;
-                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
-end
-
-join_cohort_on_observation(match...; exclude=nothing, carry=nothing) = begin
-    join_via_cohort(observation(), observation_date; match_prefix=observation,
-                    match=$match, carry=$carry, exclude=$exclude)
-end
+observation(match...) =
+    observation().filter(concept_matches($match))
 
 end

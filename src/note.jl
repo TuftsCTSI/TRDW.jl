@@ -2,19 +2,21 @@
 
 note() = begin
     from(note)
-    left_join(person => person(),
-              person_id == person.person_id, optional=true)
+    as(omop)
+    define(
+        domain_id => "Note",
+        occurrence_id => omop.note_id,
+        person_id => omop.person_id,
+        datetime => omop.note_datetime,
+        type_concept_id => omop.note_type_concept_id,
+        class_concept_id => omop.note_class_concept_id,
+        title => omop.note_title,
+        text => omop.note_text,
+        provider_id => omop.provider_id,
+        visit_occurrence_id => omop.visit_occurrence_id)
 end
 
-join_cohort_on_note(match...; exclude=nothing, carry=nothing) = begin
-    join_via_cohort(from(note), note_date; match_prefix=note_class,
-                    match=$match, carry=$carry, exclude=$exclude)
-end
-
-note_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
-    join_via_cohort(from(note), note_date; match_prefix=note_class, match=$match)
-    pairing_pivot($match, note, note_id,
-                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
-end
+note(match...) =
+    note().filter(concept_matches($match))
 
 end
