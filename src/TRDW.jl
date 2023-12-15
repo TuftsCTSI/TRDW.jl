@@ -20,6 +20,7 @@ include("filters.jl")
 include("linking.jl")
 include("report.jl")
 include("wiise.jl")
+include("soarian.jl")
 
 include("care_site.jl")
 include("concept.jl")
