@@ -120,14 +120,16 @@ function _tables_from_column_list(rows)
     tables
 end
 
-function cursor_to_dataframe(db, cr)
+function cursor_to_dataframe(db, cr; annotate_keys=false)
     df = DataFrame(cr)
     # Remove `Missing` from column types where possible.
     disallowmissing!(df, error = false)
     # Render columns that are named `html` or `*_html` as HTML.
     htmlize!(df)
     # Enrich `concept_id` and other key columns.
-    annotate_keys!(db, df)
+    if annotate_keys
+        annotate_keys!(db, df)
+    end
     df
 end
 
@@ -271,8 +273,8 @@ annotate_key(table_name, ::Missing) =
 annotate_key(table_name, val::T) where {T} =
     Annotated{T}(val, get(g_annotation_cache, (table_name, val), ""))
 
-run(db, q) =
-    cursor_to_dataframe(db, DBInterface.execute(db, q))
+run(db, q; annotate_keys=false) =
+    cursor_to_dataframe(db, DBInterface.execute(db, q); annotate_keys=annotate_keys)
 
 macro run_funsql(db, q)
     :(run($db, @funsql($q)))
