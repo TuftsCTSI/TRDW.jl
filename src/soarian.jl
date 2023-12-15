@@ -1,6 +1,6 @@
 @funsql begin
 
-left_join_soarian_to_trdw(PatientOID=nothing) = begin
+link_patient_soarian_to_trdw(PatientOID=nothing) = begin
     left_join(mir_sc_patientidentifiers => begin
                   from(`trdwlegacysoarian.mir_sc_patientidentifiers`)
                   filter(Type == "MR" && IsDeleted != 1)
@@ -17,7 +17,7 @@ left_join_soarian_to_trdw(PatientOID=nothing) = begin
     define(omop_common_person_map.person_id)
 end
 
-left_join_trdw_to_soarian(person_id=nothing) = begin
+link_patient_trdw_to_soarian(person_id=nothing) = begin
     left_join(omop_common_person_map => from(`trdwlegacysoarian.omop_common_person_map`),
               omop_common_person_map.person_id == $(something(person_id,:person_id)))
     left_join(mir_sc_patientidentifiers => begin

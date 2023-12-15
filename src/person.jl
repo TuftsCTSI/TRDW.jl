@@ -14,7 +14,8 @@ end
 
 is_deceased() = isnotnull(death.person_id)
 	
-person_current_age() = nvl(datediff_year(birth_datetime, now()), year(now()) - year_of_birth)
+person_current_age() = nvl(datediff_year(birth_datetime, nvl(death.death_date, now())),
+                           year(nvl(death.death_date, now())) - year_of_birth)
 
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
@@ -54,8 +55,8 @@ end
 stratify_by_age(; roundup=true) = begin
     deduplicate(person_id)
     as(base)
-    join(from(person), base.person_id == person_id)
-    define(age => 2023 - year_of_birth)
+    join(person(), base.person_id == person_id)
+    define(age => nvl(year(death.death_date), 2023) - year_of_birth)
     group(age => case(
         age >= 90, "90+",
         age >= 80, "80-89",
