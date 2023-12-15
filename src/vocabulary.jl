@@ -1,6 +1,5 @@
 const VOCAB_SCHEMA = "vocabulary_v20230823"
 const CONCEPT_PATH = (tempdir(), VOCAB_SCHEMA)
-mkpath(joinpath(CONCEPT_PATH))
 
 normalize_name(s) = replace(lowercase(s), r"[ -]" => "_")
 cache_filename(s) = joinpath([CONCEPT_PATH..., "$(normalize_name(s)).csv"])
@@ -90,6 +89,7 @@ function vocabulary_data!(vocabulary)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_filename = cache_filename(vocabulary_id)
     if !isfile(vocabulary_filename)
+        mkpath(joinpath(CONCEPT_PATH))
         concepts = run(vocab_connection(),
                        @funsql(from(concept).filter(vocabulary_id==$vocabulary_id)))
         CSV.write(vocabulary_filename, concepts)
