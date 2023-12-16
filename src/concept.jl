@@ -1,10 +1,24 @@
 @funsql begin
 
-concept(ids...) = begin
+concept() = begin
     from(concept)
-    $(length(ids) == 0 ? @funsql(define()) :
-      @funsql(filter(in(concept_id, $ids...))))
+    as(omop)
+    define(
+        omop.concept_id,
+        omop.concept_name,
+        omop.domain_id,
+        omop.vocabulary_id,
+        omop.concept_class_id,
+        omop.standard_concept,
+        omop.concept_code,
+        omop.invalid_reason)
 end
+
+concept(ids...) = begin
+    concept()
+    filter(in(concept_id, $ids...))
+end
+
 
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 
@@ -41,16 +55,19 @@ repr_concept(name=nothing) = begin
            replace(vocabulary_id, " ","_"), "(", concept_code, ", \"", concept_name,"\")"))
 end
 
-count_concept(name=nothing) = begin
+count_concept(name=nothing; roundup=true) = begin
     define(concept_id => $(name == nothing ? :concept_id :
                            contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))
     group(concept_id)
-    define(count => count())
+    define(n_event => count())
+    define(n_person => count_distinct(person_id))
     as(base)
     join(concept(), concept_id == base.concept_id)
-    order(base.count.desc(), vocabulary_id, concept_code)
-    select(base.count, concept_id, vocabulary_id, concept_code, concept_name)
+    order(base.n_person.desc(), vocabulary_id, concept_code)
+    define(n_event => roundups(base.n_event, $roundup))
+    define(n_person => roundups(base.n_person, $roundup))
+    select(n_person, n_event, concept_id, vocabulary_id, concept_code, concept_name)
 end
 
 with_concept(name, extension=nothing) =
