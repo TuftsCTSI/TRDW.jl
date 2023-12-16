@@ -55,20 +55,19 @@ repr_concept(name=nothing) = begin
            replace(vocabulary_id, " ","_"), "(", concept_code, ", \"", concept_name,"\")"))
 end
 
-count_concept(name=nothing; roundup=true) = begin
+count_concept(name, names...; roundup=true) = begin
     define(concept_id => $(name == nothing ? :concept_id :
                            contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))
-    group(concept_id)
-    define(n_event => count())
-    define(n_person => count_distinct(person_id))
-    as(base)
-    join(concept(), concept_id == base.concept_id)
-    order(base.n_person.desc(), vocabulary_id, concept_code)
-    define(n_event => roundups(base.n_event, $roundup))
-    define(n_person => roundups(base.n_person, $roundup))
-    select(n_person, n_event, concept_id, vocabulary_id, concept_code, concept_name)
+    group(concept_id, $names...)
+    define(n_event => roundups(count(), $roundup))
+    define(n_person => roundups(count_distinct(person_id), $roundup))
+    join(c => concept(), concept_id == c.concept_id)
+    order(n_person.desc(), c.vocabulary_id, c.concept_code)
+    select_concept(concept_id, n_person, n_event, $names...)
 end
+
+count_concept(;roundup=true) = count_councept(nothing; roundup=$roundup)
 
 with_concept(name, extension=nothing) =
     join($name => begin
