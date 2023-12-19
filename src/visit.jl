@@ -16,7 +16,7 @@ visit_occurrence(match...) = begin
     left_join(location => location(),
               location.location_id == care_site.location_id, optional=true)
     left_join(provider => provider(),
-              provider.provider_id == provider.provider_id, optional=true)
+              provider_id == provider.provider_id, optional=true)
     join(event => begin
         from(visit_occurrence)
         define(

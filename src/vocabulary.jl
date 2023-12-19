@@ -273,7 +273,6 @@ end
 @make_vocabulary("LOINC")
 @make_vocabulary("NDFRT")
 @make_vocabulary("OMOP Extension")
-@make_vocabulary("Provider")
 @make_vocabulary("Race")
 @make_vocabulary("RxNorm Extension")
 @make_vocabulary("RxNorm")
