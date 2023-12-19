@@ -22,27 +22,40 @@ end
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 
 select_concept(name, include...; order=[]) = begin
-    define(concept_id => $(contains(string(name), "concept_id") ? name :
-                           Symbol("$(name)_concept_id")))
-    as(base)
-    join(from(concept), base.concept_id == concept_id)
-    order($([[@funsql(base.$n) for n in order]..., :vocabulary_id, :concept_code])...)
-    select($([[@funsql(base.$n) for n in include]...,
-              :concept_id, :vocabulary_id, :concept_class_id, :concept_code, :concept_name])...)
+    $(let frame = gensym(),
+          columns = [:concept_id, :domain_id, :concept_class_id, :vocabulary_id,
+                     :concept_code, :concept_name],
+          concept_id = contains(string(name), "concept_id") ? name :
+                         Symbol("$(name)_concept_id"),
+          # handle (name => expr) in Select because FunSQL doesn't do so...
+          order = [gensym() => x for x in order],
+          define = [[p for p in order if p isa Pair]..., [p for p in include if p isa Pair]...],
+          include = [x isa Pair ? x[1] : x for x in include],
+          order = [x isa Pair ? x[1] : x for x in order],
+          include = [[@funsql($frame.$n) for n in include]..., columns...],
+          order = [[@funsql($frame.$n) for n in order]..., :vocabulary_id, :concept_code];
+        @funsql(begin
+            define($define...)
+            as($frame)
+            join(concept(), $frame.$concept_id == concept_id)
+            order($order...)
+            select($include...)
+        end)
+    end)
 end
 
 select_concept() = select_concept(concept_id)
 
 find_concept(table, concept_id, names...) = begin
-	as(base)
-	join(begin
-		$table
-		join(c => concept(), c.concept_id == $concept_id)
-		filter(icontains(c.concept_name, $names...))
-	end, person_id == base.person_id)
-	group($concept_id)
-	select_concept($concept_id, n_event => count(), n_person => count_distinct(person_id))
-	order(n_person.desc())
+    as(base)
+    join(begin
+        $table
+        join(c => concept(), c.concept_id == $concept_id)
+        filter(icontains(c.concept_name, $names...))
+    end, person_id == base.person_id)
+    group($concept_id)
+    select_concept($concept_id, n_event => count(), n_person => count_distinct(person_id))
+    order(n_person.desc())
 end
 
 repr_concept(name=nothing) = begin
@@ -59,12 +72,12 @@ count_concept(name, names...; roundup=true) = begin
     define(concept_id => $(name == nothing ? :concept_id :
                            contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))
+    define(concept_id => coalesce(concept_id, 0))
     group(concept_id, $names...)
-    define(n_event => roundups(count(), $roundup))
-    define(n_person => roundups(count_distinct(person_id), $roundup))
-    join(c => concept(), concept_id == c.concept_id)
-    order(n_person.desc(), c.vocabulary_id, c.concept_code)
-    select_concept(concept_id, n_person, n_event, $names...)
+    define(n_event => count(), n_person => count_distinct(person_id))
+    select_concept(concept_id, n_person => roundups(n_person, $roundup),
+                   n_event => roundups(n_event, $roundup);
+                   order = [n_person.desc(), n_event.desc()])
 end
 
 count_concept(;roundup=true) = count_concept(nothing; roundup=$roundup)
@@ -241,8 +254,8 @@ snomed_cover_via_icd10(;exclude=[]) =
 
 snomed_cover_via_cpt4(;exclude=[]) =
     concept_cover(begin
-		concept()
-		filter(concept_class_id == "CPT4 Hierarchy")
+        concept()
+        filter(concept_class_id == "CPT4 Hierarchy")
         left_join(nest_link =>
             from(concept_relationship).filter(relationship_id == "Subsumes"),
             nest_link.concept_id_1 == concept_id)
@@ -250,8 +263,8 @@ snomed_cover_via_cpt4(;exclude=[]) =
             from(concept).filter(concept_class_id == "CPT4 Hierarchy"),
             nest.concept_id == nest_link.concept_id_2)
         filter(isnull(nest.concept_id))
-		concept_relatives("Subsumes")
-		filter(concept_class_id == "CPT4")
+        concept_relatives("Subsumes")
+        filter(concept_class_id == "CPT4")
         concept_relatives("CPT4 - SNOMED cat")
     end; exclude=$exclude)
 
