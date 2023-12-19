@@ -19,14 +19,14 @@ concept(ids...) = begin
     filter(in(concept_id, $ids...))
 end
 
-
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 
-select_concept(name, include...) = begin
+select_concept(name, include...; order=[]) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))
     as(base)
     join(from(concept), base.concept_id == concept_id)
+    order($([[@funsql(base.$n) for n in order]..., :vocabulary_id, :concept_code])...)
     select($([[@funsql(base.$n) for n in include]...,
               :concept_id, :vocabulary_id, :concept_class_id, :concept_code, :concept_name])...)
 end
@@ -67,7 +67,7 @@ count_concept(name, names...; roundup=true) = begin
     select_concept(concept_id, n_person, n_event, $names...)
 end
 
-count_concept(;roundup=true) = count_councept(nothing; roundup=$roundup)
+count_concept(;roundup=true) = count_concept(nothing; roundup=$roundup)
 
 with_concept(name, extension=nothing) =
     join($name => begin
