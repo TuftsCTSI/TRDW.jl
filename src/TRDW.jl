@@ -11,6 +11,7 @@ using ZipFile
 using p7zip_jll
 
 include("general.jl")
+include("inventory.jl")
 include("spark.jl")
 include("helpers.jl")
 include("event.jl")
