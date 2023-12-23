@@ -277,7 +277,7 @@ run(db, q; annotate_keys=false) =
     cursor_to_dataframe(db, DBInterface.execute(db, q); annotate_keys=annotate_keys)
 
 macro run_funsql(db, q)
-    :(run($db, @funsql($q)))
+    :(run($db, @funsql($q)); annotate_keys=$annotate_keys)
 end
 
 """

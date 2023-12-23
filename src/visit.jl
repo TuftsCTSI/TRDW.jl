@@ -1,50 +1,67 @@
 @funsql begin
 
-visit_occurrence(match...) = begin
+visit() = begin
     from(visit_occurrence)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(visit_matches($match))))
-    left_join(person => person(),
-              person_id == person.person_id, optional=true)
-    left_join(concept => concept(),
-              visit_concept_id == concept.concept_id, optional=true)
-    left_join(type_concept => concept(),
-              visit_type_concept_id == type_concept.concept_id, optional=true)
-    left_join(source_concept => concept(),
-              visit_source_concept_id == source_concept.concept_id, optional=true)
-    left_join(care_site => care_site(),
-              care_site_id == care_site.care_site_id, optional=true)
-    left_join(location => location(),
-              location.location_id == care_site.location_id, optional=true)
-    left_join(provider => provider(),
-              provider_id == provider.provider_id, optional=true)
-    join(event => begin
-        from(visit_occurrence)
-        define(
-            concept_id => visit_concept_id,
-            current_age => nvl(datediff_year(person.birth_datetime, visit_start_date),
-                            year(visit_start_date) - person.year_of_birth),
-            end_datetime => coalesce(visit_end_datetime, end_of_day(visit_end_date)),
-            is_historical => visit_occurrence_id > 1000000000,
-            start_datetime => coalesce(visit_start_datetime, to_timestamp(visit_start_date)))
-    end, visit_occurrence_id == event.visit_occurrence_id, optional = true)
+    as(omop)
+    define(
+        # event columns
+        domain_id => "Visit",
+        occurrence_id => omop.visit_occurrence_id,
+        person_id => omop.person_id,
+        concept_id => omop.visit_concept_id,
+        datetime => coalesce(omop.visit_start_datetime,
+                             timestamp(omop.visit_start_date)),
+        overlap_ending => coalesce(omop.visit_end_datetime,
+                                   timestamp(omop.visit_end_date)),
+        type_concept_id => omop.visit_type_concept_id,
+        provider_id => omop.provider_id,
+        visit_occurrence_id => missing,
+        # domain specific columns
+        omop.care_site_id,
+        omop.admitted_from_concept_id,
+        omop.discharged_to_concept_id,
+        omop.preceding_visit_occurrence_id)
+    join(
+        person => person(),
+        person_id == person.person_id,
+        optional = true)
+    join(
+        concept => concept(),
+        concept_id == concept.concept_id,
+        optional = true)
+    left_join(
+        type_concept => concept(),
+        type_concept_id == type_concept.concept_id,
+        optional = true)
+    left_join(
+        provider => provider(),
+        provider_id == provider.provider_id,
+        optional = true)
+    left_join(
+        care_site => care_site(),
+        omop.care_site_id == care_site.care_site_id,
+        optional = true)
+    left_join(
+        admitted_from_concept => concept(),
+        omop.admitted_from_concept_id == admitted_from_concept.concept_id,
+        optional = true)
+    left_join(
+        discharged_to_concept => concept(),
+        omop.discharged_to_concept_id == discharged_to_concept.concept_id,
+        optional = true)
+    cross_join(
+        ext => begin
+            # computed variables
+            select(
+                is_historical => :ID > 1000000000)
+            bind(
+                :ID => omop.visit_occurrence_id)
+        end)
 end
 
-visit_matches(match...) = concept_matches($match; match_prefix=visit)
-visit_isa(args...) = category_isa($Visit, $args, visit_concept_id)
+visit(match...) =
+    visit().filter(concept_matches($match))
 
-join_visit(match...) = begin
-    as(base)
-    join(visit_occurrence($match...), base.visit_occurrence_id == visit_occurrence_id)
-end
-
-visit_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
-    join_via_cohort(visit_occurrence(), visit; match=$match)
-    pairing_pivot($match, visit, visit_occurrence_id;
-                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
-end
-
-join_visit_via_cohort(match...; exclude=nothing, carry=nothing) = begin
-    join_via_cohort(visit_occurrence(), visit; match=$match, exclude=$exclude, carry=$carry)
-end
+visit_isa(args...) = category_isa($Visit, $args, omop.visit_concept_id)
 
 end

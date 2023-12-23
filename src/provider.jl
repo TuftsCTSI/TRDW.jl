@@ -16,7 +16,6 @@ provider() = begin
         concept => concept(),
         concept_id == concept.concept_id,
         optional = true)
-    define(specialty => concept.concept_name)
     left_join(
         care_site => care_site(),
         care_site_id == care_site.care_site_id,
@@ -25,6 +24,14 @@ provider() = begin
         gender_concept => concept(),
         concept_id == gender_concept.concept_id,
         optional = true)
+    cross_join(
+        ext => begin
+            # computed variables
+            select(
+                is_historical => :ID > 1000000000)
+            bind(
+                :ID => omop.provider_id)
+        end)
 end
 
 provider(match...) =

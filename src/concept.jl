@@ -82,32 +82,6 @@ end
 
 count_concept(;roundup=true) = count_concept(nothing; roundup=$roundup)
 
-with_concept(name, extension=nothing) =
-    join($name => begin
-        concept()
-        $(extension == nothing ? @funsql(define()) : extension)
-    end, $(contains(string(name), "concept_id") ? name :
-           Symbol("$(name)_concept_id")) == $name.concept_id)
-
-join_concept(name, ids...; carry=[]) = begin
-    as(base)
-    join(begin
-        concept()
-        $(length(ids) == 0 ? @funsql(define()) :
-            @funsql filter(is_descendant_concept(concept_id, $ids...)))
-    end, base.$(contains(string(name), "concept_id") ? name :
-                Symbol("$(name)_concept_id")) == concept_id)
-    define($([@funsql(base.$n) for n in carry]...))
-end
-
-join_concept(;carry=[]) = begin
-    as(base)
-    join(begin
-        concept()
-    end, base.concept_id == concept_id)
-    define($([@funsql($n => base.$n) for n in carry]...))
-end
-
 concept_descendants() = begin
     as(base)
     join(
@@ -203,13 +177,8 @@ filter_out_descendants() = begin
     deduplicate(concept_id)
 end
 
-
-
-truncate_to_concept_class(name, concept_class_id, relationship_id="Is a") =
-    $(let frame = gensym(),
-          concept_id = (name == nothing) ? :concept_id :
-                         contains(string(name), "concept_id") ? name :
-                           Symbol("$(name)_concept_id");
+truncate_to_concept_class(concept_class_id, relationship_id="Is a") =
+    $(let frame = gensym();
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -218,8 +187,8 @@ truncate_to_concept_class(name, concept_class_id, relationship_id="Is a") =
                     concept()
                     filter(concept_class_id==$concept_class_id)
                 end, concept_id_2 == kind.concept_id)
-            end, $concept_id == $frame.concept_id_1)
-            define($concept_id => coalesce($frame.concept_id_2, $concept_id))
+            end, concept_id == $frame.concept_id_1)
+            define(concept_id => coalesce($frame.concept_id_2, concept_id))
         end)
     end)
 

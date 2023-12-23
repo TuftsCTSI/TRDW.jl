@@ -1,36 +1,69 @@
 @funsql begin
 
-observation(match...) = begin
+observation() = begin
     from(observation)
-    $(length(match) == 0 ? @funsql(define()) : @funsql(filter(observation_matches($match))))
-    left_join(person => person(),
-              person_id == person.person_id, optional=true)
-    left_join(visit => visit_occurrence(),
-        visit_occurrence_id == visit_occurrence.visit_occurrence_id, optional = true)
-    join(event => begin
-        from(observation)
-        define(
-            table_name => "observation",
-            concept_id => observation_concept_id,
-            end_date => observation_date,
-            is_historical => observation_id > 1500000000,
-            start_date => observation_date,
-            source_concept_id => observation_source_concept_id)
-    end, observation_id == event.observation_id, optional = true)
+    as(omop)
+    define(
+        # event columns
+        domain_id => "Observation",
+        occurrence_id => omop.observation_id,
+        person_id => omop.person_id,
+        concept_id => omop.observation_concept_id,
+        datetime => coalesce(omop.observation_datetime,
+                             timestamp(omop.observation_date)),
+        overlap_ending => missing,
+        type_concept_id => omop.observation_type_concept_id,
+        provider_id => omop.provider_id,
+        visit_occurrence_id => omop.visit_occurrence_id,
+        # domain specific columns
+        omop.value_as_number,
+        omop.value_as_string,
+        omop.value_as_concept_id,
+        omop.qualifier_concept_id,
+        omop.unit_concept_id)
+    join(
+        person => person(),
+        person_id == person.person_id,
+        optional = true)
+    join(
+        concept => concept(),
+        concept_id == concept.concept_id,
+        optional = true)
+    left_join(
+        type_concept => concept(),
+        type_concept_id == type_concept.concept_id,
+        optional = true)
+    left_join(
+        value_as_concept => concept(),
+        value_as_concept_id == value_as_concept.concept_id,
+        optional = true)
+    left_join(
+        qualifier_concept => concept(),
+        qualifier_concept_id == qualifier_concept.concept_id,
+        optional = true)
+    left_join(
+        unit_concept => concept(),
+        unit_concept_id == unit_concept.concept_id,
+        optional = true)
+    left_join(
+        provider => provider(),
+        provider_id == provider.provider_id,
+        optional = true)
+    left_join(
+        visit => visit(),
+        visit_occurrence_id == visit.occurrence_id,
+        optional = true)
+    cross_join(
+        ext => begin
+            # computed variables
+            select(
+                is_historical => :ID > 1500000000)
+            bind(
+                :ID => omop.observation_id)
+        end)
 end
 
-observation_matches(match...) = concept_matches($match; match_prefix=observation)
-
-observation_pivot(match...; event_total=true, person_total=true, roundup=true) = begin
-    join_via_cohort(observation(), observation_date;
-                    match_prefix=observation, match=$match)
-    pairing_pivot($match, observation, observation_id;
-                  event_total=$event_total, person_total=$person_total, roundup=$roundup)
-end
-
-join_cohort_on_observation(match...; exclude=nothing, carry=nothing) = begin
-    join_via_cohort(observation(), observation_date; match_prefix=observation,
-                    match=$match, carry=$carry, exclude=$exclude)
-end
+observation(match...) =
+    observation().filter(concept_matches($match))
 
 end

@@ -3,12 +3,12 @@ flatten_named_concept_sets(v::T) where T<:Vector{<:NamedTuple} = v
 flatten_named_concept_sets(t::T) where T<:Tuple = [(x for x in n) for n in t]
 flatten_named_concept_sets(t::T) where T<:Vector = [(x for x in n) for n in t]
 
-function pairing_match(match; match_prefix=nothing, match_source=nothing)
+function pairing_match(match; match_on=nothing)
     retval = Pair[]
     for cpairs in flatten_named_concept_sets(match)
         for (handle, cset) in pairs(cpairs)
             push!(retval, handle =>
-                  concept_matches(cset; match_prefix=match_prefix, match_source=match_source))
+                  concept_matches(cset; match_on=match_on))
         end
     end
     return retval
@@ -57,7 +57,7 @@ function group_by_concept(name=nothing; roundup=true,
                  Symbol("$(name)_concept_id")
     base = @funsql(begin
         group(concept_id => $concept_id)
-        define(n_event => count(),
+        define(n_event => count_distinct(occurrence_id),
                n_person => count_distinct(person_id))
     end)
     if person_threshold > 0
@@ -109,10 +109,10 @@ end
       @funsql(define()))
 end
 
-@funsql pairing_pivot(match, match_prefix::Symbol, pkcol::Symbol; event_total::Bool=true,
+@funsql pairing_pivot(match, match_on=nothing; event_total::Bool=true,
                       person_total::Bool=true, roundup::Bool = true) = begin
-    filter(concept_matches($match; match_prefix = $match_prefix))
-    select(person_id, $pkcol, pairing_match($match; match_prefix=$match_prefix)...)
+    filter(concept_matches($match; match_on = $match_on))
+    select(person_id, occurrence_id, pairing_match($match; match_on=$match_on)...)
     $(event_total ? @funsql(pairing_event_total($match; roundup=$roundup)) :
       person_total ? @funsql(pairing_person_total($match; roundup=$roundup)) :
       @funsql(define()))

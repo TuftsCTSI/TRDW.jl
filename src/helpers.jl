@@ -53,6 +53,16 @@ restrict_by(column_name, q) = begin
     filter(is_null($column_name) || is_not_null(subset.$column_name))
 end
 
+filter_by_cohort($cohort) =
+    $(let cname = gensym();
+        @funsql begin
+            join($cname => $cohort,
+                 $cname.person_id == person_id &&
+                 $cname.cohort_start_date <= coalesce(overlap_ending, datetime) &&
+                 datetime <= $cname.cohort_end_date)
+        end
+    end)
+
 # there are some lookups that are independent of table
 value_isa(ids...) = is_descendant_concept(value_as_concept_id, $ids...)
 qualifier_isa(ids...) = is_descendant_concept(qualifier_concept_id, $ids...)

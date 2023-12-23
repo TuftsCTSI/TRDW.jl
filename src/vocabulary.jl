@@ -6,17 +6,10 @@ cache_filename(s) = joinpath([CONCEPT_PATH..., "$(normalize_name(s)).csv"])
 
 abstract type AbstractCategory end
 
-@enum MatchLocation begin
-    MATCH_PRIMARY = 1
-    MATCH_SOURCE = 2
-    MATCH_BOTH = 3
-end
-
 mutable struct Vocabulary <: AbstractCategory
     vocabulary_id::String
     constructor::String
     dataframe::Union{DataFrame, Nothing}
-    match_location::MatchLocation
     match_strategy::Function
 end
 
@@ -29,6 +22,14 @@ function vocab_connection()
         g_vocab_conn[] = connect_with_funsql(VOCAB_SCHEMA; catalog = "ctsi")
     end
     return g_vocab_conn[]
+end
+
+function match_icdcm(concepts, concept_id::Symbol)
+     @assert concept_id == :concept_id
+     concept_code = @funsql(ext.icd_concept_code)
+     concepts = ["$(c.concept_code)%" for c in concepts]
+     tests = [@funsql(like($concept_code, $m)) for m in concepts]
+     return build_or(tests)
 end
 
 match_descendants(concepts, concept_id::Symbol) =
@@ -63,15 +64,13 @@ match_isa_relatives(concepts, concept_id::Symbol) =
         end)
     end
 
-function Vocabulary(vocabulary_id; constructor=nothing,
-                    match_location=nothing, match_strategy=nothing)
+function Vocabulary(vocabulary_id; constructor=nothing, match_strategy=nothing)
     if haskey(g_vocabularies, vocabulary_id)
         return g_vocabularies[vocabulary_id]
     end
     constructor = something(constructor, "Vocabulary($(repr(vocabulary_id)))")
     return g_vocabularies[vocabulary_id] =
         Vocabulary(vocabulary_id, constructor, nothing,
-                   something(match_location, MATCH_PRIMARY),
                    something(match_strategy, match_descendants))
 end
 
@@ -247,13 +246,12 @@ function lookup_by_name(category::AbstractCategory, keys::AbstractVector)
     return retval
 end
 
-macro make_vocabulary(name, match_location=nothing, match_strategy=nothing)
+macro make_vocabulary(name, match_strategy=nothing)
     lname = replace(name, " " => "_")
     funfn = Symbol("funsql#$lname")
     label = Symbol(lname)
     quote
         $(esc(label)) = Vocabulary($name; constructor=$lname,
-                                   match_location=$match_location,
                                    match_strategy=$match_strategy)
         $(esc(funfn))(concept_code, match_name=nothing) =
             lookup_by_code($label, concept_code, match_name)
@@ -266,10 +264,10 @@ end
 @make_vocabulary("Condition Status")
 @make_vocabulary("HemOnc")
 @make_vocabulary("ICD03")
-@make_vocabulary("ICD10CM", MATCH_SOURCE, match_isa_relatives)
+@make_vocabulary("ICD10CM", match_icdcm)
 @make_vocabulary("ICD10PCS")
-@make_vocabulary("ICD9Proc", MATCH_SOURCE, match_isa_relatives)
-@make_vocabulary("ICD9CM", MATCH_SOURCE, match_isa_relatives)
+@make_vocabulary("ICD9Proc")
+@make_vocabulary("ICD9CM", match_icdcm)
 @make_vocabulary("LOINC")
 @make_vocabulary("Medicare Specialty")
 @make_vocabulary("NDFRT")
@@ -416,56 +414,35 @@ macro concepts(expr::Expr)
     return block
 end
 
-#Base.convert(::Type{FunSQL.SQLNode}, v::NamedTuple{<:Any, <:Tuple{Vararg{Vector{Concept}}}}) =
-#   FunSQL.Lit(join(string.([c.concept_id for c in Iterators.flatten(values(v))]), ", "))
+function build_or(items)
+    if length(items) == 0
+        return @funsql(false)
+    end
+    if length(items) == 1
+        return items[1]
+    end
+    return @funsql(or($items...))
+end
 
-function concept_matches(match...; match_prefix=nothing, match_source=nothing)
+function concept_matches(match...; match_on=nothing)
     match = unnest_concept_set(match)
-    match_prefix = isnothing(match_prefix) ? :concept_id : match_prefix
-    if contains(string(match_prefix), "concept_id")
-        concept_id = Symbol(match_prefix)
-        if isnothing(match_source)
-            source_concept_id = concept_id
-        else
-            @assert contains(string(match_prefix), "concept_id")
-            source_concept_id = Symbol(match_source)
-        end
+    match_on = something(match_on, :concept_id)
+    if contains(string(match_on), "concept_id")
+        concept_id = Symbol(match_on)
     else
-        @assert isnothing(match_source)
-        concept_id = Symbol("$(match_prefix)_concept_id")
-        source_concept_id = Symbol("$(match_prefix)_source_concept_id")
+        concept_id = Symbol("$(match_on)_concept_id")
     end
     buckets = Dict()
     non_standard = Dict()
     for c in match
-        key = (getfield(c.vocabulary, :match_strategy),
-               (concept_id == source_concept_id) ?
-                   MATCH_PRIMARY :
-                   getfield(c.vocabulary, :match_location))
-        if !c.is_standard && key[1] == match_descendants
-            key = (match_children, key[2])
-        end
-        bucket = haskey(buckets, key) ?
-                   buckets[key] :
-                   (buckets[key] = Int[])
-        push!(bucket, c.concept_id)
+        key = getfield(c.vocabulary, :match_strategy)
+        bucket = haskey(buckets, key) ? buckets[key] : (buckets[key] = Concept[])
+        push!(bucket, c)
     end
     tests = FunSQL.SQLNode[]
-    for ((strategy, location), ids) in buckets
-        if location in (MATCH_PRIMARY, MATCH_BOTH)
-            push!(tests, strategy(ids, concept_id))
-        end
-        if location in (MATCH_SOURCE, MATCH_BOTH)
-            push!(tests, strategy(ids, source_concept_id))
-        end
+    for (strategy, ids) in buckets
+        push!(tests, strategy(ids, concept_id))
     end
-    if length(tests) == 0
-        return @funsql(false)
-    end
-    if length(tests) == 1
-        return tests[1]
-    end
-    return @funsql(or($tests...))
+    return build_or(tests)
 end
 const var"funsql#concept_matches" = concept_matches
-

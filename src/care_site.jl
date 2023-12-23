@@ -16,7 +16,16 @@ care_site() = begin
         location => location(),
         location_id == location.location_id,
         optional = true)
-    define(is_historical => care_site_id > 1000000000)
+    cross_join(
+        ext => begin
+            # computed variables
+            select(
+                is_historical => :ID > 1000000000,
+                is_clinic => startswith(:NAME, "CC"))
+            bind(
+                :ID => omop.care_site_id,
+                :NAME => omop.care_site_name)
+        end)
 end
 
 end
