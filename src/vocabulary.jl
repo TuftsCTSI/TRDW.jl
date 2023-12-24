@@ -380,38 +380,45 @@ function build_concepts(df::DataFrame)
     return retval
 end
 
-macro concepts(expr::Expr)
-    block = Expr(:tuple)
+function concepts_unpack!(expr)
+    if @dissect(expr, Expr(:tuple, args...))
+        expr.head = :vect
+    end
+    if @dissect(expr, Expr(:vect, args...))
+        for (index, value) in enumerate(expr.args)
+            if @dissect(value, Expr(:(...), item, _...)) && item isa Symbol
+                error("no need to ... expand references to arrays within @concepts")
+            end
+            if value isa Symbol
+                expr.args[index] = Expr(:(...), esc(value))
+            end
+        end
+        return expr
+    end
     conn = vocab_connection()
+    return :(build_concepts(run($conn, @funsql $expr)))
+end
+
+macro concepts(expr::Expr)
+    parts = []
+    block = Expr(:tuple)
     if expr.head == :block
         exs = [ex for ex in expr.args if ex isa Expr]
+    elseif expr.head == :vect
+        return concepts_unpack!(expr)
     else
         exs = [expr]
     end
     for ex in exs;
         if @dissect(ex, Expr(:(=), name::Symbol, query))
-            if @dissect(query, Expr(:vect, args...))
-                for (index, value) in enumerate(query.args)
-                    if @dissect(value, Expr(:(...), item, _...)) && item isa Symbol
-                        error("no need to ... expand references to arrays within @concepts")
-                    end
-                    if value isa Symbol
-                        query.args[index] = Expr(:(...), esc(value))
-                    end
-                end
-                item = query
-            elseif @dissect(query, Expr(:tuple, args...))
-                query.head = :vect
-                item = query
-            else
-                item = :(build_concepts(run($conn, @funsql $query)))
-            end
+            item = concepts_unpack!(query)
             push!(block.args, Expr(:(=), name, item))
         else
             error("expecting name=funsql or name=[concept...] assignments")
         end
     end
-    return block
+    push!(parts, block)
+    return Expr(:block, parts...)
 end
 
 function build_or(items)
