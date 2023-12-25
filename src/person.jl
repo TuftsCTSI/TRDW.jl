@@ -59,6 +59,7 @@ end
 is_deceased() = (:is_deceased => isnotnull(omop.death.person_id))
 
 current_age() = (:current_age => datediff_year(birth_datetime, nvl(death_datetime, now())))
+current_age(p) = (:current_age => datediff_year($p.birth_datetime, nvl($p.death_datetime, now())))
 
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
