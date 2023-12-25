@@ -26,8 +26,8 @@ is_integer(s) = rlike($s, "^[0-9]+\$")
 roundup(n) =  ceiling($n/10)*10
 roundups(n, round::Bool=true) = $(round ? @funsql(concat("≤", roundup($n))) : n)
 
-deduplicate(keys...) = begin
-    partition($(keys...), order_by = [$(keys...)], name = deduplicate)
+deduplicate(keys...; order=[]) = begin
+    partition($(keys...), order_by = [$([keys..., order...]...)], name = deduplicate)
     filter(deduplicate.row_number() <= 1)
 end
 
@@ -52,16 +52,6 @@ restrict_by(column_name, q) = begin
         $column_name == subset.$column_name)
     filter(is_null($column_name) || is_not_null(subset.$column_name))
 end
-
-filter_by_cohort($cohort) =
-    $(let cname = gensym();
-        @funsql begin
-            join($cname => $cohort,
-                 $cname.person_id == person_id &&
-                 $cname.cohort_start_date <= coalesce(overlap_ending, datetime) &&
-                 datetime <= $cname.cohort_end_date)
-        end
-    end)
 
 # there are some lookups that are independent of table
 value_isa(ids...) = is_descendant_concept(value_as_concept_id, $ids...)
