@@ -67,3 +67,35 @@ end_of_day(date; day_offset=0) =
     to_timestamp($date)+make_interval(0, 0, 0, $day_offset, 23, 59, 59.999999)
 
 end
+
+"""filter_with(pair, filter)
+
+This function correlates by `person_id` upon the joined table, optionally filters,
+and then returns the first entry by `occurrence_id` that matches.
+"""
+function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, condition=nothing)
+    (name, base) = pair
+    partname = gensym()
+    return @funsql(begin
+        join($name => $base, $name.person_id == person_id)
+        filter($(something(condition, true)))
+        partition(occurrence_id; order_by = [person_id, occurrence_id], name = $partname)
+        filter($partname.row_number() <= 1)
+    end)
+end
+var"funsql#filter_with" = filter_with
+
+"""filter_without(pair, filter)
+
+This function correlates by `person_id` upon the joined table, optionally filters,
+and then returns the first entry by `occurrence_id` that doesn't match.
+"""
+function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, condition=nothing)
+    (name, base) = pair
+    return @funsql(begin
+        left_join($name => $base, $name.person_id == person_id)
+        filter($(something(condition, true)))
+        filter(isnull($name.person_id))
+    end)
+end
+var"funsql#filter_without" = filter_without
