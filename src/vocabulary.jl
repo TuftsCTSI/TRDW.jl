@@ -402,15 +402,26 @@ end
 macro concepts(expr::Expr)
     parts = []
     block = Expr(:tuple)
+    exs = []
     if expr.head == :block
-        exs = [ex for ex in expr.args if ex isa Expr]
+        for ex in expr.args
+            if ex isa Expr || ex isa Symbol
+                push!(exs, ex)
+            elseif ex isa LineNumberNode
+                continue
+            else
+                error("unexpected item in @concepts ", ex)
+            end
+        end
     elseif expr.head == :vect
         return concepts_unpack!(expr)
     else
         exs = [expr]
     end
-    for ex in exs;
-        if @dissect(ex, Expr(:(=), name::Symbol, query))
+    for ex in exs
+        if ex isa Symbol
+            push!(block.args, Expr(:(=), ex, esc(ex)))
+        elseif @dissect(ex, Expr(:(=), name::Symbol, query))
             item = concepts_unpack!(query)
             push!(block.args, Expr(:(=), name, item))
         else
