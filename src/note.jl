@@ -11,7 +11,7 @@ note() = begin
         concept_id => omop.note_class_concept_id,
         datetime => coalesce(omop.note_datetime,
                              timestamp(omop.note_date)),
-        overlap_ending => missing,
+        datetime_end => missing,
         type_concept_id => omop.note_type_concept_id,
         provider_id => omop.provider_id,
         visit_occurrence_id => omop.visit_occurrence_id,

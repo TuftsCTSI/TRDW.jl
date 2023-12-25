@@ -11,11 +11,10 @@ visit() = begin
         concept_id => omop.visit_concept_id,
         datetime => coalesce(omop.visit_start_datetime,
                              timestamp(omop.visit_start_date)),
-        overlap_ending => coalesce(omop.visit_end_datetime,
-                                   timestamp(omop.visit_end_date)),
+        datetime_end => coalesce(omop.visit_end_datetime,
+                                 timestamp(omop.visit_end_date)),
         type_concept_id => omop.visit_type_concept_id,
         provider_id => omop.provider_id,
-        visit_occurrence_id => missing,
         # domain specific columns
         omop.care_site_id,
         omop.admitted_from_concept_id,

@@ -11,7 +11,7 @@ measurement() = begin
         concept_id => omop.measurement_concept_id,
         datetime => coalesce(omop.measurement_datetime,
                              timestamp(omop.measurement_date)),
-        overlap_ending => missing,
+        datetime_end => missing,
         type_concept_id => omop.measurement_type_concept_id,
         provider_id => omop.provider_id,
         visit_occurrence_id => omop.visit_occurrence_id,

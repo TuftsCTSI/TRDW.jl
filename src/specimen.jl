@@ -11,9 +11,8 @@ specimen() = begin
         concept_id => omop.specimen_concept_id,
         datetime => coalesce(omop.specimen_datetime,
                              timestamp(omop.specimen_date)),
-        overlap_ending => missing,
+        datetime_end => missing,
         type_concept_id => omop.specimen_type_concept_id,
-        provider_id => missing,
         visit_occurrence_id => missing,
         # domain specific columns
         omop.quantity,
@@ -43,6 +42,10 @@ specimen() = begin
     left_join(
         site_concept => concept(),
         site_concept_id == site_concept.concept_id,
+        optional = true)
+    left_join(
+        visit => visit(),
+        visit_occurrence_id == visit.occurrence_id,
         optional = true)
     cross_join(
         ext => begin

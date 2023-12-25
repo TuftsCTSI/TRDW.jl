@@ -11,7 +11,7 @@ observation() = begin
         concept_id => omop.observation_concept_id,
         datetime => coalesce(omop.observation_datetime,
                              timestamp(omop.observation_date)),
-        overlap_ending => missing,
+        datetime_end => missing,
         type_concept_id => omop.observation_type_concept_id,
         provider_id => omop.provider_id,
         visit_occurrence_id => omop.visit_occurrence_id,

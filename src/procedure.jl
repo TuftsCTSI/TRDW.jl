@@ -11,7 +11,7 @@ procedure() = begin
         concept_id => omop.procedure_concept_id,
         datetime => coalesce(omop.procedure_datetime,
                              timestamp(omop.procedure_date)),
-        overlap_ending => missing,
+        datetime_end => missing,
         type_concept_id => omop.procedure_type_concept_id,
         provider_id => omop.provider_id,
         visit_occurrence_id => omop.visit_occurrence_id,
