@@ -72,13 +72,15 @@ end
 
 This function correlates by `person_id` upon the joined table, optionally filters,
 and then returns the first entry by `occurrence_id` that matches.
+
+TODO: update FunSQL to avoid leaking of `name`.
 """
-function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, condition=nothing)
+function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     partname = gensym()
     return @funsql(begin
         join($name => $base, $name.person_id == person_id)
-        filter($(something(condition, true)))
+        filter($(something(predicate, true)))
         partition(occurrence_id; order_by = [person_id, occurrence_id], name = $partname)
         filter($partname.row_number() <= 1)
     end)
@@ -89,12 +91,14 @@ var"funsql#filter_with" = filter_with
 
 This function correlates by `person_id` upon the joined table, optionally filters,
 and then returns the first entry by `occurrence_id` that doesn't match.
+
+TODO: update FunSQL to avoid leaking of `name`.
 """
-function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, condition=nothing)
+function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     return @funsql(begin
         left_join($name => $base, $name.person_id == person_id)
-        filter($(something(condition, true)))
+        filter($(something(predicate, true)))
         filter(isnull($name.person_id))
     end)
 end
