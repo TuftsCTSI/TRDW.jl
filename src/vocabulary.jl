@@ -362,6 +362,8 @@ function print_concepts(df::DataFrame, prefix="        ")
     println()
 end
 
+print_concepts(::Nothing) = nothing
+
 print_concepts(q::FunSQL.SQLNode, prefix="        ") =
     print_concepts(run(vocab_connection(), q), prefix)
 
