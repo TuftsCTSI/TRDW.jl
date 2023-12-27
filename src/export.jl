@@ -103,7 +103,7 @@ OMOP_Queries(base::OMOP_Queries;
     procedure_occurrence = nothing,
     specimen = nothing,
     visit_detail = nothing,
-    visit_occurrence = nothing) = 
+    visit_occurrence = nothing) =
         OMOP_Queries(
             something(condition_occurrence, base.condition_occurrence),
             something(death, base.death),
@@ -198,7 +198,8 @@ function denormalize_concepts(base)
             col_name_s = string(col_name)
             endswith(col_name_s, "_concept_id") || continue
             prefix = Symbol(col_name_s[1:end-11])
-            tr = tr |> @funsql left_join($prefix => from(concept), base.$col_name == $prefix.concept_id)
+            tr = tr |> @funsql left_join($prefix => from(concept),
+                                         base.$col_name == $prefix.concept_id)
         end
         for col_name in tbl.columns
             tr = tr |> @funsql define(base.$col_name)
@@ -217,20 +218,6 @@ function denormalize_concepts(base)
     end
     base |> OMOP_Transform(; trs...)
 end
-
-export_period(start_date, end_date) =
-    OMOP_Transform(;
-        condition_occurrence = @funsql(filter(between(condition_start_date, $start_date, $end_date))),
-        death = @funsql(filter(between(death_date, $start_date, $end_date))),
-        device_exposure = @funsql(filter(between(device_exposure_start_date, $start_date, $end_date))),
-        drug_exposure = @funsql(filter(between(drug_exposure_start_date, $start_date, $end_date))),
-        measurement = @funsql(filter(between(measurement_date, $start_date, $end_date))),
-        note = @funsql(filter(between(note_date, $start_date, $end_date))),
-        observation = @funsql(filter(between(observation_date, $start_date, $end_date))),
-        procedure_occurrence = @funsql(filter(between(procedure_date, $start_date, $end_date))),
-        specimen = @funsql(filter(between(specimen_date, $start_date, $end_date))),
-        visit_detail = @funsql(filter(between(visit_detail_start_date, $start_date, $end_date))),
-        visit_occurrence = @funsql(filter(between(visit_start_date, $start_date, $end_date))))
 
 struct QueryGuard
     qs::OMOP_Queries
@@ -294,7 +281,7 @@ function temp_table!(etl::ETLContext, name, def)
     FunSQL.render(etl.db, q)
     t, c = ref[]
     name_sql = FunSQL.render(etl.db,
-                             FunSQL.ID("ctsi") |> FunSQL.ID("temp") |> FunSQL.ID(t.name))
+                   FunSQL.ID("ctsi") |> FunSQL.ID("temp") |> FunSQL.ID(t.name))
     sql = FunSQL.render(etl.db, def)
     create_stmt = "CREATE TABLE $name_sql AS\n$sql"
     drop_stmt = "DROP TABLE IF EXISTS $name_sql"
@@ -453,7 +440,6 @@ function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
           specimen = specimen_q,
           visit_detail = visit_detail_q,
           visit_occurrence = visit_occurrence_q))
-
 end
 
 function zipfile(filename, db, pairs...)
@@ -1061,3 +1047,38 @@ function export_timeline_zip(filename, etl::ETLContext)
         etl.db,
         ps...)
 end
+
+discover_tables = (:condition, :device, :drug, :measurement, :note,
+                   :observation, :procedure, :specimen, :visit)
+
+macro import_table_selection_from_discover(module_name = :Discover)
+    names = [ Symbol("funsql#$(sname)_selection") for sname in discover_tables]
+    args = [ Expr(:(.), fname) for fname in names]
+    Expr(:import, Expr(:(:), Expr(:(.), :(.), module_name), args...))
+end
+
+function unwrap_selection(mod::Module, tname::Symbol)
+    parts = []
+    for col in TRDW.omop_catalog[tname].columns
+        push!(parts, col =>
+              FunSQL.Get(col, over=FunSQL.Get(:omop, over = FunSQL.Get(:base))))
+    end
+    sname = Symbol(split(string(tname), "_")[1])
+    query = getfield(mod, Symbol("funsql#$(sname)_selection"))()
+    query |> FunSQL.As(:base) |> FunSQL.Define(parts...)
+end
+
+UnwrapQueries(mod::Module) =
+  OMOP_Queries(;
+        condition_occurrence = unwrap_selection(mod, :condition_occurrence),
+        device_exposure = unwrap_selection(mod, :device_exposure),
+        drug_exposure = unwrap_selection(mod, :drug_exposure),
+        measurement = unwrap_selection(mod, :measurement),
+        note = unwrap_selection(mod, :note),
+        note_nlp = @funsql(from(note_nlp).filter(false)),
+        observation = unwrap_selection(mod, :observation),
+        person = @funsql(from(person)),
+        procedure_occurrence = unwrap_selection(mod, :procedure_occurrence),
+        specimen = @funsql(from(specimen).filter(false)),
+        visit_detail = @funsql(from(visit_detail).filter(false)),
+        visit_occurrence = unwrap_selection(mod, :visit_occurrence))

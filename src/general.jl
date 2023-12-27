@@ -307,6 +307,7 @@ function create_table(db, schema, table, def)
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
+    @info "table $name_sql updated"
     return t
 end
 
@@ -920,5 +921,3 @@ const omop_catalog = FunSQL.SQLCatalog(
         :subject_concept_id,
         :cohort_initiation_date),
     dialect = :spark)
-
-export clarity_dict, fhir
