@@ -71,6 +71,7 @@ count_n_person(; roundup=true) = begin
 end
 
 cohort_count(; roundup=true) = begin
+    group()
     count_n_person(;roundup=$roundup)
     define(n_event => count(person_id))
     define(n_event => roundups(n_event, $roundup))
