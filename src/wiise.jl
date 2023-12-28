@@ -61,15 +61,23 @@ The output preserves `person_id` from the input dataset and adds columns `wiise_
        )
     with(
         `trdwlegacyred.epicpatientid_omoppersonid_map` =>
-            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacyred], name = :epicpatientid_omoppersonid_map, columns = [:person_id, :EpicPatientId]))),
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacyred],
+                                   name = :epicpatientid_omoppersonid_map,
+                                   columns = [:person_id, :EpicPatientId]))),
         `trdwlegacysoarian.omop_common_person_map` =>
-            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian], name = :omop_common_person_map, columns = [:person_id, :mrn]))),
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                   name = :omop_common_person_map,
+                                   columns = [:person_id, :mrn]))),
         `person_map.person_map` =>
-            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :person_map], name = :person_map, columns = [:person_id, :person_source_value]))),
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :person_map],
+                                   name = :person_map,
+                                   columns = [:person_id, :person_source_value]))),
         `wiise.patient` =>
-            from($(FunSQL.SQLTable(qualifiers = [:main, :wiise], name = :patient, columns = [:id, :meta, :identifier]))),
+            from($(FunSQL.SQLTable(qualifiers = [:main, :wiise],
+                                   name = :patient, columns = [:id, :meta, :identifier]))),
         `global.patient` =>
-            from($(FunSQL.SQLTable(qualifiers = [:main, :global], name = :patient, columns = [:id, :system_epic_id]))))
+            from($(FunSQL.SQLTable(qualifiers = [:main, :global],
+                                   name = :patient, columns = [:id, :system_epic_id]))))
     define(
         person.person_id,
         wiise_id => wiise_patient.id,

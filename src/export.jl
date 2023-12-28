@@ -254,6 +254,7 @@ Base.show(io::IO, timing::Vector{ETLTiming}) =
 
 struct ETLContext
     db::FunSQL.SQLConnection
+    cohort::Ref{FunSQL.SQLNode}
     queries::Ref{QueryGuard}
     create_stmts::Vector{String}
     drop_stmts::Vector{String}
@@ -262,7 +263,8 @@ struct ETLContext
     suffix::String
 
     function ETLContext(db::FunSQL.SQLConnection)
-        new(db, Ref{QueryGuard}(), String[], String[], String[], ETLTiming[],
+        new(db, Ref{FunSQL.SQLNode}(), Ref{QueryGuard}(),
+            String[], String[], String[], ETLTiming[],
             Dates.format(Dates.now(), "yyyymmddHHMMSSZ"))
     end
 
@@ -339,14 +341,22 @@ function cleanup!(etl::ETLContext)
     end
 end
 
-function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
+function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode)
+    if !isassigned(etl.cohort)
+        atexit(() -> drop_temp_tables!(etl))
+        etl.cohort[] =
+            temp_table!(
+                etl,
+                "cohort_$(etl.suffix)",
+                @funsql $cohort_q.filter(is_not_null(person_id)).group(person_id))
+        create_temp_tables!(etl)
+    end
+    return etl.cohort[]
+end
+
+function build_kernel!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
                        queries::QueryGuard=QueryGuard(OMOP_Queries()))
-    atexit(() -> drop_temp_tables!(etl))
-    cohort_q =
-        temp_table!(
-            etl,
-            "cohort_$(etl.suffix)",
-            @funsql $cohort_q.filter(is_not_null(person_id)).group(person_id))
+    cohort_q = build_cohort!(etl, cohort_q)
     person_q =
         temp_table!(
             etl,
@@ -465,31 +475,42 @@ function make_password()
     return join(rand(valid_characters, 13))
 end
 
+@funsql query_mrns(;include_dob=true) = begin
+    as(cohort)
+    join(from(person), cohort.person_id == person_id)
+    left_join(g=>from(concept), g.concept_id == gender_concept_id)
+    left_join(d=>from(death), d.person_id == person_id)
+    define(sex => case(g.concept_id == 0, "", g.concept_code))
+    define(birth => $(include_dob ?
+                    @funsql(make_date(year_of_birth, month_of_birth, day_of_birth)) :
+                    @funsql(year_of_birth)))
+    define(death => $(include_dob ? @funsql(d.death_date) : @funsql(year(d.death_date))))
+    left_join(epic => begin
+        from(`global.patient`)
+        group(system_epic_id)
+        define(mrn => array_join(collect_set(system_epic_mrn), ";"))
+    end, epic.system_epic_id == person_source_value)
+    left_join(soarian =>
+        from(`trdwlegacysoarian.omop_common_person_map`),
+        soarian.person_id == person_id)
+    with(
+        `trdwlegacysoarian.omop_common_person_map` =>
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                   name = :omop_common_person_map,
+                                   columns = [:person_id, :mrn]))),
+        `global.patient` =>
+            from($(FunSQL.SQLTable(qualifiers = [:main, :global],
+                                   name = :patient,
+                                   columns = [:id, :system_epic_id, :system_epic_mrn]))))
+    select(person_id, sex, birth, death, mrn => epic.mrn, soarian_mrn => soarian.mrn)
+end
+
 function export_keyfile(filename, etl::ETLContext, password; include_dob=false)
     @debug "export_keyfile($(repr(filename)))"
-    @assert isassigned(etl.queries)
-    dob = include_dob ? "\n      array_join(collect_set(gp.birthDate),';') dob," : ""
-    mrn_q = """
-    SELECT
-      p.person_id,$dob
-      array_join(collect_set(gp.system_epic_mrn),';') epic_mrn,
-      array_join(collect_set(gp.system_tuftssoarian_mrn),';') soarian_mrn
-    FROM `temp`.`person_$(etl.suffix)` p
-    LEFT JOIN `person_map`.`person_map` pm ON p.person_id = pm.person_id
-    LEFT JOIN (
-      SELECT DISTINCT
-        system_epic_id,
-        system_epic_mrn,
-        system_tuftssoarian_mrn,
-        birthDate
-      FROM `main`.`global`.`patient`) AS gp
-        ON pm.person_source_value = gp.system_epic_id
-    GROUP BY p.person_id
-    """
-    create_temp_tables!(etl)
-    @debug "execute", "mrn_q", mrn_q
-    cr = DBInterface.execute(etl.db, mrn_q)
+    cohort_q = etl.cohort[]
+    cr = run(etl.db, @funsql $cohort_q.query_mrns(;include_dob=$include_dob))
     @debug "writing", "mrn"
+    password = strip(password)
     p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename`, "w")
     CSV.write(p, cr; bufsize = 2^23)
     flush(p)
