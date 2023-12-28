@@ -283,7 +283,7 @@ function temp_table!(etl::ETLContext, name, def)
     name_sql = FunSQL.render(etl.db,
                    FunSQL.ID("ctsi") |> FunSQL.ID("temp") |> FunSQL.ID(t.name))
     sql = FunSQL.render(etl.db, def)
-    create_stmt = "CREATE TABLE $name_sql AS\n$sql"
+    create_stmt = "CREATE OR REPLACE TABLE $name_sql AS\n$sql"
     drop_stmt = "DROP TABLE IF EXISTS $name_sql"
     push!(etl.stmt_names, name)
     push!(etl.create_stmts, create_stmt)
@@ -460,8 +460,12 @@ function zipfile(filename, db, pairs...)
     close(z)
 end
 
-function export_keyfile(filename, etl::ETLContext; include_dob=false)
+function make_password()
+    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwzyz23456789"
+    return join(rand(valid_characters, 13))
+end
 
+function export_keyfile(filename, etl::ETLContext, password; include_dob=false)
     @debug "export_keyfile($(repr(filename)))"
     @assert isassigned(etl.queries)
     dob = include_dob ? "\n      array_join(collect_set(gp.birthDate),';') dob," : ""
@@ -485,15 +489,11 @@ function export_keyfile(filename, etl::ETLContext; include_dob=false)
     create_temp_tables!(etl)
     @debug "execute", "mrn_q", mrn_q
     cr = DBInterface.execute(etl.db, mrn_q)
-    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwzyz23456789"
-    password = join(rand(valid_characters, 13))
-    @debug "password", password
     @debug "writing", "mrn"
     p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename`, "w")
     CSV.write(p, cr; bufsize = 2^23)
     flush(p)
     close(p)
-    return password
 end
 
 function export_zip(filename, etl::ETLContext)
