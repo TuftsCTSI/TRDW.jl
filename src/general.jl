@@ -307,7 +307,7 @@ function create_table(db, schema, table, def)
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
-    @info "table $name_sql updated"
+    @info "table $name_sql updated at $(now())"
     return t
 end
 
