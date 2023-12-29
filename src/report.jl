@@ -95,6 +95,7 @@ end
 @funsql concept_set_total(match; roundup::Bool = true, group = []) = begin
     group(person_id, $group...)
     select(
+        dummy => "in case of no match or groups",
         $group...,
         concept_set_agg($match, any)...)
     group($group...)
