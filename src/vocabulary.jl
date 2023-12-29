@@ -403,8 +403,6 @@ function concepts_unpack!(expr)
 end
 
 macro concepts(expr::Expr)
-    parts = []
-    block = Expr(:tuple)
     exs = []
     if expr.head == :block
         for ex in expr.args
@@ -421,18 +419,18 @@ macro concepts(expr::Expr)
     else
         exs = [expr]
     end
+    parts = Any[]
     for ex in exs
         if ex isa Symbol
-            push!(block.args, Expr(:(=), ex, esc(ex)))
+            push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
         elseif @dissect(ex, Expr(:(=), name::Symbol, query))
             item = concepts_unpack!(query)
-            push!(block.args, Expr(:(=), name, item))
+            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), item))
         else
             error("expecting name=funsql or name=[concept...] assignments")
         end
     end
-    push!(parts, block)
-    return Expr(:block, parts...)
+    return Expr(:block, Expr(:tuple, Expr(:parameters, parts...)))
 end
 
 function build_or(items)
