@@ -3,19 +3,19 @@ flatten_named_concept_sets(v::T) where T<:Vector{<:NamedTuple} = v
 flatten_named_concept_sets(t::T) where T<:Tuple = [(x for x in n) for n in t]
 flatten_named_concept_sets(t::T) where T<:Vector = [(x for x in n) for n in t]
 
-function pairing_match(match; match_on=nothing)
+function concept_set_columns(match; match_on=nothing)
     retval = Pair[]
     for cpairs in flatten_named_concept_sets(match)
-        for (handle, cset) in pairs(cpairs)
+        for (handle, concept_set) in pairs(cpairs)
             push!(retval, handle =>
-                  concept_matches(cset; match_on=match_on))
+                  concept_matches(concept_set; match_on=match_on))
         end
     end
     return retval
 end
-const var"funsql#pairing_match" = pairing_match
+const var"funsql#concept_set_columns" = concept_set_columns
 
-function pairing_fun(match, fun_name::Symbol, args...)
+function concept_set_fun(match, fun_name::Symbol, args...)
     retval = Pair[]
     for cpairs in flatten_named_concept_sets(match)
         for (handle, _) in pairs(cpairs)
@@ -24,9 +24,9 @@ function pairing_fun(match, fun_name::Symbol, args...)
     end
     return retval
 end
-const var"funsql#pairing_fun" = pairing_fun
+const var"funsql#concept_set_fun" = concept_set_fun
 
-function pairing_agg(match, agg_name::Symbol, args...)
+function concept_set_agg(match, agg_name::Symbol, args...)
     retval = Pair[]
     for cpairs in flatten_named_concept_sets(match)
         for (handle, _) in pairs(cpairs)
@@ -35,11 +35,11 @@ function pairing_agg(match, agg_name::Symbol, args...)
     end
     return retval
 end
-const var"funsql#pairing_agg" = pairing_agg
-const var"funsql#pairing_count"(match) = pairing_agg(match, :count_if)
-const var"funsql#pairing_any"(match) = pairing_agg(match, :any)
+const var"funsql#concept_set_agg" = concept_set_agg
+const var"funsql#concept_set_count"(match) = concept_set_agg(match, :count_if)
+const var"funsql#concept_set_any"(match) = concept_set_agg(match, :any)
 
-function pairing_roundups(match)
+function concept_set_roundups(match)
     retval = Pair[]
     for cpairs in flatten_named_concept_sets(match)
         for (handle, _) in pairs(cpairs)
@@ -48,7 +48,7 @@ function pairing_roundups(match)
     end
     return retval
 end
-const var"funsql#pairing_roundups" = pairing_roundups
+const var"funsql#concept_set_roundups" = concept_set_roundups
 
 function group_by_concept(name=nothing; roundup=true,
                           person_threshold=0, event_threshold=0)
@@ -81,41 +81,37 @@ function group_by_concept(name=nothing; roundup=true,
 end
 const var"funsql#group_by_concept" = group_by_concept
 
-@funsql pairing_person_total(match; roundup::Bool = true, group = []) = begin
+@funsql concept_set_person_total(match; roundup::Bool = true, group = []) = begin
     group(person_id, $group...)
     order(count().desc())
     define(n_event=>count(),
-        pairing_agg($match, count_if)...)
+        concept_set_agg($match, count_if)...)
     $(roundup ? @funsql(define(
         n_event => roundups(n_event),
-        pairing_roundups($match)...)) :
+        concept_set_roundups($match)...)) :
       @funsql(define()))
 end
 
-@funsql pairing_event_total(match; roundup::Bool = true, group = []) = begin
+@funsql concept_set_total(match; roundup::Bool = true, group = []) = begin
     group(person_id, $group...)
     select(
-        n_event=>count(),
         $group...,
-        pairing_agg($match, any)...)
+        concept_set_agg($match, any)...)
     group($group...)
     select(
        $group...,
        n_people => count(),
-       n_event => sum(n_event),
-       pairing_agg($match, count_if)...)
+       concept_set_agg($match, count_if)...)
     $(roundup ? @funsql(define(
         n_people => roundups(n_people),
-        n_event => roundups(n_event),
-        pairing_roundups($match)...)) :
+        concept_set_roundups($match)...)) :
       @funsql(define()))
 end
 
-@funsql pairing_pivot(match, match_on=nothing; event_total::Bool=true,
-                      person_total::Bool=true, roundup::Bool = true,
-                      group = []) = begin
-    select(person_id, occurrence_id, $group..., pairing_match($match; match_on=$match_on)...)
-    $(event_total ? @funsql(pairing_event_total($match; roundup=$roundup, group=$group)) :
-      person_total ? @funsql(pairing_person_total($match; roundup=$roundup, group=$group)) :
-      @funsql(define()))
+@funsql concept_set_pivot(match, match_on=nothing; roundup::Bool = true,
+                          group = [], by_person = false) = begin
+    select(person_id, occurrence_id, $group...,
+           concept_set_columns($match; match_on=$match_on)...)
+    $(by_person ? @funsql(concept_set_person_total($match; roundup=$roundup, group=$group)) :
+      @funsql(concept_set_total($match; roundup=$roundup, group=$group)))
 end
