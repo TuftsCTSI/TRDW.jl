@@ -81,8 +81,8 @@ function group_by_concept(name=nothing; roundup=true,
 end
 const var"funsql#group_by_concept" = group_by_concept
 
-@funsql pairing_person_total(match; roundup::Bool = true) = begin
-    group(person_id)
+@funsql pairing_person_total(match; roundup::Bool = true, group = []) = begin
+    group(person_id, $group...)
     order(count().desc())
     define(n_event=>count(),
         pairing_agg($match, count_if)...)
@@ -92,13 +92,15 @@ const var"funsql#group_by_concept" = group_by_concept
       @funsql(define()))
 end
 
-@funsql pairing_event_total(match; roundup::Bool = true) = begin
-    group(person_id)
+@funsql pairing_event_total(match; roundup::Bool = true, group = []) = begin
+    group(person_id, $group...)
     select(
         n_event=>count(),
+        $group...,
         pairing_agg($match, any)...)
-    group()
+    group($group...)
     select(
+       $group...,
        n_people => count(),
        n_event => sum(n_event),
        pairing_agg($match, count_if)...)
@@ -110,9 +112,10 @@ end
 end
 
 @funsql pairing_pivot(match, match_on=nothing; event_total::Bool=true,
-                      person_total::Bool=true, roundup::Bool = true) = begin
-    select(person_id, occurrence_id, pairing_match($match; match_on=$match_on)...)
-    $(event_total ? @funsql(pairing_event_total($match; roundup=$roundup)) :
-      person_total ? @funsql(pairing_person_total($match; roundup=$roundup)) :
+                      person_total::Bool=true, roundup::Bool = true,
+                      group = []) = begin
+    select(person_id, occurrence_id, $group..., pairing_match($match; match_on=$match_on)...)
+    $(event_total ? @funsql(pairing_event_total($match; roundup=$roundup, group=$group)) :
+      person_total ? @funsql(pairing_person_total($match; roundup=$roundup, group=$group)) :
       @funsql(define()))
 end

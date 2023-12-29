@@ -271,6 +271,7 @@ end
 @make_vocabulary("LOINC")
 @make_vocabulary("Medicare Specialty")
 @make_vocabulary("NDFRT")
+@make_vocabulary("None")
 @make_vocabulary("NUCC")
 @make_vocabulary("OMOP Extension")
 @make_vocabulary("Race")
