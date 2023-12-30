@@ -86,6 +86,9 @@ function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
 end
 var"funsql#filter_with" = filter_with
 
+filter_with(node::FunSQL.SQLNode, predicate=true) =
+    filter_with(gensym() => node, predicate)
+
 """filter_without(pair, filter)
 
 This function correlates by `person_id` upon the joined table, optionally filters,
@@ -102,6 +105,9 @@ function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     end)
 end
 var"funsql#filter_without" = filter_without
+
+filter_without(node::FunSQL.SQLNode, predicate=true) =
+    filter_without(gensym() => node, predicate)
 
 """ castbool(v)
 
