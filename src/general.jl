@@ -921,3 +921,10 @@ const omop_catalog = FunSQL.SQLCatalog(
         :subject_concept_id,
         :cohort_initiation_date),
     dialect = :spark)
+
+""" handle index() case which returns one row per entry but no columns """
+function DBInterface.execute(c::FunSQL.SQLConnection{ODBC.Connection},
+                             p::Pair{Symbol, FunSQL.SQLNode})
+    (name, base) = p
+    return DBInterface.execute(c, @funsql($base.as($name)))
+end

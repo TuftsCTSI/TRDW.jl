@@ -52,6 +52,7 @@ const var"funsql#concept_set_roundups" = concept_set_roundups
 
 function group_by_concept(name=nothing; roundup=true,
                           person_threshold=0, event_threshold=0)
+    roundup = castbool(roundup)
     concept_id = (name == nothing) ? :concept_id :
                  contains(string(name), "concept_id") ? name :
                  Symbol("$(name)_concept_id")
@@ -81,18 +82,18 @@ function group_by_concept(name=nothing; roundup=true,
 end
 const var"funsql#group_by_concept" = group_by_concept
 
-@funsql concept_set_person_total(match; roundup::Bool = true, group = []) = begin
+@funsql concept_set_person_total(match; roundup = true, group = []) = begin
     group(person_id, $group...)
     define(n_event=>count(),
         concept_set_agg($match, count_if)...)
     order(n_event.desc())
-    $(roundup ? @funsql(define(
+    $(castbool(roundup) ? @funsql(define(
         n_event => roundups(n_event),
         concept_set_roundups($match)...)) :
       @funsql(define()))
 end
 
-@funsql concept_set_total(match; roundup::Bool = true, group = []) = begin
+@funsql concept_set_total(match; roundup = true, group = []) = begin
     group(person_id, $group...)
     select(
         dummy => "in case of no match or groups",
@@ -104,13 +105,13 @@ end
        n_people => count(),
        concept_set_agg($match, count_if)...)
     order(n_people.desc())
-    $(roundup ? @funsql(define(
+    $(castbool(roundup) ? @funsql(define(
         n_people => roundups(n_people),
         concept_set_roundups($match)...)) :
       @funsql(define()))
 end
 
-@funsql concept_set_pivot(match, match_on=nothing; roundup::Bool = true,
+@funsql concept_set_pivot(match, match_on=nothing; roundup = true,
                           group = [], by_person = false) = begin
     select(person_id, occurrence_id, $group...,
            concept_set_columns($match; match_on=$match_on)...)

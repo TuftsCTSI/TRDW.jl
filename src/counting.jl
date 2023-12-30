@@ -3,21 +3,21 @@
 count_n_person(; roundup=true) = begin
     define(n_person => count_distinct(person_id))
     order(n_person.desc())
-    define(n_person => roundups(n_person, $roundup))
+    define(n_person => roundups(n_person; round=$roundup))
 end
 
-count_n_person(pair::Pair{Symbol, FunSQL.SQLNode}; roundup=true) =
-    $(pair[2]).count_n_person(; roundup=true)
+count_n_person(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+    $(pair[2]).count_n_person(; roundup=$roundup)
 
 cohort_count(; roundup=true) = begin
     group()
-    count_n_person(;roundup=$roundup)
+    count_n_person(; roundup=$roundup)
     define(n_event => count(person_id))
-    define(n_event => roundups(n_event, $roundup))
+    define(n_event => roundups(n_event; round=$roundup))
 end
 
-cohort_count(pair::Pair{Symbol, FunSQL.SQLNode}; roundup=true) =
-    $(pair[2]).cohort_count(; roundup=true)
+cohort_count(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+    $(pair[2]).cohort_count(; roundup=$roundup)
 
 stratify_by_age(; roundup=true) = begin
     deduplicate(person_id)
@@ -40,8 +40,8 @@ stratify_by_age(; roundup=true) = begin
     select(n_person, age)
 end
 
-stratify_by_age(pair::Pair{Symbol, FunSQL.SQLNode}; roundup=true) =
-    $(pair[2]).stratify_by_age(; roundup=true)
+stratify_by_age(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+    $(pair[2]).stratify_by_age(; roundup=$roundup)
 
 stratify_by_race(; roundup=true) = begin
     deduplicate(person_id)
@@ -57,8 +57,8 @@ stratify_by_race(; roundup=true) = begin
     select(n_person, race_name)
 end
 
-stratify_by_race(pair::Pair{Symbol, FunSQL.SQLNode}; roundup=true) =
-    $(pair[2]).stratify_by_race(; roundup=true)
+stratify_by_race(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+    $(pair[2]).stratify_by_race(; roundup=$roundup)
 
 stratify_by_ethnicity(; roundup=true) = begin
     deduplicate(person_id)
@@ -74,7 +74,7 @@ stratify_by_ethnicity(; roundup=true) = begin
     select(n_person, ethnicity_name)
 end
 
-stratify_by_ethnicity(pair::Pair{Symbol, FunSQL.SQLNode}; roundup=true) =
-    $(pair[2]).stratify_by_ethnicity(; roundup=true)
+stratify_by_ethnicity(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+    $(pair[2]).stratify_by_ethnicity(; roundup=$roundup)
 
 end

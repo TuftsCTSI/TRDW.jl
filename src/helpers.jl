@@ -24,7 +24,6 @@ icontains(s, pats...) = or($([@funsql(icontains($s, $pat)) for pat in pats]...))
 
 is_integer(s) = rlike($s, "^[0-9]+\$")
 roundup(n) =  ceiling($n/10)*10
-roundups(n, round::Bool=true) = $(round ? @funsql(concat("≤", roundup($n))) : n)
 
 deduplicate(keys...; order=[]) = begin
     partition($(keys...), order_by = [$([keys..., order...]...)], name = deduplicate)
@@ -103,3 +102,34 @@ function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     end)
 end
 var"funsql#filter_without" = filter_without
+
+""" castbool(v)
+
+This function permits us to use `!\$v` expressions within a notebook.
+"""
+function castbool(v::FunSQL.SQLNode)::Bool
+    v isa FunSQL.SQLNode ? v = getfield(v, :core) : nothing
+    if v isa FunSQL.FunctionNode && v.name == :not
+        if length(v.args) == 1
+            v = v.args[1]
+        end
+    end
+    v isa FunSQL.SQLNode ? v = getfield(v, :core) : nothing
+    if v isa FunSQL.LiteralNode
+        return !v.val
+    end
+    error("expecting !bool")
+end
+
+castbool(v::Bool) = v
+
+var"funsql#castbool" = castbool
+
+function roundups(n; round=true)
+    if !isa(round, Bool)
+        round = castbool(round)
+    end
+    return round ? @funsql(concat("≤", roundup($n))) : n
+end
+
+var"funsql#roundups" = roundups
