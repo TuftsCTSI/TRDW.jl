@@ -51,7 +51,7 @@ specimen() = begin
         ext => begin
             # computed variables
             select(
-                is_historical => :ID > 1500000000)
+                is_preepic => :ID > 1500000000)
             bind(
                 :ID => omop.specimen_id)
         end)

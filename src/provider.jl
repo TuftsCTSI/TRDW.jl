@@ -28,7 +28,7 @@ provider() = begin
         ext => begin
             # computed variables
             select(
-                is_historical => :ID > 1000000000)
+                is_preepic => :ID > 1000000000)
             bind(
                 :ID => omop.provider_id)
         end)

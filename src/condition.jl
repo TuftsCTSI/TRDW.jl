@@ -59,7 +59,7 @@ condition() = begin
                    case(in(:source_vocabulary_id, "ICD9CM", "ICD10CM"), :source_concept_id),
                 icd_concept_code =>
                    case(in(:source_vocabulary_id, "ICD9CM", "ICD10CM"), :source_concept_code),
-                is_historical => :ID > 1000000000)
+                is_preepic => :ID > 1000000000)
             bind(
                 :ID => omop.condition_occurrence_id,
                 :source_vocabulary_id => omop.condition_source_concept.vocabulary_id,

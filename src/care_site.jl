@@ -19,7 +19,7 @@ care_site() = begin
     cross_join(
         ext => begin
             select(
-                is_historical => :ID > 1000000000)
+                is_preepic => :ID > 1000000000)
             bind(
                 :ID => omop.care_site_id,
                 :NAME => omop.care_site_name)
