@@ -83,9 +83,9 @@ const var"funsql#group_by_concept" = group_by_concept
 
 @funsql concept_set_person_total(match; roundup::Bool = true, group = []) = begin
     group(person_id, $group...)
-    order(count().desc())
     define(n_event=>count(),
         concept_set_agg($match, count_if)...)
+    order(n_event.desc())
     $(roundup ? @funsql(define(
         n_event => roundups(n_event),
         concept_set_roundups($match)...)) :
@@ -103,6 +103,7 @@ end
        $group...,
        n_people => count(),
        concept_set_agg($match, count_if)...)
+    order(n_people.desc())
     $(roundup ? @funsql(define(
         n_people => roundups(n_people),
         concept_set_roundups($match)...)) :

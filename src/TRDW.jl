@@ -36,6 +36,7 @@ include("procedure.jl")
 include("provider.jl")
 include("specimen.jl")
 include("visit.jl")
+include("visit_detail.jl")
 
 funsql_export() =
     for name in Base.names(@__MODULE__, all = true)

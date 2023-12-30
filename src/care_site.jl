@@ -18,10 +18,8 @@ care_site() = begin
         optional = true)
     cross_join(
         ext => begin
-            # computed variables
             select(
-                is_historical => :ID > 1000000000,
-                is_clinic => startswith(:NAME, "CC"))
+                is_historical => :ID > 1000000000)
             bind(
                 :ID => omop.care_site_id,
                 :NAME => omop.care_site_name)
