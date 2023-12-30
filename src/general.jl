@@ -1,3 +1,5 @@
+using FunSQL: @dissect
+
 const wide_notebook_style = html"""
 <style>
 /*    @media screen and (min-width: calc(700px + 25px + 283px + 34px + 25px)) */
@@ -922,9 +924,32 @@ const omop_catalog = FunSQL.SQLCatalog(
         :cohort_initiation_date),
     dialect = :spark)
 
-""" handle index() case which returns one row per entry but no columns """
-function DBInterface.execute(c::FunSQL.SQLConnection{ODBC.Connection},
-                             p::Pair{Symbol, FunSQL.SQLNode})
-    (name, base) = p
-    return DBInterface.execute(c, @funsql($base.as($name)))
+macro funsql_import(expr)
+    names = []
+    if @dissect(expr, Expr(:tuple, args...))
+        expr = args[1]
+        append!(names, args[2:end])
+    end
+    if @dissect(expr, Expr(:call, sym, module_name, fun))
+        @assert sym == :(:)
+        push!(names, fun)
+    else
+        error("unexpected funsql import expression")
+    end
+    snames = [ Symbol("funsql#$(name)") for name in names]
+    args = [ Expr(:(.), sname) for sname in snames]
+    Expr(:import, Expr(:(:), Expr(:(.), :(.), module_name), args...))
+end
+
+macro funsql_export(expr)
+    if expr isa Symbol
+        name = Symbol("funsql#$(expr)")
+        return Expr(:export, name)
+    elseif @dissect(expr, Expr(:tuple, args...))
+        names = [Symbol("funsql#$(name)") for name in args]
+        return Expr(:export, names...)
+    else
+        error("unexpected funsql export expression")
+        return
+    end
 end

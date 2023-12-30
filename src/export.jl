@@ -1069,15 +1069,6 @@ function export_timeline_zip(filename, etl::ETLContext)
         ps...)
 end
 
-discover_tables = (:condition, :device, :drug, :measurement, :note,
-                   :observation, :procedure, :specimen, :visit)
-
-macro import_table_selection_from_discover(module_name = :Discover)
-    names = [ Symbol("funsql#$(sname)_selection") for sname in discover_tables]
-    args = [ Expr(:(.), fname) for fname in names]
-    Expr(:import, Expr(:(:), Expr(:(.), :(.), module_name), args...))
-end
-
 function unwrap_selection(mod::Module, tname::Symbol)
     parts = []
     for col in TRDW.omop_catalog[tname].columns
