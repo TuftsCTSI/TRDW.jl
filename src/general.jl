@@ -1,4 +1,5 @@
 using FunSQL: @dissect
+using HypertextLiteral: @htl
 
 const wide_notebook_style = html"""
 <style>
@@ -962,30 +963,22 @@ macro funsql_export(expr)
     end
 end
 
-function write_and_display(db, show::Bool, expr::Expr)::Expr
-    @assert expr.head == :(=)
-    (name, query) = expr.args
-    sname = esc(string(name))
+function write_and_display(db, show, name, query::FunSQL.SQLNode)
     if show
-        quote
-            begin
-                sname = $(sname)
-                $(esc(name)) = dataframe = TRDW.run($db, @funsql($query))
-                CSV.write("$(sname).csv", dataframe)
-                @htl("""
-                    <hr />
-                    <div>$(dataframe)</div>
-                    <p>Download <a href="$(sname).csv">$sname.csv</a>.</p>
-                    <p><hr /></p>
-                """)
-            end
-        end
+        dataframe = TRDW.run(db, query)
+        CSV.write("$(name).csv", dataframe)
+        fragment = @htl("""
+            <hr />
+            <div>$(dataframe)</div>
+            <p>Download <a href="$(name).csv">$name.csv</a>.</p>
+            <p><hr /></p>
+        """)
     else
-        :(begin
-            sname = $(sname)
-            isfile("$(sname).csv") ? rm("$(sname).csv") : nothing
-            $(esc(name)) = TRDW.run($db, @funsql($query.limit(0)))
-            md"""At the time of creation, this notebook was not marked with IRB approval."""
-        end)
+       isfile("$(name).csv") ? rm("$(name).csv") : nothing
+       dataframe = TRDW.run(db, @funsql($query.limit(0)))
+       fragment = @htl("""
+           <p>At the time of creation, this notebook was not marked with IRB approval.</p>
+       """)
     end
+    return (dataframe, fragment)
 end
