@@ -941,6 +941,14 @@ macro funsql_import(expr)
     Expr(:import, Expr(:(:), Expr(:(.), :(.), module_name), args...))
 end
 
+import_workaround(modnm::Symbol, mod::Module) =
+    print("#TRDW.import_workaround(:$modnm, $modnm)\nbegin\n",
+        join(sort(["    $nm = $modnm.$nm\n"
+            for nm in [
+                contains(string(name), "#") ? "var\"$name\"" : name
+                    for name in names(mod)[2:end]]])),
+        "    nothing\nend\n")
+
 macro funsql_export(expr)
     if expr isa Symbol
         name = Symbol("funsql#$(expr)")
