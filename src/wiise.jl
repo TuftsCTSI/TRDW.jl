@@ -39,24 +39,20 @@ The output preserves `person_id` from the input dataset and adds columns `wiise_
                     end,
                     omop_common_person_map.mrn == wiise_patient.legacy_mrn)
             end
-#
-# WIISE Archive Viewer doesn't support "epic" links... currently.
-#
-#           ,
-#           begin
-#               person => from(person)
-#               join(
-#                   person_map => from(`person_map.person_map`),
-#                   person.person_id == person_map.person_id)
-#               join(
-#                   wiise_patient => begin
-#                       from(`global.patient`)
-#                       group(id, system_epic_id)
-#                       define(source => "epic")
-#                   end,
-#                   person_map.person_source_value == wiise_patient.system_epic_id)
-#           end
-#
+            ,
+            begin
+                person => from(person)
+                join(
+                    person_map => from(`person_map.person_map`),
+                    person.person_id == person_map.person_id)
+                join(
+                    wiise_patient => begin
+                        from(`global.patient`)
+                        group(id, system_epic_id)
+                        define(source => "epic")
+                    end,
+                    person_map.person_source_value == wiise_patient.system_epic_id)
+            end
            )
        )
     with(
