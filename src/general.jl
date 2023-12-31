@@ -961,3 +961,31 @@ macro funsql_export(expr)
         return
     end
 end
+
+function write_and_display(db, show::Bool, expr::Expr)::Expr
+    @assert expr.head == :(=)
+    (name, query) = expr.args
+    sname = esc(string(name))
+    if show
+        quote
+            begin
+                sname = $(sname)
+                $(esc(name)) = dataframe = TRDW.run($db, @funsql($query))
+                CSV.write("$(sname).csv", dataframe)
+                @htl("""
+                    <hr />
+                    <div>$(dataframe)</div>
+                    <p>Download <a href="$(sname).csv">$sname.csv</a>.</p>
+                    <p><hr /></p>
+                """)
+            end
+        end
+    else
+        :(begin
+            sname = $(sname)
+            isfile("$(sname).csv") ? rm("$(sname).csv") : nothing
+            $(esc(name)) = TRDW.run($db, @funsql($query.limit(0)))
+            md"""At the time of creation, this notebook was not marked with IRB approval."""
+        end)
+    end
+end
