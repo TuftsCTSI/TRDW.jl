@@ -1,14 +1,15 @@
 @funsql begin
 
-collapse_intervals(start_date, end_date; gap=0) = begin
-    partition(person_id, order_by = [$start_date],
+collapse_intervals(start_date=:datetime, end_date=:datetime_end;
+                   gap=0, group_by=[person_id]) = begin
+    partition($group_by..., order_by = [$start_date],
         frame = (mode = rows, start = -Inf, finish = -1))
     define(new => datediff_day(max($end_date), $start_date) <= $gap ? 0 : 1 )
-    partition(person_id, order_by = [$start_date, -new], frame = (mode = rows))
+    partition($group_by..., order_by = [$start_date, -new], frame = (mode = rows))
     define(era => sum(new))
-    group(person_id, era)
-    define(cohort_start_date => min($start_date),
-           cohort_end_date => max($end_date))
+    group($group_by..., era)
+    define(datetime => min($start_date),
+           datetime_end => max($end_date))
 end
 
 like_acronym(s, pat) =
