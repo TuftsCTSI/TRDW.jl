@@ -2,11 +2,13 @@ module TRDW
 
 export @run_funsql, @concepts
 
-using DataFrames
-using ODBC
-using FunSQL
-using Dates
 using CSV
+using DataFrames
+using Dates
+using FunSQL
+using FunSQL: @dissect
+using HypertextLiteral
+using ODBC
 using ZipFile
 using p7zip_jll
 
@@ -23,6 +25,7 @@ include("report.jl")
 include("wiise.jl")
 include("soarian.jl")
 include("clarity.jl")
+include("template.jl")
 
 include("care_site.jl")
 include("concept.jl")
