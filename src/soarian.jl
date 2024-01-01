@@ -34,4 +34,27 @@ link_patient_trdw_to_soarian(person_id=nothing) = begin
     define(PatientOID => mir_sc_patientidentifiers.Patient_oid)
 end
 
+link_visit_soarian_to_trdw(PatientVisitOID=nothing) = begin
+    left_join(omop_common_visit_map => from(`trdwlegacysoarian.omop_common_visit_map`),
+              omop_common_visit_map.soarian_id == $(something(PatientVisitOID, :PatientVisitOID)))
+    with(
+        `trdwlegacysoarian.omop_common_visit_map` =>
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                   name = :omop_common_visit_map,
+                                   columns = [:visit_occurrence_id, :soarian_id]))))
+    define(visit_occurrence_id => omop_common_visit_map.visit_occurrence_id + 1000000000)
+end
+
+link_visit_trdw_to_soarian(visit_occurrence_id=nothing) = begin
+    left_join(omop_common_visit_map => from(`trdwlegacysoarian.omop_common_visit_map`),
+              omop_common_visit_map.visit_occurrence_id ==
+              ($(something(visit_occurrence_id, :visit_occurrence_id)) - 1000000000))
+    with(
+        `trdwlegacysoarian.omop_common_visit_map` =>
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                   name = :omop_common_visit_map,
+                                   columns = [:visit_occurrence_id, :soarian_id]))))
+    define(PatientVisitOID => omop_common_visit_map.soarian_id)
+end
+
 end
