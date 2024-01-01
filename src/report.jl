@@ -1,54 +1,54 @@
-flatten_named_concept_sets(s::T) where T<:NamedTuple = [s]
-flatten_named_concept_sets(v::T) where T<:Vector{<:NamedTuple} = v
-flatten_named_concept_sets(t::T) where T<:Tuple = [(x for x in n) for n in t]
-flatten_named_concept_sets(t::T) where T<:Vector = [(x for x in n) for n in t]
+flatten_csets(s::T) where T<:NamedTuple = [s]
+flatten_csets(v::T) where T<:Vector{<:NamedTuple} = v
+flatten_csets(t::T) where T<:Tuple = [(x for x in n) for n in t]
+flatten_csets(t::T) where T<:Vector = [(x for x in n) for n in t]
 
-function concept_set_columns(match; match_on=nothing)
-    retval = Pair[]
-    for cpairs in flatten_named_concept_sets(match)
+function define_csets_matches(csets; match_on=nothing)
+    cols = Pair[]
+    for cpairs in flatten_csets(csets)
         for (handle, concept_set) in pairs(cpairs)
-            push!(retval, handle =>
+            push!(cols, handle =>
                   concept_matches(concept_set; match_on=match_on))
         end
     end
-    return retval
+    return @funsql(define($cols...))
 end
-const var"funsql#concept_set_columns" = concept_set_columns
+const var"funsql#define_csets_matches" = define_csets_matches
 
-function concept_set_fun(match, fun_name::Symbol, args...)
-    retval = Pair[]
-    for cpairs in flatten_named_concept_sets(match)
+function define_csets_roundups(csets)
+    cols = Pair[]
+    for cpairs in flatten_csets(csets)
         for (handle, _) in pairs(cpairs)
-            push!(retval, handle => FunSQL.Fun(fun_name, handle, args...))
+            push!(cols, handle => @funsql roundups($handle))
         end
     end
-    return retval
+    return @funsql(define($cols...))
 end
-const var"funsql#concept_set_fun" = concept_set_fun
+const var"funsql#define_csets_roundups" = define_csets_roundups
 
-function concept_set_agg(match, agg_name::Symbol, args...)
-    retval = Pair[]
-    for cpairs in flatten_named_concept_sets(match)
-        for (handle, _) in pairs(cpairs)
-            push!(retval, handle => FunSQL.Agg(agg_name, handle, args...))
+function define_csets_aggregates(csets, args::Pair...)
+	aggregates = Pair[]
+    for cpairs in flatten_csets(csets)
+        for (slot, _) in pairs(cpairs)
+		    test = @funsql($slot)
+			for (handle, template) in args
+				@assert template isa FunSQL.SQLNode
+				node = deepcopy(template)
+				core = getfield(node, :core)
+				@assert core isa FunSQL.AggregateNode
+				core.filter = test
+				if Symbol("") == handle || "" == handle || handle == nothing
+                    label = string(slot)
+				else
+					label = "$(slot)_$(handle)"
+				end
+				push!(aggregates, label => node)
+			end
         end
     end
-    return retval
+    return @funsql(define($aggregates...))
 end
-const var"funsql#concept_set_agg" = concept_set_agg
-const var"funsql#concept_set_count"(match) = concept_set_agg(match, :count_if)
-const var"funsql#concept_set_any"(match) = concept_set_agg(match, :any)
-
-function concept_set_roundups(match)
-    retval = Pair[]
-    for cpairs in flatten_named_concept_sets(match)
-        for (handle, _) in pairs(cpairs)
-            push!(retval, handle => @funsql roundups($handle))
-        end
-    end
-    return retval
-end
-const var"funsql#concept_set_roundups" = concept_set_roundups
+const var"funsql#define_csets_aggregates" = define_csets_aggregates
 
 function group_by_concept(name=nothing; roundup=true,
                           person_threshold=0, event_threshold=0)
@@ -82,39 +82,17 @@ function group_by_concept(name=nothing; roundup=true,
 end
 const var"funsql#group_by_concept" = group_by_concept
 
-@funsql concept_set_person_total(match; roundup = true, group = []) = begin
+@funsql concept_set_pivot(match, match_on=nothing; roundup = true, group = []) = begin
+    define($group...)
+    define_csets_matches($match; match_on=$match_on)
     group(person_id, $group...)
-    define(n_event=>count(),
-        concept_set_agg($match, count_if)...)
-    order(n_event.desc())
-    $(castbool(roundup) ? @funsql(define(
-        n_event => roundups(n_event),
-        concept_set_roundups($match)...)) :
-      @funsql(define()))
-end
-
-@funsql concept_set_total(match; roundup = true, group = []) = begin
-    group(person_id, $group...)
-    select(
-        dummy => "in case of no match or groups",
-        $group...,
-        concept_set_agg($match, any)...)
+    define_csets_aggregates($match, "" => any(true))
     group($group...)
-    select(
-       $group...,
-       n_people => count(),
-       concept_set_agg($match, count_if)...)
+    define(n_people => count())
+    define_csets_aggregates($match, "" => count_if(true))
     order(n_people.desc())
-    $(castbool(roundup) ? @funsql(define(
-        n_people => roundups(n_people),
-        concept_set_roundups($match)...)) :
-      @funsql(define()))
-end
-
-@funsql concept_set_pivot(match, match_on=nothing; roundup = true,
-                          group = [], by_person = false) = begin
-    select(person_id, occurrence_id, $group...,
-           concept_set_columns($match; match_on=$match_on)...)
-    $(by_person ? @funsql(concept_set_person_total($match; roundup=$roundup, group=$group)) :
-      @funsql(concept_set_total($match; roundup=$roundup, group=$group)))
+    $(castbool(roundup) ? @funsql(begin
+            define(n_people => roundups(n_people))
+            define_csets_roundups($match)
+        end) : @funsql(define()))
 end
