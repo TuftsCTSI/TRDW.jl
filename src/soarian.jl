@@ -1,6 +1,6 @@
 @funsql begin
 
-link_patient_soarian_to_trdw(PatientOID=nothing) = begin
+link_person_soarian_to_trdw(PatientOID=nothing) = begin
     left_join(mir_sc_patientidentifiers => begin
                   from(`trdwlegacysoarian.mir_sc_patientidentifiers`)
                   filter(Type == "MR" && IsDeleted != 1)
@@ -17,7 +17,7 @@ link_patient_soarian_to_trdw(PatientOID=nothing) = begin
     define(omop_common_person_map.person_id)
 end
 
-link_patient_trdw_to_soarian(person_id=nothing) = begin
+link_person_trdw_to_soarian(person_id=nothing) = begin
     left_join(omop_common_person_map => from(`trdwlegacysoarian.omop_common_person_map`),
               omop_common_person_map.person_id == $(something(person_id,:person_id)))
     left_join(mir_sc_patientidentifiers => begin
@@ -55,6 +55,29 @@ link_visit_trdw_to_soarian(visit_occurrence_id=nothing) = begin
                                    name = :omop_common_visit_map,
                                    columns = [:visit_occurrence_id, :soarian_id]))))
     define(PatientVisitOID => omop_common_visit_map.soarian_id)
+end
+
+link_provider_soarian_to_trdw(StaffOID=nothing) = begin
+    left_join(omop_common_provider_map => from(`trdwlegacysoarian.omop_common_provider_map`),
+              omop_common_provider_map.source_id == $(something(StaffOID, :StaffOID)))
+    with(
+        `trdwlegacysoarian.omop_common_provider_map` =>
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                   name = :omop_common_provider_map,
+                                   columns = [:provider_id, :source_id]))))
+    define(provider_id => omop_common_provider_map.provider_id + 1000000000)
+end
+
+link_provider_trdw_to_soarian(provider_id=nothing) = begin
+    left_join(omop_common_provider_map => from(`trdwlegacysoarian.omop_common_provider_map`),
+              omop_common_provider_map.provider_id ==
+              ($(something(provider_id, :provider_id)) - 1000000000))
+    with(
+        `trdwlegacysoarian.omop_common_provider_map` =>
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                   name = :omop_common_provider_map,
+                                   columns = [:provider_id, :source_id]))))
+    define(StaffOID => omop_common_provider_map.source_id)
 end
 
 end
