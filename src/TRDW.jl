@@ -22,6 +22,7 @@ include("counting.jl")
 include("report.jl")
 include("wiise.jl")
 include("soarian.jl")
+include("clarity.jl")
 
 include("care_site.jl")
 include("concept.jl")
