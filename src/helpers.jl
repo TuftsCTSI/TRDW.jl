@@ -80,7 +80,7 @@ function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     return @funsql(begin
         join($name => $base, $name.person_id == person_id)
         filter($(something(predicate, true)))
-        partition(occurrence_id; order_by = [person_id, occurrence_id], name = $partname)
+        partition(occurrence_id; order_by = [occurrence_id], name = $partname)
         filter($partname.row_number() <= 1)
     end)
 end
