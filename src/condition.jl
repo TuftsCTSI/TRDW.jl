@@ -174,3 +174,50 @@ group_clinical_finding(carry...) =
     end)
 
 end
+
+function var"funsql#pick_ICD10CM"(specification)
+    @assert uppercase(specification) == specification
+    @assert !occursin(" ", specification)
+    predicate = []
+    negations = []
+    for chunk in split(specification, ",")
+        if startswith(chunk, "-")
+            push!(negations,
+                @funsql(startswith(concept_code, $chunk)))
+        elseif occursin("-", chunk)
+            (lhs, rhs) = split(chunk, "-")
+            @assert length(lhs) == length(rhs)
+            chunk = ""
+            for n in 1:length(lhs)
+                needle = lhs[1:n]
+                if startswith(rhs, needle)
+                    chunk = needle
+                end
+            end
+            push!(predicate, @funsql(
+                and(between(concept_code, $lhs, $rhs),
+                    startswith(concept_code, $chunk),
+                    length(concept_code) == length($lhs))))
+        else
+            push!(predicate, @funsql(concept_code == $chunk))
+        end
+    end
+    if length(predicate) == 1
+        predicate = predicate[1]
+    else
+        predicate = @funsql(or($predicate...))
+    end
+    if length(negations) > 0
+        if length(negations) == 1
+            negations = negations[1]
+        else
+            negations = @funsql(or($negations...))
+        end
+        predicate = @funsql(and($predicate, not($negations)))
+    end
+    @funsql begin
+        concept()
+        filter(vocabulary_id=="ICD10CM")
+        filter($predicate)
+    end
+end

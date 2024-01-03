@@ -373,7 +373,7 @@ print_concepts(ids::Vector{<:Integer}, prefix="        ") =
 
 function build_concepts(df::DataFrame)
     retval = Concept[]
-    sort!(df, [:vocabulary_id, :concept_name])
+    sort!(df, [:vocabulary_id, :concept_code])
     for row in eachrow(df)
         vocabulary = Vocabulary(row.vocabulary_id)
         push!(retval, Concept(vocabulary, row.concept_id,
