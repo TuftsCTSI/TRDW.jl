@@ -45,7 +45,7 @@ include("visit_detail.jl")
 
 funsql_export() =
     for name in Base.names(@__MODULE__, all = true)
-        if startswith(string(name), "funsql#")
+        if startswith(string(name), "funsql_")
             @eval export $name
         end
     end

@@ -1076,7 +1076,7 @@ function unwrap_selection(mod::Module, tname::Symbol)
               FunSQL.Get(col, over=FunSQL.Get(:omop, over = FunSQL.Get(:base))))
     end
     sname = Symbol(split(string(tname), "_")[1])
-    query = getfield(mod, Symbol("funsql#$(sname)_selection"))()
+    query = getfield(mod, Symbol("funsql_$(sname)_selection"))()
     query |> FunSQL.As(:base) |> FunSQL.Define(parts...)
 end
 

@@ -28,7 +28,7 @@ function join_via_cohort(pair::Pair{Symbol, FunSQL.SQLNode}, date_prefix=nothing
         $(mandatory ? @funsql(filter(not(is_null($nest_name.person_id)))) : @funsql(define()))
     end)
 end
-const var"funsql#join_via_cohort" = join_via_cohort
+const funsql_join_via_cohort = join_via_cohort
 
 """ join_via_cohort(query, date_prefix; match, match_prefix, match_source, carry)
 
@@ -92,7 +92,7 @@ function correlate_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
              :cohort_end_date => cohort_end_date)
     end)
 end
-const var"funsql#correlate_via_cohort" = correlate_via_cohort
+const funsql_correlate_via_cohort = correlate_via_cohort
 
 """ join_via_person(name => query; match, match_prefix, match_source, prefix)
 
@@ -118,7 +118,7 @@ function join_via_person(pair::Pair{Symbol, FunSQL.SQLNode};
         $(mandatory ? @funsql(filter(not(is_null($nest_name.person_id)))) : @funsql(define()))
     end)
 end
-const var"funsql#join_via_person" = join_via_person
+const funsql_join_via_person = join_via_person
 
 """ join_via_person(query; match, match_prefix, match_source, carry)
 
@@ -163,4 +163,4 @@ function correlate_via_person(query::FunSQL.SQLNode, date_prefix::Symbol;
         bind(:person_id => person_id)
     end)
 end
-const var"funsql#correlate_via_person" = correlate_via_person
+const funsql_correlate_via_person = correlate_via_person

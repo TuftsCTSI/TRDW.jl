@@ -920,7 +920,7 @@ macro funsql_import(expr)
     else
         error("unexpected funsql import expression")
     end
-    snames = [ Symbol("funsql#$(name)") for name in names]
+    snames = [ Symbol("funsql_$(name)") for name in names]
     args = [ Expr(:(.), sname) for sname in snames]
     Expr(:import, Expr(:(:), Expr(:(.), :(.), module_name), args...))
 end
@@ -935,10 +935,10 @@ import_workaround(modnm::Symbol, mod::Module) =
 
 macro funsql_export(expr)
     if expr isa Symbol
-        name = Symbol("funsql#$(expr)")
+        name = Symbol("funsql_$(expr)")
         return Expr(:export, name)
     elseif @dissect(expr, Expr(:tuple, args...))
-        names = [Symbol("funsql#$(name)") for name in args]
+        names = [Symbol("funsql_$(name)") for name in args]
         return Expr(:export, names...)
     else
         error("unexpected funsql export expression")

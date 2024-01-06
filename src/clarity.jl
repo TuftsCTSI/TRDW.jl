@@ -1,4 +1,4 @@
-var"funsql#left_join_bypk"(table_name, primary_key; define=[]) = begin
+funsql_left_join_bypk(table_name, primary_key; define=[]) = begin
     define = [@funsql($column => $table_name.$column) for column in define]
     @funsql(begin
         left_join($table_name => from($table_name), $primary_key == $table_name.$primary_key)
@@ -6,7 +6,7 @@ var"funsql#left_join_bypk"(table_name, primary_key; define=[]) = begin
     end)
 end
 
-var"funsql#define_zc_lookup"(name; zc_table=nothing) = begin
+funsql_define_zc_lookup(name; zc_table=nothing) = begin
     if name isa Pair
         (alias, name) = name
     else
@@ -29,5 +29,5 @@ function decode_nest!(name::Symbol, map::Vector, default)::FunSQL.SQLNode
     @funsql($name == $key ? $val : $default)
 end
 
-var"funsql#decode_c"(name::Symbol, map::Pair...; default=nothing) =
+funsql_decode_c(name::Symbol, map::Pair...; default=nothing) =
     decode_nest!(name, collect(map), something(default, name))

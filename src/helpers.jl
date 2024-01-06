@@ -85,7 +85,7 @@ function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
         filter($partname.row_number() <= 1)
     end)
 end
-var"funsql#filter_with" = filter_with
+funsql_filter_with = filter_with
 
 filter_with(node::FunSQL.SQLNode, predicate=true) =
     filter_with(gensym() => node, predicate)
@@ -105,7 +105,7 @@ function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
         filter(isnull($name.person_id))
     end)
 end
-var"funsql#filter_without" = filter_without
+funsql_filter_without = filter_without
 
 filter_without(node::FunSQL.SQLNode, predicate=true) =
     filter_without(gensym() => node, predicate)
@@ -130,7 +130,7 @@ end
 
 castbool(v::Bool) = v
 
-var"funsql#castbool" = castbool
+funsql_castbool = castbool
 
 function roundups(n; round=true)
     if !isa(round, Bool)
@@ -139,4 +139,4 @@ function roundups(n; round=true)
     return round ? @funsql(concat("≤", roundup($n))) : n
 end
 
-var"funsql#roundups" = roundups
+funsql_roundups = roundups
