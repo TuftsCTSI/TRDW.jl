@@ -51,13 +51,14 @@ end
 const var"funsql#define_csets_aggregates" = define_csets_aggregates
 
 function group_by_concept(name=nothing; roundup=true,
-                          person_threshold=0, event_threshold=0)
+                          person_threshold=0, event_threshold=0,
+                          include=[])
     roundup = castbool(roundup)
     concept_id = (name == nothing) ? :concept_id :
                  contains(string(name), "concept_id") ? name :
                  Symbol("$(name)_concept_id")
     base = @funsql(begin
-        group(concept_id => $concept_id)
+        group(concept_id => $concept_id, $include...)
         define(n_event => count_distinct(occurrence_id),
                n_person => count_distinct(person_id))
     end)
@@ -69,14 +70,14 @@ function group_by_concept(name=nothing; roundup=true,
     end
     base = base |> @funsql(begin
         join(c => from(concept), c.concept_id == concept_id)
-        order(n_person.desc(), c.concept_name)
+        order($include..., n_person.desc(), c.concept_code)
     end)
     if roundup
         base = base |> @funsql(define(n_person => concat("≤", roundup(n_person)),
                                       n_event => concat("≤", roundup(n_event))))
     end
     return base |> @funsql(begin
-        select(n_person, n_event, c.concept_id, c.vocabulary_id,
+        select($include..., n_person, n_event, c.concept_id, c.vocabulary_id,
                c.concept_code, c.concept_name)
     end)
 end
