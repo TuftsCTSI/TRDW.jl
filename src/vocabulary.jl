@@ -248,7 +248,7 @@ end
 
 macro make_vocabulary(name, match_strategy=nothing)
     lname = replace(name, " " => "_")
-    funfn = Symbol("funsql#$lname")
+    funfn = Symbol("funsql_$lname")
     label = Symbol(lname)
     quote
         $(esc(label)) = Vocabulary($name; constructor=$lname,
@@ -334,14 +334,14 @@ Ingredient = Category("Ingredient", (RxNorm, RxNorm_Extension),
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Ingredient")
 
-var"funsql#Ingredient"(items...) = Ingredient(items...)
-export var"funsql#Ingredient"
+funsql_Ingredient(items...) = Ingredient(items...)
+export funsql_Ingredient
 
-var"funsql#DoseFormGroup"(items...) = DoseFormGroup(items...)
-export var"funsql#DoseFormGroup"
+funsql_DoseFormGroup(items...) = DoseFormGroup(items...)
+export funsql_DoseFormGroup
 
-var"funsql#component_class"(items...) = ComponentClass(items...)
-export var"funsql#ComponentClass"
+funsql_component_class(items...) = ComponentClass(items...)
+export funsql_ComponentClass
 
 @funsql category_isa(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
     in($concept_id, begin
@@ -464,4 +464,4 @@ function concept_matches(match...; match_on=nothing)
     end
     return build_or(tests)
 end
-const var"funsql#concept_matches" = concept_matches
+const funsql_concept_matches = concept_matches

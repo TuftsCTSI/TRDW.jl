@@ -175,7 +175,7 @@ group_clinical_finding(carry...) =
 
 end
 
-function var"funsql#pick_ICD10CM"(specification)
+function funsql_pick_ICD10CM(specification)
     @assert uppercase(specification) == specification
     @assert !occursin(" ", specification)
     predicate = []

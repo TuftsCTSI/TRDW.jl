@@ -13,7 +13,7 @@ function define_csets_matches(csets; match_on=nothing)
     end
     return @funsql(define($cols...))
 end
-const var"funsql#define_csets_matches" = define_csets_matches
+const funsql_define_csets_matches = define_csets_matches
 
 function define_csets_roundups(csets)
     cols = Pair[]
@@ -24,7 +24,7 @@ function define_csets_roundups(csets)
     end
     return @funsql(define($cols...))
 end
-const var"funsql#define_csets_roundups" = define_csets_roundups
+const funsql_define_csets_roundups = define_csets_roundups
 
 function define_csets_aggregates(csets, args::Pair...)
 	aggregates = Pair[]
@@ -48,7 +48,7 @@ function define_csets_aggregates(csets, args::Pair...)
     end
     return @funsql(define($aggregates...))
 end
-const var"funsql#define_csets_aggregates" = define_csets_aggregates
+const funsql_define_csets_aggregates = define_csets_aggregates
 
 function group_by_concept(name=nothing; roundup=true,
                           person_threshold=0, event_threshold=0,
@@ -81,7 +81,7 @@ function group_by_concept(name=nothing; roundup=true,
                c.concept_code, c.concept_name)
     end)
 end
-const var"funsql#group_by_concept" = group_by_concept
+const funsql_group_by_concept = group_by_concept
 
 @funsql concept_set_pivot(match, match_on=nothing; roundup = true, group = []) = begin
     define($group...)

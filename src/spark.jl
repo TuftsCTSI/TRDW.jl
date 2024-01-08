@@ -13,12 +13,12 @@ macro export_funsql_fun_or_agg(exs...)
         elseif @dissect(ex, Expr(:(=), Expr(:vect, def::Union{Symbol, String}), name::Union{Symbol, String}))
             is_agg = true
         else
-            error("invalid @funsql_fun notation")
+            error("invalid @export_funsql_fun_or_agg notation")
         end
         fun = is_agg ? FunSQL.AggClosure : FunSQL.FunClosure
         name = QuoteNode(Symbol(name))
-        push!(block.args, Expr(:export, esc(Symbol("funsql#$def"))))
-        push!(block.args, :(const $(esc(Symbol("funsql#$def"))) = $fun($name)))
+        push!(block.args, Expr(:export, esc(Symbol("funsql_$def"))))
+        push!(block.args, :(const $(esc(Symbol("funsql_$def"))) = $fun($name)))
     end
     return block
 end
@@ -27,23 +27,23 @@ end
 # https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-functions-builtin-alpha
 
 @export_funsql_fun_or_agg(
-    !,
-    !=,
-    !== = " IS DISTINCT FROM ",
+#    !,
+#    !=,
+#    !== = " IS DISTINCT FROM ",
     %,
     ÷ = div,
     &,
-    "&&",
-    *,
-    +,
-    -,
-    /,
-    <,
-    <=,
-    ==,
-    === = "<=>",
-    >,
-    >=,
+#    "&&",
+#    *,
+#    +,
+#    -,
+#    /,
+#    <,
+#    <=,
+#    ==,
+#    === = "<=>",
+#    >,
+#    >=,
     "[]" = "?[?]",
     ^,
     abs,
@@ -91,9 +91,9 @@ end
     atan,
     atan2,
     atanh,
-    [avg],
+#    [avg],
     base64,
-    between,
+#    between,
     bigint,
     bin,
     binary,
@@ -115,8 +115,8 @@ end
     bround,
     btrim,
     cardinality,
-    case,
-    cast,
+#    case,
+#    cast,
     cbrt,
     ceil,
     ceiling,
@@ -126,11 +126,11 @@ end
     charindex, # Databricks
     chr,
     cloud_files_state, # Databricks
-    coalesce,
+#    coalesce,
     [collect],
     [collect_list],
     [collect_set],
-    concat,
+#    concat,
     concat_ws,
     contains,
     conv,
@@ -139,22 +139,22 @@ end
     cos,
     cosh,
     cot,
-    [count],
-    [count_distinct],
+#    [count],
+#    [count_distinct],
     [count_if],
     [count_min_sketch],
     [covar_pop],
     [covar_samp],
     crc32,
     csc,
-    [cume_dist],
+#    [cume_dist],
     curdate,
     current_catalog,
     current_database,
-    current_date,
+#    current_date,
     current_metastore, # Databricks
     current_schema,
-    current_timestamp,
+#    current_timestamp,
     current_timezone,
     current_user,
     current_version, # Databricks
@@ -196,7 +196,7 @@ end
     decimal,
     decode,
     degrees,
-    [dense_rank],
+#    [dense_rank],
     div,
     double,
     e,
@@ -206,7 +206,7 @@ end
     endswith,
     event_log, # Databricks
     [every],
-    exists,
+#    exists,
     exp,
     explode,
     explode_outer,
@@ -215,7 +215,7 @@ end
     factorial,
     find_in_set,
     [first],
-    [first_value],
+#    [first_value],
     flatten,
     float,
     floor,
@@ -277,7 +277,7 @@ end
     hypot,
     ifnull,
     ilike,
-    in,
+#    in,
     initcap,
     inline,
     inline_outer,
@@ -290,10 +290,10 @@ end
     is_false = " IS FALSE",
     is_member, #  Databricks
     is_not_false = " IS NOT FALSE",
-    is_not_null,
+#    is_not_null,
     is_not_true = " IS NOT TRUE",
     is_not_unknown = " IS NOT UNKNOWN",
-    is_null,
+#    is_null,
     is_true = " IS TRUE",
     is_unknown = " IS UNKNOWN",
     isnan,
@@ -304,18 +304,18 @@ end
     json_object_keys,
     json_tuple,
     [kurtosis],
-    [lag],
+#    [lag],
     [last],
     last_day,
-    [last_value],
+#    [last_value],
     lcase,
-    [lead],
+#    [lead],
     least,
     left,
     len,
     length,
     levenshtein,
-    like,
+#    like,
     list_secrets, # Databricks
     ln,
     localtimestamp,
@@ -346,12 +346,12 @@ end
     map_values,
     map_zip_with,
     mask,
-    [max],
+#    [max],
     [max_by],
     md5,
     [mean],
     [median],
-    [min],
+#    [min],
     [min_by],
     minute,
     mod,
@@ -364,13 +364,13 @@ end
     negative,
     next_day,
     not,
-    not_between,
-    not_exists,
-    not_in,
-    not_like,
+#    not_between,
+#    not_exists,
+#    not_in,
+#    not_like,
     now,
-    [nth_value],
-    [ntile],
+#    [nth_value],
+#    [ntile],
     nullif,
     nvl,
     nvl2,
@@ -378,7 +378,7 @@ end
     or,
     overlay,
     parse_url,
-    [percent_rank],
+#    [percent_rank],
     [percentile],
     [percentile_approx],
     [percentile_cont] = "percentile_cont(?) WITHIN GROUP (ORDER BY ?)", # Databricks
@@ -399,7 +399,7 @@ end
     randn,
     random,
     range, # Databricks
-    [rank],
+#    [rank],
     read_files, # Databricks
     read_kafka, # Databricks
     reduce,
@@ -428,7 +428,7 @@ end
     rint,
     rlike,
     round,
-    [row_number],
+#    [row_number],
     rpad,
     rtrim,
     schema_of_csv,
@@ -475,7 +475,7 @@ end
     substr,
     substring,
     substring_index,
-    [sum],
+#    [sum],
     table_changes, # Databricks
     tan,
     tanh,
@@ -550,10 +550,10 @@ end
     year,
     zip_with,
     |,
-    "||",
+#    "||",
     ~,
 )
 
-export var"funsql#>>"
+export var"funsql_>>"
 
-var"funsql#>>"(a, b::Union{Symbol, String}) = FunSQL.Fun("?.$b", a)
+var"funsql_>>"(a, b::Union{Symbol, String}) = FunSQL.Fun("?.$b", a)
