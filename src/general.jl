@@ -292,10 +292,24 @@ function create_table(db, schema, table, def)
     t, c = ref[]
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
+    DBInterface.execute(db, "ALTER SCHEMA $(schema_name_sql) set owner to CTSIOwner")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
     @info "table $name_sql updated at $(now())"
     return t
 end
+
+function user_schema(case::String)
+    prefix = get(ENV, "DATABRICKS_TEMP_SCHEMA_PREFIX", nothing)
+    if isnothing(prefix)
+        uname =  get(ENV, "USER", get(ENV, "USERNAME", nothing))
+        isnothing(uname) && ENV["DATABRICKS_TEMP_SCHEMA_PREFIX"]
+        prefix = "zz_" * uname
+    end
+    return prefix * "_" * case
+end
+
+user_schema(case::Integer) =
+    user_schema(lpad(case, 8, "0"))
 
 function describe_all(db)
     tables = Pair{Symbol, Any}[]
