@@ -294,22 +294,26 @@ function create_table(db, schema, table, def)
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "ALTER SCHEMA $(schema_name_sql) set owner to CTSIOwner")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
+    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
+    DBInterface.execute(db, "ALTER TABLE $(name_sql) set owner to CTSIOwner")
     @info "table $name_sql updated at $(now())"
     return t
 end
 
-function user_schema(case::String)
-    prefix = get(ENV, "DATABRICKS_TEMP_SCHEMA_PREFIX", nothing)
-    if isnothing(prefix)
-        uname =  get(ENV, "USER", get(ENV, "USERNAME", nothing))
-        isnothing(uname) && ENV["DATABRICKS_TEMP_SCHEMA_PREFIX"]
-        prefix = "zz_" * uname
-    end
-    return prefix * "_" * case
+function create_table_with_spec(db, schema::Symbol, table::Symbol, spec...)
+    catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
+    schema_name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema))
+    name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema) |> FunSQL.ID(table))
+    cols = [p[1] for p in spec]
+    spec = join(["$(string(p[1])) $(string(p[2]))" for p in spec], ", ")
+    DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
+    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
+    DBInterface.execute(db, "ALTER SCHEMA $(schema_name_sql) set owner to CTSIOwner")
+    DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS $(name_sql) ($spec)")
+    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
+    DBInterface.execute(db, "ALTER TABLE $(name_sql) set owner to CTSIOwner")
+    return FunSQL.SQLTable(qualifiers = [:ctsi, schema], name = table, columns = cols)
 end
-
-user_schema(case::Integer) =
-    user_schema(lpad(case, 8, "0"))
 
 function describe_all(db)
     tables = Pair{Symbol, Any}[]
@@ -960,10 +964,9 @@ macro funsql_export(expr)
     end
 end
 
-function write_and_display(db, show, name, query::FunSQL.SQLNode)
+function write_and_display(name, dataframe::DataFrame; show=true)
     if show
-        dataframe = TRDW.run(db, query)
-        CSV.write("$(name).csv", dataframe)
+       CSV.write("$(name).csv", dataframe)
         fragment = @htl("""
             <hr />
             <div>$(dataframe)</div>
@@ -971,11 +974,17 @@ function write_and_display(db, show, name, query::FunSQL.SQLNode)
             <p><hr /></p>
         """)
     else
-       isfile("$(name).csv") ? rm("$(name).csv") : nothing
-       dataframe = TRDW.run(db, @funsql($query.limit(0)))
-       fragment = @htl("""
-           <p>At the time of creation, this notebook was not marked with IRB approval.</p>
-       """)
+        isfile("$(name).csv") ? rm("$(name).csv") : nothing
+        fragment = @htl("""
+            <p>At the time of creation, this notebook was not marked with IRB approval.</p>
+        """)
     end
     return (dataframe, fragment)
+end
+
+function write_and_display(db, show, name, query::FunSQL.SQLNode)
+    if show
+        return write_and_display(name, TRDW.run(db, query))
+    end
+    return write_and_display(name, TRDW.run(db, @funsql($query.limit(0))); show=false)
 end
