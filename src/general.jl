@@ -977,12 +977,25 @@ function write_and_display(name, dataframe::DataFrame; empty_cols=[])
     """)
 end
 
-function write_and_display(db, show, name, query::FunSQL.SQLNode; empty_cols=[])
-    if show
-        return write_and_display(name, TRDW.run(db, query); empty_cols=empty_cols)
-    end
+write_and_display(name, ::Nothing; empty_cols=[]) = nothing
+
+function write_cleanup(name)
     isfile("$(name).csv") ? rm("$(name).csv") : nothing
-    return @htl("""
-        <p>At the time of creation, this notebook was not marked with IRB approval.</p>
-    """)
+    return @htl("""<p>At the time of creation, $(name) is not available.</p>""")
+end
+
+function write_and_display(expr::Expr, db, case, show)
+    @assert expr.head == :(=)
+    (name, query) = expr.args
+    sname = esc(string(name))
+    vname = esc(name)
+    if show
+       return quote
+           # hack this to convert person_id to study_id
+           $vname = TRDW.run($db, @funsql $query.to_study_id($case))
+           DataFrames.rename!($vname, Dict(:person_id => :study_id))
+           TRDW.write_and_display($sname, $vname)
+       end
+    end
+    :(write_cleanup($sname))
 end
