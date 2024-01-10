@@ -964,27 +964,25 @@ macro funsql_export(expr)
     end
 end
 
-function write_and_display(name, dataframe::DataFrame; show=true)
-    if show
-       CSV.write("$(name).csv", dataframe)
-        fragment = @htl("""
-            <hr />
-            <div>$(dataframe)</div>
-            <p>Download <a href="$(name).csv">$name.csv</a>.</p>
-            <p><hr /></p>
-        """)
-    else
-        isfile("$(name).csv") ? rm("$(name).csv") : nothing
-        fragment = @htl("""
-            <p>At the time of creation, this notebook was not marked with IRB approval.</p>
-        """)
+function write_and_display(name, dataframe::DataFrame; empty_cols=[])
+    for col in empty_cols
+        insertcols!(dataframe, names(dataframe)[1], col => "")
     end
-    return (dataframe, fragment)
+    CSV.write("$(name).csv", dataframe)
+    @htl("""
+        <hr />
+        <div>$(dataframe)</div>
+        <p>Download <a href="$(name).csv">$name.csv</a>.</p>
+        <p><hr /></p>
+    """)
 end
 
-function write_and_display(db, show, name, query::FunSQL.SQLNode)
+function write_and_display(db, show, name, query::FunSQL.SQLNode; empty_cols=[])
     if show
-        return write_and_display(name, TRDW.run(db, query))
+        return write_and_display(name, TRDW.run(db, query); empty_cols=empty_cols)
     end
-    return write_and_display(name, TRDW.run(db, @funsql($query.limit(0))); show=false)
+    isfile("$(name).csv") ? rm("$(name).csv") : nothing
+    return @htl("""
+        <p>At the time of creation, this notebook was not marked with IRB approval.</p>
+    """)
 end
