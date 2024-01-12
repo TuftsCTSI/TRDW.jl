@@ -505,10 +505,13 @@ end
     select(person_id, sex, birth, death, mrn => epic.mrn, soarian_mrn => soarian.mrn)
 end
 
-function export_keyfile(filename, etl::ETLContext, password; include_dob=false)
+function export_keyfile(filename, etl::ETLContext, case, password; include_dob=false)
     @debug "export_keyfile($(repr(filename)))"
     cohort_q = etl.cohort[]
-    cr = run(etl.db, @funsql $cohort_q.query_mrns(;include_dob=$include_dob))
+    query = @funsql $cohort_q.query_mrns(;include_dob=$include_dob)
+    query = @funsql $query.to_subject_id($case).order(person_id)
+    cr = run(etl.db, query)
+    DataFrames.rename!(cr, Dict(:person_id => :subject_id))
     @debug "writing", "mrn"
     password = strip(password)
     p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename`, "w")

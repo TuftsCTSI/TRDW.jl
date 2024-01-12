@@ -300,7 +300,7 @@ function create_table(db, schema, table, def)
     return t
 end
 
-function create_table_with_spec(db, schema::Symbol, table::Symbol, spec...)
+function create_table_if_not_exists(db, schema::Symbol, table::Symbol, spec...)
     catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
     schema_name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema))
     name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema) |> FunSQL.ID(table))
@@ -991,9 +991,9 @@ function write_and_display(expr::Expr, db, case, show)
     vname = esc(name)
     if show
        return quote
-           # hack this to convert person_id to study_id
-           $vname = TRDW.run($db, @funsql $query.to_study_id($case))
-           DataFrames.rename!($vname, Dict(:person_id => :study_id))
+           # hack this to convert person_id to subject_id
+           $vname = TRDW.run($db, @funsql $query.to_subject_id($case))
+           DataFrames.rename!($vname, Dict(:person_id => :subject_id))
            TRDW.write_and_display($sname, $vname)
        end
     end
