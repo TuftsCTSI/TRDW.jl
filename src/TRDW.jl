@@ -13,6 +13,7 @@ using ZipFile
 using p7zip_jll
 
 include("general.jl")
+include("define.jl")
 include("inventory.jl")
 include("spark.jl")
 include("helpers.jl")
