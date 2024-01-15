@@ -69,18 +69,18 @@ repr_concept(name=nothing) = begin
 end
 
 count_concept(name, names...; roundup=true) = begin
-    define(concept_id => $(name == nothing ? :concept_id :
-                           contains(string(name), "concept_id") ? name :
+    define(concept_id => $(contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))
     define(concept_id => coalesce(concept_id, 0))
     group(concept_id, $names...)
     define(n_event => count(), n_person => count_distinct(person_id))
-    select_concept(concept_id, n_person => roundups(n_person, $roundup),
-                   n_event => roundups(n_event, $roundup);
+    select_concept(concept_id, $names...,
+                   n_person => roundups(n_person; round=$roundup),
+                   n_event => roundups(n_event; round=$roundup);
                    order = [n_person.desc(), n_event.desc()])
 end
 
-count_concept(;roundup=true) = count_concept(nothing; roundup=$roundup)
+count_concept(;roundup=true) = count_concept(concept_id; roundup=$roundup)
 
 concept_descendants() = begin
     as(base)
