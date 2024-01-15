@@ -63,4 +63,12 @@ visit(match...) =
 
 visit_isa(args...) = category_isa($Visit, $args, omop.visit_concept_id)
 
+exists_visit(match...; having=nothing) =
+    exists(begin
+        visit($match...)
+        filter(person_id == :person_id)
+        $(isnothing(having) ? @funsql(define()) : @funsql(filter($having)))
+        bind(:person_id => person_id)
+    end)
+
 end
