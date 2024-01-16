@@ -77,14 +77,6 @@ is_primary_discharge_diagnosis() =
 condition_status_isa(args...) =
     category_isa($Condition_Status, $args, condition_status_concept_id)
 
-exists_condition(match...; having=nothing) =
-    exists(begin
-        condition($match...)
-        filter(person_id == :person_id)
-        $(isnothing(having) ? @funsql(define()) : @funsql(filter($having)))
-        bind(:person_id => person_id)
-    end)
-
 crosswalk_from_icd9cm_to_icd10cm() =
     $(let frame = gensym();
         @funsql(begin

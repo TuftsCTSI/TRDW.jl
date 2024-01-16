@@ -66,12 +66,7 @@ end
 observation(match...) =
     observation().filter(concept_matches($match))
 
-exists_observation(match...; having=nothing) =
-    exists(begin
-        observation($match...)
-        filter(person_id == :person_id)
-        $(isnothing(having) ? @funsql(define()) : @funsql(filter($having)))
-        bind(:person_id => person_id)
-    end)
+qualifier_matches(match...) =
+    concept_matches($match...; match_on=qualifier_concept_id)
 
 end
