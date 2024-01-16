@@ -1,3 +1,75 @@
+mutable struct DefineFrontNode <: FunSQL.TabularNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    args::Vector{FunSQL.SQLNode}
+    label_map::FunSQL.OrderedDict{Symbol, Int}
+
+    function DefineFrontNode(; over = nothing, args = [], label_map = nothing)
+        if label_map !== nothing
+            new(over, args, label_map)
+        else
+            n = new(over, args, FunSQL.OrderedDict{Symbol, Int}())
+            FunSQL.populate_label_map!(n)
+            n
+        end
+    end
+end
+
+DefineFrontNode(args...; over = nothing) =
+    DefineFrontNode(over = over, args = FunSQL.SQLNode[args...])
+
+DefineFront(args...; kws...) =
+    DefineFrontNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_define_front = DefineFront
+
+function FunSQL.PrettyPrinting.quoteof(n::DefineFrontNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(DefineFront), FunSQL.quoteof(n.args, ctx)...)
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+FunSQL.label(n::DefineFrontNode) =
+    FunSQL.label(n.over)
+
+FunSQL.rebase(n::DefineFrontNode, n′) =
+    DefineFrontNode(over = FunSQL.rebase(n.over, n′), args = n.args, label_map = n.label_map)
+
+function FunSQL.annotate(n::DefineFrontNode, ctx)
+    over′ = FunSQL.annotate(n.over, ctx)
+    args′ = FunSQL.annotate_scalar(n.args, ctx)
+    DefineFront(over = over′, args = args′, label_map = n.label_map)
+end
+
+function FunSQL.resolve(n::DefineFrontNode, ctx)
+    t = FunSQL.box_type(n.over)
+    fields = FunSQL.FieldTypeMap()
+    for f in keys(n.label_map)
+        if !haskey(t.row.fields, f)
+            fields[f] = FunSQL.ScalarType()
+        end
+    end
+    for (f, ft) in t.row.fields
+        if f in keys(n.label_map)
+            ft = FunSQL.ScalarType()
+        end
+        fields[f] = ft
+    end
+    row = FunSQL.RowType(fields, t.row.group)
+    FunSQL.BoxType(t.name, row, t.handle_map)
+end
+
+function FunSQL.link!(n::DefineFrontNode, refs::Vector{FunSQL.SQLNode}, ctx)
+    n′ = FunSQL.DefineNode(over = n.over, args = n.args, label_map = n.label_map)
+    FunSQL.link!(n′, refs, ctx)
+end
+
+function FunSQL.assemble(n::DefineFrontNode, refs, ctx)
+    n′ = FunSQL.DefineNode(over = n.over, args = n.args, label_map = n.label_map)
+    FunSQL.assemble(n′, refs, ctx)
+end
+
 mutable struct UndefineNode <: FunSQL.TabularNode
     over::Union{FunSQL.SQLNode, Nothing}
     names::Vector{Symbol}
