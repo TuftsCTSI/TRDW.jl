@@ -464,4 +464,8 @@ function concept_matches(match...; match_on=nothing)
     end
     return build_or(tests)
 end
+
+concept_matches(name::Symbol, match...) =
+    concept_matches(match...; match_on=name)
+
 const funsql_concept_matches = concept_matches
