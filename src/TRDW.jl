@@ -54,4 +54,14 @@ funsql_export() =
 
 funsql_export()
 
+global show_funsql_path = false
+
+FunSQL.showpath(io::IO, path::Vector{FunSQL.SQLNode}) = begin
+    if show_funsql_path && !isempty(path)
+        q = highlight(path)
+        println(io, " in:")
+        pprint(io, q)
+    end
+end
+
 end
