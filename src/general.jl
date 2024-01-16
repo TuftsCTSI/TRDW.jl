@@ -990,12 +990,10 @@ function write_and_display(expr::Expr, db, case, show)
     sname = esc(string(name))
     vname = esc(name)
     if show
-       return quote
-           # hack this to convert person_id to subject_id
-           $vname = TRDW.run($db, @funsql $query.to_subject_id($case))
-           DataFrames.rename!($vname, Dict(:person_id => :subject_id))
-           TRDW.write_and_display($sname, $vname)
-       end
+        return quote
+            $vname = TRDW.run($db, @funsql $query.to_subject_id($case).order(subject_id))
+            TRDW.write_and_display($sname, $vname)
+        end
     end
     :(write_cleanup($sname))
 end

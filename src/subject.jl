@@ -41,8 +41,8 @@ function funsql_to_subject_id(case)
     @funsql begin
         left_join($name => $subject_query, $name.person_id == person_id)
         filter(is_null(assert_true(is_not_null($name.person_id))))
-        define(person_id => $name.subject_id)
-        # TODO: rename person_id to subject_id
+        define_front($name.subject_id)
+        undefine(person_id)
     end
 end
 

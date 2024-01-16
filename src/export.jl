@@ -509,9 +509,8 @@ function export_keyfile(filename, etl::ETLContext, case, password; include_dob=f
     @debug "export_keyfile($(repr(filename)))"
     cohort_q = etl.cohort[]
     query = @funsql $cohort_q.query_mrns(;include_dob=$include_dob)
-    query = @funsql $query.to_subject_id($case).order(person_id)
+    query = @funsql $query.to_subject_id($case).order(subject_id)
     cr = run(etl.db, query)
-    DataFrames.rename!(cr, Dict(:person_id => :subject_id))
     @debug "writing", "mrn"
     password = strip(password)
     p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename`, "w")
