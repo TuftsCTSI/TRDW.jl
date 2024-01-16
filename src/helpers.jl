@@ -36,6 +36,9 @@ take_first(keys...; order=[]) = begin
     filter(take_first.row_number() <= 1)
 end
 
+take_first_occurrence() = take_first(person_id; order=[datetime])
+take_latest_occurrence() = take_first(person_id; order=[datetime.desc()])
+
 bounded_iterate(q, n::Integer) =
     $(n > 1 ? @funsql($q.bounded_iterate($q, $(n - 1))) : n > 0 ? q : @funsql(define()))
 
