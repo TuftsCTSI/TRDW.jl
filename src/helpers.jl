@@ -143,3 +143,9 @@ function roundups(n; round=true)
 end
 
 funsql_roundups = roundups
+
+function funsql_assert_one_row(cols...)
+    q = @funsql(filter(coalesce(assert_true(count()==1), true)))
+    cols =  [@funsql($n => first($n)) for n in cols]
+    return q |> @funsql(define($cols...))
+end
