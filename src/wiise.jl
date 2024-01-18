@@ -127,3 +127,27 @@ Convert a WIISE patient identifier to a WIISE Viewer link.
             """\">""",
             concat($system_name, ":", substr($wiise_id, 1, 8)),
             """</a>"""))
+
+@funsql global_patient() =
+   from($(FunSQL.SQLTable(qualifiers = [:main, :global], name = :patient,
+                          columns = [:id, :birthDate, :gender, :race,
+                                     :system_epic_id, :system_epic_mrn,
+                                     :system_tuftssoarian_id, :system_tuftssoarian_mrn,
+                                     :system_tuftstmcccecw_id, :system_tuftstmcccecw_mrn,
+                                     :system_tuftsmosaiq_id, :system_tuftsmosaiq_mrn,
+                                     :created_date, :firstName, :lastName, :race,
+                                     :address1_city, :address1_country,
+                                     :address1_state, :address1_street,
+                                     :address1_zipcode])))
+
+@funsql global_patientmergehistory() =
+   from($(FunSQL.SQLTable(qualifiers = [:main, :global], name = :patientmergehistory,
+                          columns = [:old_pat_id, :new_pat_id, :old_epic_pat_id, :new_epic_pat_id])))
+
+@funsql global_patientstatus() =
+   from($(FunSQL.SQLTable(qualifiers = [:main, :global], name = :patientstatus,
+                          columns = [:patient_id, :deceasedBoolean, :linktypeBoolean, :statusBoolean])))
+
+@funsql epic_patient() =
+   from($(FunSQL.SQLTable(qualifiers = [:main, :epicclarity], name = :patient,
+                          columns = [:pat_id, :pat_mrn_id])))
