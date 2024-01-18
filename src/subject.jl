@@ -71,7 +71,7 @@ function user_rebuild_subject(db, case)
     if is_production_schema_prefix()
         target_sql = base_map_sql
     else
-        n_start = run(db, 
+        n_start = run(db,
             "SELECT coalesce(max(subject_id),0) AS max FROM $base_map_sql")[1,1] + 100000001
         DBInterface.execute(db, "DROP TABLE IF EXISTS $temp_map_sql")
         create_table_if_not_exists(db, user_schema(case), :subject,
@@ -108,3 +108,28 @@ user_rebuild(db, case, query::FunSQL.SQLNode) =
     (user_rebuild_index(db, case, query), user_rebuild_subject(db, case))
 
 user_queries(case) = (user_index(case), user_subject(case))
+
+function merge_subject_table!(db, case, q::FunSQL.SQLNode)
+    load_sql = FunSQL.render(db, @funsql begin
+             $q
+             group(subject_id)
+             define(person_id => first(person_id))
+             assert_one_row(;define=[person_id])
+             assert(isnotnull(person_id) && isnotnull(subject_id))
+        end)
+    catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
+    subject_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(:person_map) |> FunSQL.ID(Symbol(case)))
+    #DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
+    query = """
+        MERGE INTO $subject_sql AS target
+        USING ($load_sql) AS cohort
+        ON target.subject_id == cohort.subject_id
+        WHEN MATCHED THEN
+            UPDATE SET person_id = cohort.person_id
+        WHEN NOT MATCHED THEN
+            INSERT (subject_id, person_id, added)
+            VALUES (cohort.subject_id, cohort.person_id, now())
+    """
+    DBInterface.execute(db, query)
+    @info "table $subject_sql updated at $(now())"
+end

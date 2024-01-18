@@ -144,8 +144,11 @@ end
 
 funsql_roundups = roundups
 
-function funsql_assert_one_row(cols...)
-    q = @funsql(filter(coalesce(assert_true(count()==1), true)))
-    cols =  [@funsql($n => first($n)) for n in cols]
-    return q |> @funsql(define($cols...))
+funsql_assert(predicate) =
+    @funsql(filter(coalesce(assert_true($predicate), true)))
+
+function funsql_assert_one_row(; define=[])
+    q = funsql_assert(@funsql(count()==1))
+    parts =  [@funsql($n => first($n)) for n in define]
+    return q |> @funsql(define($parts...))
 end
