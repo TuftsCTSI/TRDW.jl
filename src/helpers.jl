@@ -31,13 +31,13 @@ deduplicate(keys...; order=[]) = begin
     filter(deduplicate.row_number() <= 1)
 end
 
-take_first(keys...; order=[]) = begin
-    partition($(keys...), order_by = [$([keys..., order...]...)], name = take_first)
+take_first(keys...; order_by=[]) = begin
+    partition($(keys...), order_by = [$([keys..., order_by...]...)], name = take_first)
     filter(take_first.row_number() <= 1)
 end
 
-take_first_occurrence() = take_first(person_id; order=[datetime])
-take_latest_occurrence() = take_first(person_id; order=[datetime.desc()])
+take_first_occurrence() = take_first(person_id; order_by=[datetime])
+take_latest_occurrence() = take_first(person_id; order_by=[datetime.desc()])
 
 bounded_iterate(q, n::Integer) =
     $(n > 1 ? @funsql($q.bounded_iterate($q, $(n - 1))) : n > 0 ? q : @funsql(define()))
