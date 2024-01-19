@@ -23,16 +23,21 @@ function user_index(case::String)
     return FunSQL.From(table)
 end
 
-function user_subject(case::String)
+function root_subject(case::String)
     @assert length(case) == 8
     base = FunSQL.SQLTable(qualifiers = [:ctsi, :person_map], name = Symbol(case),
                            columns = [:person_id, :subject_id, :added])
+    return FunSQL.From(base)
+end
+
+function user_subject(case::String)
+    base = root_subject(case)
     if is_production_schema_prefix()
-        return FunSQL.From(base)
+        return base
     end
     temp = FunSQL.SQLTable(qualifiers = [:ctsi, user_schema(case)], name = :subject,
                            columns = [:person_id, :subject_id, :added])
-    return FunSQL.From(base) |> FunSQL.Append(FunSQL.From(temp))
+    return base |> FunSQL.Append(FunSQL.From(temp))
 end
 
 function funsql_to_subject_id(case; undefine=true)

@@ -906,7 +906,7 @@ function export_timeline_zip(filename, etl::ETLContext, case)
     colname = isnothing(case) ? :person_id : :subject_id
     postfix = isnothing(case) ?
         @funsql(define()) :
-        @funsql to_subject_id($case; undefine=false)
+        @funsql to_subject_id($case; undefine=true)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
