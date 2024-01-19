@@ -173,7 +173,8 @@ redact_text_fields(base) =
             define(snippet => string(missing))
         end),
         visit_occurrence = @funsql(begin
-            define(discharged_to_source_value => string(missing),
+            define(visit_source_value => string(missing),
+                   discharged_to_source_value => string(missing),
                    admitted_from_source_value => string(missing))
         end))
 
@@ -509,7 +510,9 @@ function export_keyfile(filename, etl::ETLContext, case, password; include_dob=f
     @debug "export_keyfile($(repr(filename)))"
     cohort_q = etl.cohort[]
     query = @funsql $cohort_q.query_mrns(;include_dob=$include_dob)
-    query = @funsql $query.to_subject_id($case).order(subject_id)
+    if !isnothing(case)
+        query = @funsql $query.to_subject_id($case).order(subject_id)
+    end
     cr = run(etl.db, query)
     @debug "writing", "mrn"
     password = strip(password)
@@ -519,10 +522,14 @@ function export_keyfile(filename, etl::ETLContext, case, password; include_dob=f
     close(p)
 end
 
-function export_zip(filename, etl::ETLContext)
+function export_zip(filename, etl::ETLContext, case)
 
     @debug "export_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
+
+    postfix = isnothing(case) ?
+        @funsql(define()) :
+        @funsql to_subject_id($case; undefine=true)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
@@ -554,9 +561,7 @@ function export_zip(filename, etl::ETLContext)
                 from(provider)
                 define(care_site_id=>int(missing),
                        year_of_birth=>int(missing),
-                       provider_source_value=>string(missing),
-                       npi=>string(missing), dea=>string(missing),
-                       provider_name=>string(missing))
+                       provider_source_value=>string(missing))
                 restrict_by(
                     provider_id,
                     append(
@@ -577,7 +582,7 @@ function export_zip(filename, etl::ETLContext)
             "care_site_$(etl.suffix)",
             @funsql begin
                 from(care_site)
-                define(location_id=>int(missing), care_site_source_value=>string(missing),
+                define(care_site_source_value=>string(missing),
                        place_of_service_source_value=>string(missing))
                 restrict_by(
                     care_site_id,
@@ -852,34 +857,35 @@ function export_zip(filename, etl::ETLContext)
             "drug_era_$(etl.suffix)",
             @funsql from(drug_era).filter(false))
     create_temp_tables!(etl)
+
     zipfile(
         filename,
         etl.db,
-        "person.csv" => person_q,
-        "observation_period.csv" => observation_period_q,
-        "visit_occurrence.csv" => visit_occurrence_q,
-        "visit_detail.csv" => visit_detail_q,
-        "condition_occurrence.csv" => condition_occurrence_q,
-        "drug_exposure.csv" => drug_exposure_q,
-        "procedure_occurrence.csv" => procedure_occurrence_q,
-        "device_exposure.csv" => device_exposure_q,
-        "measurement.csv" => measurement_q,
-        "observation.csv" => observation_q,
-        "death.csv" => death_q,
-        "note.csv" => note_q,
+        "person.csv" => @funsql($person_q.$postfix),
+        "observation_period.csv" => @funsql($observation_period_q.$postfix),
+        "visit_occurrence.csv" => @funsql($visit_occurrence_q.$postfix),
+        "visit_detail.csv" => @funsql($visit_detail_q.$postfix),
+        "condition_occurrence.csv" => @funsql($condition_occurrence_q.$postfix),
+        "drug_exposure.csv" => @funsql($drug_exposure_q.$postfix),
+        "procedure_occurrence.csv" => @funsql($procedure_occurrence_q.$postfix),
+        "device_exposure.csv" => @funsql($device_exposure_q.$postfix),
+        "measurement.csv" => @funsql($measurement_q.$postfix),
+        "observation.csv" => @funsql($observation_q.$postfix),
+        "death.csv" => @funsql($death_q.$postfix),
+        "note.csv" => @funsql($note_q.$postfix),
         "note_nlp.csv" => note_nlp_q,
-        "specimen.csv" => specimen_q,
+        "specimen.csv" => @funsql($specimen_q.$postfix),
         "provider.csv" => provider_q,
         "care_site.csv" => care_site_q,
         "location.csv" => location_q,
         "fact_relationship.csv" => fact_relationship_q,
-        "payer_plan_period.csv" => payer_plan_period_q,
-        "cost.csv" => cost_q,
-        "drug_era.csv" => drug_era_q,
-        "dose_era.csv" => dose_era_q,
-        "condition_era.csv" => condition_era_q,
-        "episode.csv" => episode_q,
-        "episode_event.csv" => episode_event_q,
+        #"payer_plan_period.csv" => @funsql($payer_plan_period_q.$postfix),
+        #"cost.csv" => cost_q,
+        #"drug_era.csv" => drug_era_q.$postfix,
+        #"dose_era.csv" => dose_era_q.$postfix,
+        #"condition_era.csv" => condition_era_q.$postfix,
+        #"episode.csv" => episode_q.$postfix,
+        #"episode_event.csv" => episode_event_q,
         "metadata.csv" => metadata_q,
         "cdm_source.csv" => cdm_source_q,
         "vocabulary.csv" => vocabulary_q,
@@ -893,9 +899,14 @@ function export_zip(filename, etl::ETLContext)
         "concept_ancestor.csv" => concept_ancestor_q)
 end
 
-function export_timeline_zip(filename, etl::ETLContext)
+function export_timeline_zip(filename, etl::ETLContext, case)
     @debug "export_timeline_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
+
+    colname = isnothing(case) ? :person_id : :subject_id
+    postfix = isnothing(case) ?
+        @funsql(define()) :
+        @funsql to_subject_id($case; undefine=false)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
@@ -1049,9 +1060,10 @@ function export_timeline_zip(filename, etl::ETLContext)
             end)
         join(person => $person_q, person_id == person.person_id)
         join(concept => from(concept), concept_id == concept.concept_id)
-        order(person_id, start_datetime, event_type, event_id)
+        $postfix
+        order($colname, start_datetime, event_type, event_id)
         select(
-            person_id,
+            $colname,
             event_type,
             event_id,
             visit_occurrence_id,
@@ -1063,8 +1075,8 @@ function export_timeline_zip(filename, etl::ETLContext)
     end
     create_temp_tables!(etl)
     df = DBInterface.execute(etl.db, q) |> DataFrame
-    ps = ["$(key.person_id).csv" => subdf
-          for (key, subdf) in pairs(groupby(df, :person_id))]
+    ps = ["$(getproperty(key, colname)).csv" => subdf
+          for (key, subdf) in pairs(groupby(df, colname))]
     zipfile(
         filename,
         etl.db,

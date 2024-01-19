@@ -35,15 +35,18 @@ function user_subject(case::String)
     return FunSQL.From(base) |> FunSQL.Append(FunSQL.From(temp))
 end
 
-function funsql_to_subject_id(case)
+function funsql_to_subject_id(case; undefine=true)
     name = gensym()
     subject_query = user_subject(case)
-    @funsql begin
+    query = @funsql begin
         left_join($name => $subject_query, $name.person_id == person_id)
         filter(is_null(assert_true(is_not_null($name.person_id))))
         define_front($name.subject_id)
-        undefine(person_id)
     end
+    if undefine
+        return @funsql($query.undefine(person_id))
+    end
+    return query
 end
 
 """ user_rebuild_subject_table(db, case)
