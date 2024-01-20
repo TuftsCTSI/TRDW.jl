@@ -2,7 +2,7 @@
 
 julia_version = "1.10.0"
 manifest_format = "2.0"
-project_hash = "4c3b4180bee65fdcc8993d412ae308313a787dba"
+project_hash = "cc855f53dc9a23253c2bb33e5cd118cca1d994e3"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -625,14 +625,6 @@ version = "1.4.2"
 git-tree-sha1 = "cd1659ba0d57b71a464a29e64dbc67cfe83d54e7"
 uuid = "76eceee3-57b5-4d4a-8e66-0e911cebbf60"
 version = "1.6.1"
-
-[[deps.ZipFile]]
-deps = ["Libdl", "Printf", "Zlib_jll"]
-git-tree-sha1 = "c1ef69166d9010593b04bf99ac92ca4ab784b3cf"
-repo-rev = "8a52e80"
-repo-url = "https://github.com/TuftsCTSI/ZipFile.jl.git"
-uuid = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
-version = "0.10.1"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]

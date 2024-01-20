@@ -9,7 +9,6 @@ using FunSQL
 using FunSQL: @dissect
 using HypertextLiteral
 using ODBC
-using ZipFile
 using p7zip_jll
 
 include("general.jl")
