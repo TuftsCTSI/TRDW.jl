@@ -454,21 +454,22 @@ function build_kernel!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode,
 end
 
 function zipfile(filename, db, pairs...)
-    z = ZipFile.Writer(filename)
+    @assert endswith(filename, ".zip")
+    folder = filename[1:end-4]
+    mkpath(folder)
     for (name, q) in pairs
-        q !== nothing || continue
-        f = ZipFile.addfile(z, name; method=ZipFile.Deflate, deflate_level=6)
         if q isa AbstractDataFrame
             @debug "writing", name, size(q)
-            CSV.write(f, q; bufsize = 2^27)
+            CSV.write(joinpath(folder, name), q)
         else
             @debug "execute", name, q
             cr = DBInterface.execute(db, q)
             @debug "writing", name
-            CSV.write(f, cr; bufsize = 2^27)
+            CSV.write(joinpath(folder, name), cr)
         end
     end
-    close(z)
+    Base.run(`zip -q -r $(filename) $(folder)`)
+    rm(folder; force=true, recursive=true)
 end
 
 function make_password()
@@ -1091,7 +1092,8 @@ function export_timeline_zip(filename, etl::ETLContext, case)
             end)
         join(person => $person_q, person_id == person.person_id)
         join(concept => from(concept), concept_id == concept.concept_id)
-        #left_join(value => from(concept), value_concept_id == concept.concept_id)
+        left_join(value => from(concept).filter(concept_id != 0),
+                  value_concept_id == value.concept_id)
         define(datetime => coalesce(start_datetime, timestamp(start_date)))
         define(datetime_end => coalesce(end_datetime, timestamp(end_date)))
         $postfix
@@ -1107,10 +1109,10 @@ function export_timeline_zip(filename, etl::ETLContext, case)
             concept.vocabulary_id,
             concept.concept_code,
             concept.concept_name,
-          # value_concept_id => value.concept_id,
-          # value_vocabulary_id => value.vocabulary_id,
-          # value_concept_code => value.concept_code,
-          # value_concept_name => value.concept_name,
+            value_concept_id => value.concept_id,
+            value_vocabulary_id => value.vocabulary_id,
+            value_concept_code => value.concept_code,
+            value_concept_name => value.concept_name,
             source_value)
     end
     create_temp_tables!(etl)
