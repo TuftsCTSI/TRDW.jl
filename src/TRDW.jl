@@ -60,7 +60,7 @@ FunSQL.showpath(io::IO, path::Vector{FunSQL.SQLNode}) = begin
     if show_funsql_path && !isempty(path)
         q = FunSQL.highlight(path)
         println(io, " in:")
-        pprint(io, q)
+        FunSQL.pprint(io, q)
     end
 end
 

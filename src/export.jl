@@ -906,7 +906,7 @@ function export_timeline_zip(filename, etl::ETLContext, case)
     colname = isnothing(case) ? :person_id : :subject_id
     postfix = isnothing(case) ?
         @funsql(define()) :
-        @funsql to_subject_id($case; undefine=true)
+        @funsql to_subject_id($case; assert=false)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
@@ -928,150 +928,155 @@ function export_timeline_zip(filename, etl::ETLContext, case)
                 $visit_occurrence_q
                 define(
                     event_type => "visit_occurrence",
-                    event_id => visit_occurrence_id,
-                    start_date => visit_start_date,
-                    start_datetime => visit_start_datetime,
-                    end_date => visit_end_date,
-                    end_datetime => visit_end_datetime,
+                    occurrence_id => visit_occurrence_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(visit_start_datetime, timestamp(visit_start_date)),
+                    datetime_end => coalesce(visit_end_datetime, timestamp(visit_end_date)),
                     concept_id => visit_concept_id,
-                    source_value => visit_source_value)
+                    value_concept_id => int(missing),
+                    source_value => missing)
             end,
             begin
                 $visit_detail_q
                 define(
                     event_type => "visit_detail",
-                    event_id => visit_detail_id,
-                    start_date => visit_detail_start_date,
-                    start_datetime => visit_detail_start_datetime,
-                    end_date => visit_detail_end_date,
-                    end_datetime => visit_detail_end_datetime,
+                    occurrence_id => visit_detail_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(visit_detail_start_datetime, timestamp(visit_detail_start_date)),
+                    datetime_end => coalesce(visit_detail_end_datetime, timestamp(visit_detail_end_date)),
                     concept_id => visit_detail_concept_id,
-                    source_value => visit_detail_source_value)
+                    value_concept_id => int(missing),
+                    source_value => missing)
             end,
             begin
                 $condition_occurrence_q
                 define(
                     event_type => "condition_occurrence",
-                    event_id => condition_occurrence_id,
-                    start_date => condition_start_date,
-                    start_datetime => condition_start_datetime,
-                    end_date => condition_end_date,
-                    end_datetime => condition_end_datetime,
+                    occurrence_id => condition_occurrence_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(condition_start_datetime, timestamp(condition_start_date)),
+                    datetime_end => coalesce(condition_end_datetime, timestamp(condition_end_date)),
                     concept_id => condition_concept_id,
-                    source_value => condition_source_value)
+                    value_concept_id => condition_status_concept_id,
+                    source_value =>  condition_source_value)
             end,
             begin
                 $drug_exposure_q
                 define(
                     event_type => "drug_exposure",
-                    event_id => drug_exposure_id,
-                    start_date => drug_exposure_start_date,
-                    start_datetime => drug_exposure_start_datetime,
-                    end_date => drug_exposure_end_date,
-                    end_datetime => drug_exposure_end_datetime,
+                    occurrence_id => drug_exposure_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(drug_exposure_start_datetime, timestamp(drug_exposure_start_date)),
+                    datetime_end => coalesce(drug_exposure_end_datetime, timestamp(drug_exposure_end_date)),
                     concept_id => drug_concept_id,
+                    value_concept_id => route_concept_id,
                     source_value => drug_source_value)
             end,
             begin
                 $procedure_occurrence_q
                 define(
                     event_type => "procedure_occurrence",
-                    event_id => procedure_occurrence_id,
-                    start_date => procedure_date,
-                    start_datetime => procedure_datetime,
-                    end_date => procedure_end_date,
-                    end_datetime => procedure_end_datetime,
+                    occurrence_id => procedure_occurrence_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(procedure_datetime, timestamp(procedure_date)),
+                    datetime_end => timestamp(missing),
                     concept_id => procedure_concept_id,
+                    value_concept_id => int(missing),
                     source_value => procedure_source_value)
             end,
             begin
                 $device_exposure_q
                 define(
                     event_type => "device_exposure",
-                    event_id => device_exposure_id,
-                    start_date => device_exposure_start_date,
-                    start_datetime => device_exposure_start_datetime,
-                    end_date => device_exposure_end_date,
-                    end_datetime => device_exposure_end_datetime,
+                    occurrence_id => device_exposure_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(device_exposure_start_datetime, timestamp(device_exposure_start_date)),
+                    datetime_end => coalesce(device_exposure_end_datetime, timestamp(device_exposure_end_date)),
                     concept_id => device_concept_id,
+                    value_concept_id => int(missing),
                     source_value => device_source_value)
             end,
             begin
                 $measurement_q
                 define(
                     event_type => "measurement",
-                    event_id => measurement_id,
-                    start_date => measurement_date,
-                    start_datetime => measurement_datetime,
-                    end_date => measurement_date,
-                    end_datetime => measurement_datetime,
+                    occurrence_id => measurement_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(measurement_datetime, timestamp(measurement_date)),
+                    datetime_end => timestamp(missing),
                     concept_id => measurement_concept_id,
+                    value_concept_id => value_as_concept_id,
                     source_value => measurement_source_value)
             end,
             begin
                 $observation_q
                 define(
                     event_type => "observation",
-                    event_id => observation_id,
-                    start_date => observation_date,
-                    start_datetime => observation_datetime,
-                    end_date => observation_date,
-                    end_datetime => observation_datetime,
+                    occurrence_id => observation_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(observation_datetime, timestamp(observation_date)),
+                    datetime_end => timestamp(missing),
                     concept_id => observation_concept_id,
+                    value_concept_id => value_as_concept_id,
                     source_value => observation_source_value)
             end,
             begin
                 $death_q
                 define(
                     event_type => "death",
-                    event_id => int(missing),
+                    occurrence_id => int(missing),
                     visit_occurrence_id => int(missing),
-                    start_date => death_date,
-                    start_datetime => death_datetime,
-                    end_date => death_date,
-                    end_datetime => death_datetime,
+                    datetime => coalesce(death_datetime, timestamp(death_date)),
+                    datetime_end => timestamp(missing),
                     concept_id => cause_concept_id,
+                    value_concept_id => int(missing),
                     source_value => cause_source_value)
             end,
             begin
                 $note_q
                 define(
                     event_type => "note",
-                    event_id => note_id,
-                    start_date => note_date,
-                    start_datetime => note_datetime,
-                    end_date => note_date,
-                    end_datetime => note_datetime,
+                    occurrence_id => note_id,
+                    visit_occurrence_id => visit_occurrence_id,
+                    datetime => coalesce(note_datetime, timestamp(note_date)),
+                    datetime_end => timestamp(missing),
                     concept_id => note_class_concept_id,
+                    value_concept_id => int(missing),
                     source_value => note_source_value)
             end,
             begin
                 $specimen_q
                 define(
                     event_type => "specimen",
-                    event_id => specimen_id,
+                    occurrence_id => specimen_id,
                     visit_occurrence_id => int(missing),
-                    start_date => specimen_date,
-                    start_datetime => specimen_datetime,
-                    end_date => specimen_date,
-                    end_datetime => specimen_datetime,
+                    datetime => coalesce(specimen_datetime, timestamp(specimen_date)),
+                    datetime_end => timestamp(missing),
                     concept_id => specimen_concept_id,
+                    value_concept_id => anatomic_site_concept_id,
                     source_value => specimen_source_value)
             end)
         join(person => $person_q, person_id == person.person_id)
         join(concept => from(concept), concept_id == concept.concept_id)
+        left_join(value => from(concept), value_concept_id == concept.concept_id)
         $postfix
-        order($colname, start_datetime, event_type, event_id)
+        order($colname, datetime, event_type, occurrence_id)
         select(
             $colname,
             event_type,
-            event_id,
+            occurrence_id,
             visit_occurrence_id,
-            starting => ifnull(start_datetime, start_date),
-            ending => ifnull(end_datetime, end_date),
-            concept_id,
+            datetime,
+            datetime_end,
+            concept.concept_id,
+            concept.vocabulary_id,
+            concept.concept_code,
             concept.concept_name,
-            source_value)
+            source_value,
+            value_concept_id => value.concept_id,
+            value_vocabulary_id => value.vocabulary_id,
+            value_concept_code => value.concept_code,
+            value_concept_name => value.concept_name)
     end
     create_temp_tables!(etl)
     df = DBInterface.execute(etl.db, q) |> DataFrame
