@@ -460,12 +460,12 @@ function zipfile(filename, db, pairs...)
         f = ZipFile.addfile(z, name; method=ZipFile.Deflate, deflate_level=6)
         if q isa AbstractDataFrame
             @debug "writing", name, size(q)
-            CSV.write(f, q; bufsize = 2^23)
+            CSV.write(f, q; bufsize = 2^27)
         else
             @debug "execute", name, q
             cr = DBInterface.execute(db, q)
             @debug "writing", name
-            CSV.write(f, cr; bufsize = 2^23)
+            CSV.write(f, cr; bufsize = 2^27)
         end
     end
     close(z)
