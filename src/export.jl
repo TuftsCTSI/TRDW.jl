@@ -229,10 +229,11 @@ struct QueryGuard
 
     function QueryGuard(qs::OMOP_Queries = OMOP_Queries();
                         include_txt = false, include_dob = false,
-                        include_hiv = false)
+                        include_hiv = false, denormalize = false)
         qs = include_txt ? qs : redact_text_fields(qs)
         qs = include_dob ? qs : redact_person_dob(qs)
         qs = include_hiv ? qs : redact_hiv_events(qs)
+        qs = denormalize ? qs : denormalize_concepts(qs)
         new(qs)
     end
 
