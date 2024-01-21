@@ -233,7 +233,7 @@ struct QueryGuard
         qs = include_txt ? qs : redact_text_fields(qs)
         qs = include_dob ? qs : redact_person_dob(qs)
         qs = include_hiv ? qs : redact_hiv_events(qs)
-        qs = denormalize ? qs : denormalize_concepts(qs)
+        qs = denormalize ? denormalize_concepts(qs) : qs
         new(qs)
     end
 
@@ -256,6 +256,7 @@ Base.show(io::IO, timing::Vector{ETLTiming}) =
 
 struct ETLContext
     db::FunSQL.SQLConnection
+    case::String
     cohort::Ref{FunSQL.SQLNode}
     queries::Ref{QueryGuard}
     create_stmts::Vector{String}
@@ -264,13 +265,11 @@ struct ETLContext
     timing::Vector{ETLTiming}
     suffix::String
 
-    function ETLContext(db::FunSQL.SQLConnection)
-        new(db, Ref{FunSQL.SQLNode}(), Ref{QueryGuard}(),
+    function ETLContext(db::FunSQL.SQLConnection, case::String)
+        new(db, case, Ref{FunSQL.SQLNode}(), Ref{QueryGuard}(),
             String[], String[], String[], ETLTiming[],
             Dates.format(Dates.now(), "yyyymmddHHMMSSZ"))
     end
-
-    ETLContext(args...) = ETLContext(connect_with_funsql(args...))
 
 end
 
@@ -335,7 +334,7 @@ function cleanup!(etl::ETLContext)
         FROM information_schema.tables
         WHERE table_catalog = 'ctsi'
           AND table_schema = 'temp'
-          AND table_name like '%_2023%'
+          AND table_name like '%_2024%'
           AND table_name like '%z'
     """
     for query in collect(row.query for row in DBInterface.execute(etl.db, sql))
@@ -508,33 +507,35 @@ end
     select(person_id, sex, birth, death, mrn => epic.mrn, soarian_mrn => soarian.mrn)
 end
 
-function export_keyfile(filename, etl::ETLContext, case, password; include_dob=false)
+function export_keyfile(filename, etl::ETLContext, password; include_dob=false)
+    @assert endswith(filename, ".7z")
+    basename = filename[1:end-3] * ".csv"
     @debug "export_keyfile($(repr(filename)))"
     cohort_q = etl.cohort[]
     query = @funsql $cohort_q.query_mrns(;include_dob=$include_dob)
-    if !isnothing(case)
-        query = @funsql $query.to_subject_id($case).order(subject_id)
+    if !isnothing(etl.case)
+        query = @funsql $query.to_subject_id($(etl.case)).order(subject_id)
     end
     cr = run(etl.db, query)
     @debug "writing", "mrn"
     password = strip(password)
-    p = open(`$(p7zip()) a -p$password -sikeyfile.csv $filename`, "w")
+    p = open(`$(p7zip()) a -p$password -si$basename $filename`, "w")
     CSV.write(p, cr; bufsize = 2^23)
     flush(p)
     close(p)
 end
 
-function export_zip(filename, etl::ETLContext, case)
+function export_zip(filename, etl::ETLContext)
 
     @debug "export_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
 
-    postfix = isnothing(case) ?
+    postfix = isnothing(etl.case) ?
         @funsql(define()) :
-        @funsql to_subject_id($case; rename=false)
-    fact_postfix = isnothing(case) ?
+        @funsql to_subject_id($(etl.case); rename=false)
+    fact_postfix = isnothing(etl.case) ?
         @funsql(define()) :
-        @funsql fact_to_subject_id($case)
+        @funsql fact_to_subject_id($(etl.case))
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
@@ -882,7 +883,7 @@ function export_zip(filename, etl::ETLContext, case)
         "provider.csv" => provider_q,
         "care_site.csv" => care_site_q,
         "location.csv" => location_q,
-        "fact_relationship.csv" => @funsql(fact_relationship_q.$fact_postfix),
+        "fact_relationship.csv" => @funsql($fact_relationship_q.$fact_postfix),
         #"payer_plan_period.csv" => @funsql($payer_plan_period_q.$postfix),
         #"cost.csv" => cost_q,
         #"drug_era.csv" => drug_era_q.$postfix,
@@ -903,13 +904,13 @@ function export_zip(filename, etl::ETLContext, case)
         "concept_ancestor.csv" => concept_ancestor_q)
 end
 
-function export_timeline_zip(filename, etl::ETLContext, case)
+function export_timeline_zip(filename, etl::ETLContext)
     @debug "export_timeline_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
 
-    postfix = isnothing(case) ?
+    postfix = isnothing(etl.case) ?
         @funsql(define()) :
-        @funsql to_subject_id($case; rename=false, assert=false)
+        @funsql to_subject_id($(etl.case); rename=false, assert=false)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
