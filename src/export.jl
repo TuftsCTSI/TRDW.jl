@@ -869,42 +869,70 @@ function export_zip(filename, etl::ETLContext)
     zipfile(
         filename,
         etl.db,
-        "person.csv" => @funsql($person_q.$postfix),
-        "observation_period.csv" => @funsql($observation_period_q.$postfix),
-        "visit_occurrence.csv" => @funsql($visit_occurrence_q.$postfix),
-        "visit_detail.csv" => @funsql($visit_detail_q.$postfix),
-        "condition_occurrence.csv" => @funsql($condition_occurrence_q.$postfix),
-        "drug_exposure.csv" => @funsql($drug_exposure_q.$postfix),
-        "procedure_occurrence.csv" => @funsql($procedure_occurrence_q.$postfix),
-        "device_exposure.csv" => @funsql($device_exposure_q.$postfix),
-        "measurement.csv" => @funsql($measurement_q.$postfix),
-        "observation.csv" => @funsql($observation_q.$postfix),
-        "death.csv" => @funsql($death_q.$postfix),
-        "note.csv" => @funsql($note_q.$postfix),
-        "note_nlp.csv" => note_nlp_q,
-        "specimen.csv" => @funsql($specimen_q.$postfix),
-        "provider.csv" => provider_q,
-        "care_site.csv" => care_site_q,
-        "location.csv" => location_q,
-        "fact_relationship.csv" => @funsql($fact_relationship_q.$fact_postfix),
+        "person.csv" =>
+            @funsql($person_q.$postfix.order(person_id)),
+        "observation_period.csv" =>
+            @funsql($observation_period_q.$postfix.order(person_id, observation_period_start_date)),
+        "visit_occurrence.csv" =>
+            @funsql($visit_occurrence_q.$postfix.order(person_id, visit_start_date)),
+        "visit_detail.csv" =>
+            @funsql($visit_detail_q.$postfix.order(person_id, visit_detail_start_date)),
+        "condition_occurrence.csv" =>
+            @funsql($condition_occurrence_q.$postfix.order(person_id, condition_start_date)),
+        "drug_exposure.csv" =>
+            @funsql($drug_exposure_q.$postfix.order(person_id, drug_exposure_start_date)),
+        "procedure_occurrence.csv" =>
+            @funsql($procedure_occurrence_q.$postfix.order(person_id, procedure_date)),
+        "device_exposure.csv" =>
+            @funsql($device_exposure_q.$postfix.order(person_id, device_exposure_start_date)),
+        "measurement.csv" =>
+            @funsql($measurement_q.$postfix.order(person_id, measurement_date)),
+        "observation.csv" =>
+            @funsql($observation_q.$postfix.order(person_id, observation_date)),
+        "death.csv" =>
+            @funsql($death_q.$postfix.order(person_id)),
+        "note.csv" =>
+            @funsql($note_q.$postfix.order(person_id, note_date)),
+        "note_nlp.csv" =>
+            @funsql($note_nlp_q.order(note_id)),
+        "specimen.csv" =>
+            @funsql($specimen_q.$postfix.order(person_id, specimen_date)),
+        "provider.csv" =>
+            @funsql($provider_q.order(provider_id)),
+        "care_site.csv" =>
+            @funsql($care_site_q.order(care_site_id)),
+        "location.csv" =>
+            @funsql($location_q.order(location_id)),
+        "fact_relationship.csv" =>
+            @funsql($fact_relationship_q.$fact_postfix),
         #"payer_plan_period.csv" => @funsql($payer_plan_period_q.$postfix),
         #"cost.csv" => cost_q,
-        #"drug_era.csv" => drug_era_q.$postfix,
-        #"dose_era.csv" => dose_era_q.$postfix,
-        #"condition_era.csv" => condition_era_q.$postfix,
-        #"episode.csv" => episode_q.$postfix,
-        #"episode_event.csv" => episode_event_q,
+        #"drug_era.csv" => @funsql($drug_era_q.$postfix),
+        #"dose_era.csv" => @funsql($dose_era_q.$postfix),
+        #"condition_era.csv" => @funsql($condition_era_q.$postfix),
+        #"episode.csv" => @funsql($episode_q.$postfix.order(person_id, episode_start_date)),
+        #"episode_event.csv" => @funsql($episode_event_q.order(episode_id, event_id)),
         "metadata.csv" => metadata_q,
         "cdm_source.csv" => cdm_source_q,
-        "vocabulary.csv" => vocabulary_q,
-        "domain.csv" => domain_q,
-        "concept_class.csv" => concept_class_q,
-        "relationship.csv" => relationship_q,
-        "drug_strength.csv" => drug_strength_q,
-        "concept.csv" => concept_q,
-        "concept_synonym.csv" => concept_synonym_q,
-        "concept_relationship.csv" => concept_relationship_q,
-        "concept_ancestor.csv" => concept_ancestor_q)
+        "vocabulary.csv" =>
+            @funsql($vocabulary_q.order(vocabulary_id)),
+        "domain.csv" =>
+            @funsql($domain_q.order(domain_id)),
+        "concept_class.csv" =>
+            @funsql($concept_class_q.order(concept_class_id)),
+        "relationship.csv" =>
+            @funsql($relationship_q.order(relationship_id)),
+        "drug_strength.csv" =>
+            @funsql($drug_strength_q.order(drug_concept_id)),
+        "concept.csv" =>
+            @funsql($concept_q.order(concept_id)),
+        "concept_synonym.csv" =>
+            @funsql($concept_synonym_q.order(concept_id)),
+        "concept_relationship.csv" =>
+            @funsql($concept_relationship_q.order(concept_id_1, concept_id_2)),
+        "concept_ancestor.csv" =>
+            @funsql($concept_ancestor_q.order(ancestor_concept_id, descendant_concept_id))
+        )
 end
 
 function export_timeline_zip(filename, etl::ETLContext)
