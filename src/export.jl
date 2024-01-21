@@ -455,7 +455,7 @@ end
 
 function zipfile(filename, db, pairs...)
     @assert endswith(filename, ".zip")
-    folder = filename[1:end-4]
+    folder = joinpath("/run/notebooks/cache", filename[1:end-4])
     mkpath(folder)
     for (name, q) in pairs
         if q isa AbstractDataFrame
