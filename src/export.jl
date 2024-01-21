@@ -456,20 +456,23 @@ end
 function zipfile(filename, db, pairs...)
     @assert endswith(filename, ".zip")
     folder = joinpath("/run/notebooks/cache", filename[1:end-4])
-    mkpath(folder)
-    for (name, q) in pairs
-        if q isa AbstractDataFrame
-            @debug "writing", name, size(q)
-            CSV.write(joinpath(folder, name), q)
-        else
-            @debug "execute", name, q
-            cr = DBInterface.execute(db, q)
-            @debug "writing", name
-            CSV.write(joinpath(folder, name), cr)
+    try
+        mkpath(folder)
+        for (name, q) in pairs
+            if q isa AbstractDataFrame
+                @debug "writing", name, size(q)
+                CSV.write(joinpath(folder, name), q)
+            else
+                @debug "execute", name, q
+                cr = DBInterface.execute(db, q)
+                @debug "writing", name
+                CSV.write(joinpath(folder, name), cr)
+            end
         end
+        Base.run(`zip -q -j -r $(filename) $(folder)`)
+    finally
+        rm(folder; force=true, recursive=true)
     end
-    Base.run(`zip -q -r $(filename) $(folder)`)
-    rm(folder; force=true, recursive=true)
 end
 
 function make_password()
