@@ -531,7 +531,10 @@ function export_zip(filename, etl::ETLContext, case)
 
     postfix = isnothing(case) ?
         @funsql(define()) :
-        @funsql to_subject_id($case; undefine=true)
+        @funsql to_subject_id($case; rename=false)
+    fact_postfix = isnothing(case) ?
+        @funsql(define()) :
+        @funsql fact_to_subject_id($case)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
@@ -859,7 +862,6 @@ function export_zip(filename, etl::ETLContext, case)
             "drug_era_$(etl.suffix)",
             @funsql from(drug_era).filter(false))
     create_temp_tables!(etl)
-
     zipfile(
         filename,
         etl.db,
@@ -880,7 +882,7 @@ function export_zip(filename, etl::ETLContext, case)
         "provider.csv" => provider_q,
         "care_site.csv" => care_site_q,
         "location.csv" => location_q,
-        "fact_relationship.csv" => fact_relationship_q,
+        "fact_relationship.csv" => @funsql(fact_relationship_q.$fact_postfix),
         #"payer_plan_period.csv" => @funsql($payer_plan_period_q.$postfix),
         #"cost.csv" => cost_q,
         #"drug_era.csv" => drug_era_q.$postfix,
@@ -905,10 +907,9 @@ function export_timeline_zip(filename, etl::ETLContext, case)
     @debug "export_timeline_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
 
-    colname = isnothing(case) ? :person_id : :subject_id
     postfix = isnothing(case) ?
         @funsql(define()) :
-        @funsql to_subject_id($case; assert=false)
+        @funsql to_subject_id($case; rename=false, assert=false)
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death
@@ -1098,9 +1099,9 @@ function export_timeline_zip(filename, etl::ETLContext, case)
         define(datetime => coalesce(start_datetime, timestamp(start_date)))
         define(datetime_end => coalesce(end_datetime, timestamp(end_date)))
         $postfix
-        order($colname, datetime, event_sort, occurrence_id)
+        order(person_id, datetime, event_sort, occurrence_id)
         select(
-            $colname,
+            person_id,
             event_type,
             occurrence_id,
             visit_occurrence_id,

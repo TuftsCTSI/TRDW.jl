@@ -40,21 +40,37 @@ function user_subject(case::String)
     return base |> FunSQL.Append(FunSQL.From(temp))
 end
 
-function funsql_to_subject_id(case; undefine=true, assert=true)
+function funsql_to_subject_id(case; rename=true, assert=true)
     name = gensym()
     subject_query = user_subject(case)
     query = @funsql begin
         left_join($name => $subject_query, $name.person_id == person_id)
-        define_front($name.subject_id)
     end
     if assert
         query = @funsql($query.filter(is_null(assert_true(is_not_null($name.person_id)))))
     end
-    if undefine
-        return @funsql($query.undefine(person_id))
+    if rename
+        return @funsql($query.define_front($name.subject_id).undefine(person_id))
     end
-    return query
+    return @funsql($query.define(person_id => $name.subject_id))
 end
+
+funsql_fact_to_subject_id(case) =
+    @funsql begin
+        fact_to_subject_id($case, domain_concept_id_1, fact_id_1)
+        fact_to_subject_id($case, domain_concept_id_2, fact_id_2)
+    end
+
+funsql_fact_to_subject_id(case, domain_concept_id, fact_id) = begin
+     name = gensym()
+     subject_query = user_subject(case)
+     @funsql begin
+         left_join($name => $subject_query, $name.person_id == $fact_id)
+         filter($domain_concept_id != 1147314 || isnotnull($name.person_id))
+         define($fact_id => ($domain_concept_id == 1147314) ? $name.subject_id : $fact_id)
+     end
+end
+
 
 """ user_rebuild_subject_table(db, case)
 
