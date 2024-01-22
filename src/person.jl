@@ -28,7 +28,7 @@ person() = begin
         care_site_id => omop.care_site_id)
     join(
         gender_concept => concept(),
-        concept_id == gender_concept.concept_id,
+        gender_concept_id == gender_concept.concept_id,
         optional = true)
     left_join(
         death_concept => concept(),

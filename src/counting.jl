@@ -51,7 +51,9 @@ stratify_by_race(; roundup=true) = begin
         race_concept_id == race.concept_id)
     define(race_name =>
         race_concept_id == 0 ?
-        "Unspecified" : race.concept_name)
+        ( ethnicity_concept_id == 38003563 ? "Unspecified (Hispanic)" :
+          "Unspecified") :
+        race.concept_name)
     group(race_name)
     count_n_person(; roundup=$roundup)
     select(n_person, race_name)

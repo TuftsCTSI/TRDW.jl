@@ -995,5 +995,5 @@ function write_and_display(expr::Expr, db, case, show)
             TRDW.write_and_display($sname, $vname)
         end
     end
-    :(write_cleanup($sname))
+    :(TRDW.write_cleanup($sname))
 end
