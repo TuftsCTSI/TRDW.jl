@@ -64,4 +64,31 @@ current_age(p) = (:current_age => datediff_year($p.birth_datetime, nvl($p.death_
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
+define_epic_mrn() = begin
+    join(person => from(person), person.person_id == person_id)
+    left_join(epic => begin
+        from(`global.patient`)
+        group(system_epic_id)
+        define(mrn => array_join(collect_set(system_epic_mrn), ";"))
+    end, epic.system_epic_id == person.person_source_value)
+    with(
+        `global.patient` =>
+            from($(FunSQL.SQLTable(qualifiers = [:main, :global],
+                                   name = :patient,
+                                   columns = [:id, :system_epic_id, :system_epic_mrn]))))
+    define(epic_mrn => epic.mrn)
+end
+
+define_soarian_mrn() = begin
+    left_join(soarian =>
+        from(`trdwlegacysoarian.omop_common_person_map`),
+        soarian.person_id == person_id)
+    with(
+        `trdwlegacysoarian.omop_common_person_map` =>
+            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                   name = :omop_common_person_map,
+                                   columns = [:person_id, :mrn]))))
+    define(soarian_mrn => soarian.mrn)
+end
+
 end

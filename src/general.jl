@@ -981,6 +981,7 @@ write_and_display(name, ::Nothing; empty_cols=[]) = nothing
 
 function write_cleanup(name)
     isfile("$(name).csv") ? rm("$(name).csv") : nothing
+    isfile("$(name).7z") ? rm("$(name).7z") : nothing
     return @htl("""<p>At the time of creation, $(name) is not available.</p>""")
 end
 
@@ -993,6 +994,33 @@ function write_and_display(expr::Expr, db, case, show)
         return quote
             $vname = TRDW.run($db, @funsql $query.to_subject_id($case).order(subject_id))
             TRDW.write_and_display($sname, $vname)
+        end
+    end
+    :(TRDW.write_cleanup($sname))
+end
+
+function write_and_encrypt(basename, dataframe::DataFrame, password)
+    password = strip(password)
+    p = open(`$(p7zip()) a -p$password -si$basename.csv $basename.7z`, "w")
+    CSV.write(p, dataframe; bufsize = 2^23)
+    flush(p)
+    close(p)
+    @htl("""
+        <hr />
+        <p>$(size(dataframe)[1]) rows written. Download <a href="$(basename).7z">$basename.7z</a>.</p>
+        <hr />
+    """)
+end
+
+function write_and_encrypt(expr::Expr, db, case, show::Bool, password::String)
+    @assert expr.head == :(=)
+    (name, query) = expr.args
+    sname = esc(string(name))
+    vname = esc(name)
+    if show && length(password) > 0
+        return quote
+            $vname = TRDW.run($db, @funsql $query.to_subject_id($case).order(subject_id))
+            TRDW.write_and_encrypt($sname, $vname, $password)
         end
     end
     :(TRDW.write_cleanup($sname))
