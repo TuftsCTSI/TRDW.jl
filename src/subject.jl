@@ -16,18 +16,21 @@ function user_schema(case::String)
     return Symbol(temp_schema_prefix() * "_" * case)
 end
 
+linkto_person(query) =
+    @funsql($query.join(person=>person(), person_id == person.person_id, optional=true))
+
 function user_index(case::String)
     @assert length(case) == 8
     table = FunSQL.SQLTable(qualifiers = [:ctsi, user_schema(case)], name = :index,
                             columns = [:person_id, :datetime, :datetime_end])
-    return FunSQL.From(table)
+    return linkto_person(FunSQL.From(table))
 end
 
 function root_subject(case::String)
     @assert length(case) == 8
     base = FunSQL.SQLTable(qualifiers = [:ctsi, :person_map], name = Symbol(case),
                            columns = [:person_id, :subject_id, :added])
-    return FunSQL.From(base)
+    return linkto_person(FunSQL.From(base))
 end
 
 function user_subject(case::String)
@@ -37,7 +40,7 @@ function user_subject(case::String)
     end
     temp = FunSQL.SQLTable(qualifiers = [:ctsi, user_schema(case)], name = :subject,
                            columns = [:person_id, :subject_id, :added])
-    return base |> FunSQL.Append(FunSQL.From(temp))
+    return linkto_person(base |> FunSQL.Append(FunSQL.From(temp)))
 end
 
 function funsql_to_subject_id(case; rename=true, assert=true)
@@ -70,7 +73,6 @@ funsql_fact_to_subject_id(case, domain_concept_id, fact_id) = begin
          define($fact_id => ($domain_concept_id == 1147314) ? $name.subject_id : $fact_id)
      end
 end
-
 
 """ user_rebuild_subject_table(db, case)
 
