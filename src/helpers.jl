@@ -31,13 +31,6 @@ deduplicate(keys...; order=[]) = begin
     filter(deduplicate.row_number() <= 1)
 end
 
-take_first(keys...; order_by=[]) = begin
-    partition($(keys...), order_by = [$([keys..., order_by...]...)], name = take_first)
-    filter(take_first.row_number() <= 1)
-end
-
-take_first_occurrence() = take_first(person_id; order_by=[datetime])
-take_latest_occurrence() = take_first(person_id; order_by=[datetime.desc()])
 
 bounded_iterate(q, n::Integer) =
     $(n > 1 ? @funsql($q.bounded_iterate($q, $(n - 1))) : n > 0 ? q : @funsql(define()))
@@ -82,10 +75,10 @@ function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     partname = gensym()
     return @funsql(begin
-        join($name => $base, $name.person_id == person_id)
-        filter($(something(predicate, true)))
+        join($name => $base, $name.person_id == person_id && $predicate)
         partition(occurrence_id; order_by = [occurrence_id], name = $partname)
         filter($partname.row_number() <= 1)
+        undefine($name)
     end)
 end
 funsql_filter_with = filter_with
@@ -106,12 +99,28 @@ function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
         left_join($name => $base, $name.person_id == person_id)
         filter($(something(predicate, true)))
         filter(isnull($name.person_id))
+        undefine($name)
     end)
 end
 funsql_filter_without = filter_without
 
 filter_without(node::FunSQL.SQLNode, predicate=true) =
     filter_without(gensym() => node, predicate)
+
+function group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true; partname=nothing)
+    (name, base) = pair
+    return @funsql(begin
+        left_join($name => $base, $name.person_id == person_id && $predicate)
+        partition(occurrence_id; order_by = [occurrence_id], name = $partname)
+        filter($partname.row_number() <= 1)
+        undefine($name)
+    end)
+end
+funsql_group_with = group_with
+
+#group_with(node::FunSQL.SQLNode, predicate=true) =
+#    group_with(gensym() => node, predicate)
+
 
 """ castbool(v)
 
@@ -152,3 +161,14 @@ function funsql_assert_one_row(; define=[])
     parts =  [@funsql($n => first($n)) for n in define]
     return q |> @funsql(define($parts...))
 end
+
+function funsql_take_first(keys...; order_by=[])
+    partname = gensym()
+    @funsql begin
+        partition($(keys...), order_by = [$([keys..., order_by...]...)], name = $partname)
+        filter($partname.row_number() <= 1)
+    end
+end
+
+funsql_take_first_occurrence() = @funsql(take_first(person_id; order_by=[datetime]))
+funsql_take_latest_occurrence() = @funsql(take_first(person_id; order_by=[datetime.desc()]))

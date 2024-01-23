@@ -22,7 +22,7 @@ linkto_person(query) =
 function user_index(case::String)
     @assert length(case) == 8
     table = FunSQL.SQLTable(qualifiers = [:ctsi, user_schema(case)], name = :index,
-                            columns = [:person_id, :datetime, :datetime_end])
+                            columns = [:person_id, :occurrence_id, :datetime, :datetime_end])
     return linkto_person(FunSQL.From(table))
 end
 
@@ -125,7 +125,7 @@ end
 function user_rebuild_index(db, case, query::FunSQL.SQLNode)
     sname = user_schema(case)
     create_table(db, sname, :index, @funsql begin
-        $query.select(person_id,
+        $query.select(person_id, occurrence_id,
                       datetime => to_timestamp(datetime),
                       datetime_end => to_timestamp(datetime_end))
     end)

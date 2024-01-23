@@ -54,10 +54,6 @@ person() = begin
         care_site => care_site(),
         care_site_id == care_site.care_site_id,
         optional = true)
-    join(
-        person => person(),
-        person_id == person.person_id,
-        optional = true)
 end
 
 is_deceased() = (:is_deceased => isnotnull(omop.death.person_id))
@@ -68,22 +64,34 @@ current_age(p) = (:current_age => datediff_year($p.birth_datetime, nvl($p.death_
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
-race() =
-    race =>
-        person.race_concept_id == 0 ?
-        ( person.ethnicity_concept_id == 38003563 ?
-          "Unspecified (Hispanic)" :
-          "Unspecified") :
-        person.race_concept.concept_name
-
-sex() =
-    sex =>
-        person.gender_concept_id == 0 ? "" :
-        person.gender_concept.concept_code
-
 end
 
-function define_soarian_mrn()
+function funsql_define_race()
+    person = gensym()
+    @funsql begin
+        join($person => person(), $person.person_id == person_id)
+        define(
+            race =>
+                $person.race_concept_id == 0 ?
+                ( $person.ethnicity_concept_id == 38003563 ?
+                "Unspecified (Hispanic)" :
+                "Unspecified") :
+                $person.race_concept.concept_name)
+    end
+end
+
+function funsql_define_sex()
+    person = gensym()
+    @funsql begin
+        join($person => person(), $person.person_id == person_id)
+        define(
+            sex =>
+                $person.gender_concept_id == 0 ? "" :
+                $person.gender_concept.concept_code)
+    end
+end
+
+function funsql_define_soarian_mrn()
     person_map  = gensym()
     @funsql begin
         left_join($person_map =>
@@ -115,4 +123,18 @@ function funsql_define_epic_mrn()
                                        columns = [:id, :system_epic_id, :system_epic_mrn]))))
         define(epic_mrn => $patient.mrn)
     end
+end
+
+function funsql_define_person(args...)
+    query = @funsql(define())
+    for arg in args
+        query = query |> begin
+            arg == :epic_mrn ? funsql_define_epic_mrn() :
+            arg == :soarian_mrn ? funsql_define_soarian_mrn() :
+            arg == :sex ? funsql_define_sex() :
+            arg == :race ? funsql_define_race() :
+            @error("unknown define $arg")
+        end
+    end
+    query
 end
