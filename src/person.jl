@@ -54,6 +54,10 @@ person() = begin
         care_site => care_site(),
         care_site_id == care_site.care_site_id,
         optional = true)
+    join(
+        person => person(),
+        person_id == person.person_id,
+        optional = true)
 end
 
 is_deceased() = (:is_deceased => isnotnull(omop.death.person_id))
@@ -64,31 +68,51 @@ current_age(p) = (:current_age => datediff_year($p.birth_datetime, nvl($p.death_
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
-define_epic_mrn() = begin
-    join(person => from(person), person.person_id == person_id)
-    left_join(epic => begin
-        from(`global.patient`)
-        group(system_epic_id)
-        define(mrn => array_join(collect_set(system_epic_mrn), ";"))
-    end, epic.system_epic_id == person.person_source_value)
-    with(
-        `global.patient` =>
-            from($(FunSQL.SQLTable(qualifiers = [:main, :global],
-                                   name = :patient,
-                                   columns = [:id, :system_epic_id, :system_epic_mrn]))))
-    define(epic_mrn => epic.mrn)
+race() =
+    race =>
+        person.race_concept_id == 0 ?
+        ( person.ethnicity_concept_id == 38003563 ?
+          "Unspecified (Hispanic)" :
+          "Unspecified") :
+        person.race_concept.concept_name
+
+sex() =
+    sex =>
+        person.gender_concept_id == 0 ? "" :
+        person.gender_concept.concept_code
+
 end
 
-define_soarian_mrn() = begin
-    left_join(soarian =>
-        from(`trdwlegacysoarian.omop_common_person_map`),
-        soarian.person_id == person_id)
-    with(
-        `trdwlegacysoarian.omop_common_person_map` =>
-            from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
-                                   name = :omop_common_person_map,
-                                   columns = [:person_id, :mrn]))))
-    define(soarian_mrn => soarian.mrn)
+function define_soarian_mrn()
+    person_map  = gensym()
+    @funsql begin
+        left_join($person_map =>
+            from(`trdwlegacysoarian.omop_common_person_map`),
+            $person_map.person_id == person_id)
+        with(
+            `trdwlegacysoarian.omop_common_person_map` =>
+                from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
+                                    name = :omop_common_person_map,
+                                    columns = [:person_id, :mrn]))))
+        define(soarian_mrn => $person_map.mrn)
+    end
 end
 
+function funsql_define_epic_mrn()
+    person = gensym()
+    patient = gensym()
+    @funsql begin
+        join($person => from(person), $person.person_id == person_id)
+        left_join($patient => begin
+            from(`global.patient`)
+            group(system_epic_id)
+            define(mrn => array_join(collect_set(system_epic_mrn), ";"))
+        end, $patient.system_epic_id == $person.person_source_value)
+        with(
+            `global.patient` =>
+                from($(FunSQL.SQLTable(qualifiers = [:main, :global],
+                                       name = :patient,
+                                       columns = [:id, :system_epic_id, :system_epic_mrn]))))
+        define(epic_mrn => $patient.mrn)
+    end
 end
