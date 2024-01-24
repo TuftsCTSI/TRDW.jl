@@ -511,7 +511,7 @@ end
 end
 
 function export_keyfile(filename, etl::ETLContext, password; include_dob=false)
-    @assert endswith(filename, ".7z")
+    @assert endswith(filename, ".xslx")
     basename = filename[1:end-3] * ".csv"
     @debug "export_keyfile($(repr(filename)))"
     cohort_q = etl.cohort[]
@@ -519,13 +519,9 @@ function export_keyfile(filename, etl::ETLContext, password; include_dob=false)
     if !isnothing(etl.case)
         query = @funsql $query.to_subject_id($(etl.case)).order(subject_id)
     end
-    cr = run(etl.db, query)
+    data = run(etl.db, query)
     @debug "writing", "mrn"
-    password = strip(password)
-    p = open(`$(p7zip()) a -p$password -si$basename $filename`, "w")
-    CSV.write(p, cr; bufsize = 2^23)
-    flush(p)
-    close(p)
+    write_xslx(data, "$filename.xlsx", password)
 end
 
 function export_zip(filename, etl::ETLContext)

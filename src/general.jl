@@ -977,7 +977,7 @@ write_and_display(name, ::Nothing; empty_cols=[]) = nothing
 
 function write_cleanup(name)
     isfile("$(name).csv") ? rm("$(name).csv") : nothing
-    isfile("$(name).7z") ? rm("$(name).7z") : nothing
+    isfile("$(name).xlsx") ? rm("$(name).xlsx") : nothing
     return @htl("""<p>At the time of creation, $(name) is not available.</p>""")
 end
 
@@ -995,28 +995,58 @@ function write_and_display(expr::Expr, db, case, show)
     :(TRDW.write_cleanup($sname))
 end
 
-function write_and_encrypt(basename, dataframe::DataFrame, password)
+function write_xslx(data, filename, password)
+    @assert endswith(filename, ".xlsx")
     password = strip(password)
-    p = open(`$(p7zip()) a -p$password -si$basename.csv $basename.7z`, "w")
-    CSV.write(p, dataframe; bufsize = 2^23)
+    p = open(`java -jar /opt/java/csv2xlsx.jar --password $password --file $filename`, "w")
+    CSV.write(p, data)
     flush(p)
     close(p)
+end
+
+function get_password(case)
+    password = strip(get(ENV, "PASSWORD", ""))
+    paths = ["/run", "notebooks", "cache"]
+    if isdir(joinpath(paths))
+        curr = splitpath(pwd())[end]
+        push!(paths, curr)
+        if isdir(joinpath(paths))
+            push!(paths, "password.txt")
+            pwfile = joinpath(paths)
+            if length(password) > 0
+                f = open(pwfile, "w")
+                write(f, password * "\n")
+                close(f)
+            elseif isfile(pwfile)
+                password = strip(read(open(pwfile), String))
+            end
+        end
+    end
+    return password
+end
+
+function write_and_encrypt(dataframe::DataFrame, basename, password)
+    @assert length(password) > 0
+    n_rows = size(dataframe)[1]
+    filename = "$basename.xlsx"
+    write_xslx(dataframe, filename, password)
     @htl("""
         <hr />
-        <p>$(size(dataframe)[1]) rows written. Download <a href="$(basename).7z">$basename.7z</a>.</p>
+        <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
         <hr />
     """)
 end
 
-function write_and_encrypt(expr::Expr, db, case, show::Bool, password::String)
+function write_and_encrypt(expr::Expr, db, case, show::Bool)
     @assert expr.head == :(=)
     (name, query) = expr.args
     sname = esc(string(name))
     vname = esc(name)
+    password = get_password(case)
     if show && length(password) > 0
         return quote
             $vname = TRDW.run($db, @funsql $query.to_subject_id($case).order(subject_id))
-            TRDW.write_and_encrypt($sname, $vname, $password)
+            TRDW.write_and_encrypt($vname, $sname, $password)
         end
     end
     :(TRDW.write_cleanup($sname))
