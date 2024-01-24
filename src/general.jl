@@ -292,10 +292,8 @@ function create_table(db, schema, table, def)
     t, c = ref[]
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
-    DBInterface.execute(db, "ALTER SCHEMA $(schema_name_sql) set owner to CTSIOwner")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
-    DBInterface.execute(db, "ALTER TABLE $(name_sql) set owner to CTSIOwner")
     @info "table $name_sql updated at $(now())"
     return t
 end
@@ -308,10 +306,8 @@ function create_table_if_not_exists(db, schema::Symbol, table::Symbol, spec...)
     spec = join(["$(string(p[1])) $(string(p[2]))" for p in spec], ", ")
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
-    DBInterface.execute(db, "ALTER SCHEMA $(schema_name_sql) set owner to CTSIOwner")
     DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS $(name_sql) ($spec)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
-    DBInterface.execute(db, "ALTER TABLE $(name_sql) set owner to CTSIOwner")
     return FunSQL.SQLTable(qualifiers = [:ctsi, schema], name = table, columns = cols)
 end
 
