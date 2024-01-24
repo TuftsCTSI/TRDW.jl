@@ -476,7 +476,7 @@ function zipfile(filename, db, pairs...)
 end
 
 function make_password()
-    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwzyz23456789"
+    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwzyz0123456789"
     return join(rand(valid_characters, 13))
 end
 
