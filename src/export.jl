@@ -510,18 +510,18 @@ end
     select(person_id, sex, birth, death, mrn => epic.mrn, soarian_mrn => soarian.mrn)
 end
 
-function export_keyfile(filename, etl::ETLContext, password; include_dob=false)
-    @assert endswith(filename, ".xslx")
-    basename = filename[1:end-3] * ".csv"
+function export_keyfile(filename, etl::ETLContext; include_dob=false)
+    password = get_password(etl.case)
+    if length(password) < 1
+        return
+    end
     @debug "export_keyfile($(repr(filename)))"
     cohort_q = etl.cohort[]
     query = @funsql $cohort_q.query_mrns(;include_dob=$include_dob)
-    if !isnothing(etl.case)
-        query = @funsql $query.to_subject_id($(etl.case)).order(subject_id)
-    end
+    query = @funsql $query.to_subject_id($(etl.case)).order(subject_id)
     data = run(etl.db, query)
     @debug "writing", "mrn"
-    write_xslx(data, "$filename.xlsx", password)
+    write_xlsx(data, filename, password)
 end
 
 function export_zip(filename, etl::ETLContext)

@@ -995,7 +995,7 @@ function write_and_display(expr::Expr, db, case, show)
     :(TRDW.write_cleanup($sname))
 end
 
-function write_xslx(data, filename, password)
+function write_xlsx(data, filename, password)
     @assert endswith(filename, ".xlsx")
     password = strip(password)
     p = open(`java -jar /opt/java/csv2xlsx.jar --password $password --file $filename`, "w")
@@ -1007,7 +1007,7 @@ end
 function get_password(case)
     password = strip(get(ENV, "PASSWORD", ""))
     paths = ["/run", "notebooks", "cache"]
-    if isdir(joinpath(paths))
+    if isdir(joinpath(paths)) && contains(pwd(), case)
         curr = splitpath(pwd())[end]
         push!(paths, curr)
         if isdir(joinpath(paths))
@@ -1029,7 +1029,7 @@ function write_and_encrypt(dataframe::DataFrame, basename, password)
     @assert length(password) > 0
     n_rows = size(dataframe)[1]
     filename = "$basename.xlsx"
-    write_xslx(dataframe, filename, password)
+    write_xlsx(dataframe, filename, password)
     @htl("""
         <hr />
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
