@@ -281,6 +281,7 @@ end
 @make_vocabulary("Type Concept")
 @make_vocabulary("CMS Place of Service")
 @make_vocabulary("Visit")
+@make_vocabulary("Procedure Type")
 
 struct Category <: AbstractCategory
     name::String

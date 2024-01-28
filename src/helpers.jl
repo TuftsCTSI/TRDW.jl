@@ -31,6 +31,7 @@ deduplicate(keys...; order=[]) = begin
     filter(deduplicate.row_number() <= 1)
 end
 
+has(v) = $(let name = "has_$v"; @funsql($name => any(isnotnull($v.person_id))) end)
 
 bounded_iterate(q, n::Integer) =
     $(n > 1 ? @funsql($q.bounded_iterate($q, $(n - 1))) : n > 0 ? q : @funsql(define()))
@@ -156,6 +157,12 @@ funsql_roundups = roundups
 funsql_assert(predicate) =
     @funsql(filter(coalesce(assert_true($predicate), true)))
 
+funsql_assert_isnotnull(name::Symbol) =
+   @funsql($name => coalesce(assert_true(isnotnull($name)), $name))
+
+funsql_assert_isnotnull(name::AbstractString) =
+    funsql_assert_isnotnull(Symbol(name))
+
 function funsql_assert_one_row(; define=[])
     q = funsql_assert(@funsql(count()==1))
     parts =  [@funsql($n => first($n)) for n in define]
@@ -172,3 +179,34 @@ end
 
 funsql_take_first_occurrence() = @funsql(take_first(person_id; order_by=[datetime]))
 funsql_take_latest_occurrence() = @funsql(take_first(person_id; order_by=[datetime.desc()]))
+
+function funsql_group_rollup(items...; assert_isnotnull=false, group_value=missing)
+    base = gensym()
+    gset = []
+    defn = []
+    args = []
+    tail = []
+    for el in items
+        if el isa Symbol
+            push!(gset, el)
+        elseif el isa Pair
+            push!(defn, el)
+            push!(gset, el[1])
+        elseif el isa FunSQL.SQLNode && getfield(el, :core) isa FunSQL.AggregateNode
+            name = getfield(getfield(el, :core), :name)
+            push!(defn, @funsql($name => $el))
+            push!(gset, name)
+        else
+            @error(something(dump(el), "unable to group by $el"))
+        end
+    end
+    while length(gset) > 0
+        parts = assert_isnotnull ? [@funsql(assert_isnotnull($part)) for part in gset] : gset
+        node = @funsql(from($base).group($parts..., $tail...))
+        push!(args, node)
+        item = pop!(gset)
+        push!(tail, @funsql $item => $group_value)
+    end
+    push!(args, @funsql(from($base).group($tail...)))
+    return @funsql(define($defn...).as($base).over(append(args=$args)))
+end
