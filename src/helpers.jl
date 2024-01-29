@@ -163,9 +163,9 @@ funsql_assert_isnotnull(name::Symbol) =
 funsql_assert_isnotnull(name::AbstractString) =
     funsql_assert_isnotnull(Symbol(name))
 
-function funsql_assert_one_row(; define=[])
+function funsql_assert_one_row(; carry=[])
     q = funsql_assert(@funsql(count()==1))
-    parts =  [@funsql($n => first($n)) for n in define]
+    parts =  [@funsql($n => first($n)) for n in carry]
     return q |> @funsql(define($parts...))
 end
 

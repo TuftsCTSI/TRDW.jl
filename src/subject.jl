@@ -137,17 +137,20 @@ user_rebuild(db, case, query::FunSQL.SQLNode) =
 
 user_queries(case) = (user_index(case), user_subject(case))
 
-function merge_subject_table!(db, case, q::FunSQL.SQLNode)
+function merge_subject_table!(db, case, q::FunSQL.SQLNode; truncate=false)
     load_sql = FunSQL.render(db, @funsql begin
              $q
              group(subject_id)
-             define(person_id => first(person_id))
-             assert_one_row(;define=[person_id])
+             assert_one_row(; carry=[person_id])
              assert(isnotnull(person_id) && isnotnull(subject_id))
         end)
     catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
-    subject_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(:person_map) |> FunSQL.ID(Symbol(case)))
-    #DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
+    subject_sql = FunSQL.render(db, FunSQL.ID(catalog) |>
+                                    FunSQL.ID(:person_map) |>
+                                    FunSQL.ID(Symbol(case)))
+    if truncate
+        DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
+    end
     query = """
         MERGE INTO $subject_sql AS target
         USING ($load_sql) AS cohort
