@@ -1,9 +1,16 @@
 @funsql begin
 
-count_n_person(; roundup=true) = begin
-    define(n_person => count_distinct(person_id))
-    order(n_person.desc(nulls=last))
-    define(n_person => roundups(n_person; round=$roundup))
+count_n_person(; roundup=true, order_by=[]) = begin
+    $(let
+        order_by = length(order_by) > 0 ?
+            [@funsql($col.desc(nulls=last)) for col in order_by] :
+             @funsql(n_person.desc(nulls=last));
+        @funsql(begin
+            define(n_person => count_distinct(person_id))
+            order($order_by...)
+            define(n_person => roundups(n_person; round=$roundup))
+        end)
+    end)
 end
 
 count_n_person(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
