@@ -55,7 +55,7 @@ find_concept(table, concept_id, names...) = begin
     end, person_id == base.person_id)
     group($concept_id)
     select_concept($concept_id, n_event => count(), n_person => count_distinct(person_id))
-    order(n_person.desc())
+    order(n_person.desc(nulls=last))
 end
 
 repr_concept(name=nothing) = begin
@@ -77,7 +77,7 @@ count_concept(name, names...; roundup=true) = begin
     select_concept(concept_id, $names...,
                    n_person => roundups(n_person; round=$roundup),
                    n_event => roundups(n_event; round=$roundup);
-                   order = [n_person.desc(), n_event.desc()])
+                   order = [n_person.desc(nulls=last), n_event.desc(nulls=last)])
 end
 
 count_concept(;roundup=true) = count_concept(concept_id; roundup=$roundup)

@@ -70,7 +70,7 @@ function group_by_concept(name=nothing; roundup=true,
     end
     base = base |> @funsql(begin
         join(c => from(concept), c.concept_id == concept_id)
-        order($include..., n_person.desc(), c.concept_code)
+        order($include..., n_person.desc(nulls=last), c.concept_code)
     end)
     if roundup
         base = base |> @funsql(define(n_person => concat("≤", roundup(n_person)),
@@ -91,7 +91,7 @@ const funsql_group_by_concept = group_by_concept
     group($group...)
     define(n_people => count())
     define_csets_aggregates($match, "" => count_if(true))
-    order(n_people.desc())
+    order(n_people.desc(nulls=last))
     $(castbool(roundup) ? @funsql(begin
             define(n_people => roundups(n_people))
             define_csets_roundups($match)

@@ -2,7 +2,7 @@
 
 count_n_person(; roundup=true) = begin
     define(n_person => count_distinct(person_id))
-    order(n_person.desc())
+    order(n_person.desc(nulls=last))
     define(n_person => roundups(n_person; round=$roundup))
 end
 
