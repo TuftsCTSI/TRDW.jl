@@ -180,12 +180,13 @@ end
 funsql_take_first_occurrence() = @funsql(take_first(person_id; order_by=[datetime]))
 funsql_take_latest_occurrence() = @funsql(take_first(person_id; order_by=[datetime.desc()]))
 
-function funsql_group_rollup(items...; assert_isnotnull=false, group_value=missing)
+function funsql_rollup(items...; assert_isnotnull=false, group_value=missing, define=[])
     base = gensym()
     gset = []
     defn = []
     args = []
     tail = []
+    sort = []
     for el in items
         if el isa Symbol
             push!(gset, el)
@@ -199,6 +200,7 @@ function funsql_group_rollup(items...; assert_isnotnull=false, group_value=missi
         else
             @error(something(dump(el), "unable to group by $el"))
         end
+        push!(sort, @funsql($(gset[end]).asc(nulls=last)))
     end
     while length(gset) > 0
         parts = assert_isnotnull ? [@funsql(assert_isnotnull($part)) for part in gset] : gset
@@ -208,5 +210,5 @@ function funsql_group_rollup(items...; assert_isnotnull=false, group_value=missi
         push!(tail, @funsql $item => $group_value)
     end
     push!(args, @funsql(from($base).group($tail...)))
-    return @funsql(define($defn...).as($base).over(append(args=$args)))
+    return @funsql(define($defn...).as($base).over(append(args=$args)).define($define...).order($sort...))
 end
