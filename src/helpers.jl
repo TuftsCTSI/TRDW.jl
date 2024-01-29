@@ -180,7 +180,7 @@ end
 funsql_take_first_occurrence() = @funsql(take_first(person_id; order_by=[datetime]))
 funsql_take_latest_occurrence() = @funsql(take_first(person_id; order_by=[datetime.desc()]))
 
-function funsql_rollup(items...; assert_isnotnull=false, group_value=missing, define=[])
+function funsql_rollup(items...; define=[])
     base = gensym()
     gset = []
     defn = []
@@ -203,11 +203,10 @@ function funsql_rollup(items...; assert_isnotnull=false, group_value=missing, de
         push!(sort, @funsql($(gset[end]).asc(nulls=last)))
     end
     while length(gset) > 0
-        parts = assert_isnotnull ? [@funsql(assert_isnotnull($part)) for part in gset] : gset
-        node = @funsql(from($base).group($parts..., $tail...))
+        node = @funsql(from($base).group($gset..., $tail...))
         push!(args, node)
         item = pop!(gset)
-        push!(tail, @funsql $item => $group_value)
+        push!(tail, @funsql $item => missing)
     end
     push!(args, @funsql(from($base).group($tail...)))
     return @funsql(define($defn...).as($base).over(append(args=$args)).define($define...).order($sort...))
