@@ -14,8 +14,6 @@ cohort_count(; roundup=true) = begin
     count_n_person(; roundup=$roundup)
     define(n_event => count(person_id))
     define(n_event => roundups(n_event; round=$roundup))
-    define(n_days => count_distinct(`struct`(person_id, date(datetime))))
-    define(n_days => roundups(n_days; round=$roundup))
 end
 
 cohort_count(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
