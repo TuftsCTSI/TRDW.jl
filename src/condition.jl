@@ -77,6 +77,14 @@ is_primary_discharge_diagnosis() =
 condition_status_isa(args...) =
     category_isa($Condition_Status, $args, condition_status_concept_id)
 
+define_finding_site(name=finding_site_concept_id, concept_id=concept_id) = begin
+    left_join($name => begin
+        from(concept_relationship)
+        filter(relationship_id == "Has finding site")
+    end, $name.concept_id_1 == $concept_id)
+    define($name => $name.concept_id_2)
+end
+
 crosswalk_from_icd9cm_to_icd10cm() =
     $(let frame = gensym();
         @funsql(begin
