@@ -80,6 +80,18 @@ function funsql_define_race()
     end
 end
 
+function funsql_define_ethnicity()
+    person = gensym()
+    @funsql begin
+        join($person => person(), $person.person_id == person_id)
+        define(
+            ethnicity =>
+                $person.ethnicity_concept_id == 0 ?
+                "Unspecified" :
+                $person.ethnicity_concept.concept_name)
+    end
+end
+
 function funsql_define_sex()
     person = gensym()
     @funsql begin
@@ -88,6 +100,14 @@ function funsql_define_sex()
             sex =>
                 $person.gender_concept_id == 0 ? "" :
                 $person.gender_concept.concept_code)
+    end
+end
+
+function funsql_define_dob()
+    person = gensym()
+    @funsql begin
+        join($person => person(), $person.person_id == person_id)
+        define(dob => date($person.birth_datetime))
     end
 end
 
