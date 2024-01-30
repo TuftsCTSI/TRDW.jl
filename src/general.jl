@@ -960,15 +960,17 @@ macro funsql_export(expr)
     end
 end
 
-function write_and_display(name, dataframe::DataFrame; empty_cols=[])
+function write_and_display(basename, dataframe::DataFrame; empty_cols=[])
     for col in empty_cols
         insertcols!(dataframe, names(dataframe)[1], col => "")
     end
-    CSV.write("$(name).csv", dataframe)
+    filename = "$(basename).csv"
+    n_rows = size(dataframe)[1]
+    CSV.write(filename, dataframe)
     @htl("""
         <hr />
         <div>$(dataframe)</div>
-        <p>Download <a href="$(name).csv">$name.csv</a>.</p>
+        <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
         <p><hr /></p>
     """)
 end
