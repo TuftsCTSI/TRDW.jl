@@ -136,6 +136,12 @@ unnest_concept_set(items::NamedTuple, cs::Vector{Concept}) =
 unnest_concept_set(items::Vector, cs::Vector{Concept}) =
     something(for it in items; unnest_concept_set(it, cs) end, cs)
 
+function unnest_concept_set(node::FunSQL.SQLNode, cs::Vector{Concept})
+    conn = vocab_connection()
+    cset = build_concepts(run(conn, node))
+    append!(cs, cset)
+end
+
 Base.convert(::Type{FunSQL.SQLNode}, c::Concept) =
     convert(FunSQL.SQLNode, c.concept_name => c.concept_id)
 
