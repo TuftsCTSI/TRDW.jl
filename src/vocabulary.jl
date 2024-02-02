@@ -26,10 +26,28 @@ end
 
 function match_icdcm(concepts, concept_id::Symbol)
      @assert concept_id == :concept_id
-     concept_code = @funsql(ext.icd_concept_code)
      concepts = ["$(c.concept_code)%" for c in concepts]
-     tests = [@funsql(like($concept_code, $m)) for m in concepts]
-     return build_or(tests)
+     tests = build_or([@funsql(like(concept_code, $m)) for m in concepts])
+    @funsql begin
+        coalesce($concept_id in begin
+            append(begin
+                from(concept)
+                filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
+                filter($tests)
+                select(concept_id)
+            end, begin
+                from(concept)
+                filter(in(vocabulary_id, "ICD10CM"))
+                filter($tests)
+                as(icd10)
+                join(begin
+                    from(concept_relationship)
+                    filter(relationship_id == "ICD9CM - ICD10CM gem")
+                end, concept_id_2 == icd10.concept_id)
+                select(concept_id => concept_id_1)
+            end)
+        end, false)
+    end
 end
 
 match_descendants(concepts, concept_id::Symbol) =
