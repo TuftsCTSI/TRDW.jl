@@ -19,7 +19,7 @@ NotebookFooter(;case=nothing, sfid=nothing, pims=nothing) = @htl("""
       <small>
         Produced by <a href="https://www.tuftsctsi.org/">
         Tufts Clinical and Translational Science Institute (CTSI) Informatics.</a><br/>
-        Cite NIH CTSA Award UL1TR002544 when using Tufts CTSI resources.<br/>
+        Cite NIH CTSA Award UM1TR004398 when using Tufts CTSI resources.<br/>
         Generated at $(Dates.now())
       </small>
     </td><td style="width: 28%; vertical-align: top; text-align: right;">
