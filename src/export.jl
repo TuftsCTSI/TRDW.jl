@@ -1147,8 +1147,8 @@ function export_timeline_zip(filename, etl::ETLContext)
     end
     create_temp_tables!(etl)
     df = DBInterface.execute(etl.db, q) |> DataFrame
-    ps = ["$(getproperty(key, colname)).csv" => subdf
-          for (key, subdf) in pairs(groupby(df, colname))]
+    ps = ["$(getproperty(key, :person_id)).csv" => subdf
+          for (key, subdf) in pairs(groupby(df, :person_id))]
     zipfile(
         filename,
         etl.db,
