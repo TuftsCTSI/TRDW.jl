@@ -103,11 +103,39 @@ function funsql_define_sex()
     end
 end
 
-function funsql_define_dob()
+function funsql_define_date_of_birth(;as=:date_of_birth)
     person = gensym()
     @funsql begin
-        join($person => person(), $person.person_id == person_id)
-        define(dob => date($person.birth_datetime))
+        join($person => from(person), $person.person_id == person_id)
+        define($as => date($person.birth_datetime))
+        undefine($person)
+    end
+end
+
+function funsql_define_year_of_birth(;as=:year_of_birth)
+    person = gensym()
+    @funsql begin
+        join($person => from(person), $person.person_id == person_id)
+        define($as => $person.year_of_birth)
+        undefine($person)
+    end
+end
+
+function funsql_define_date_of_death(;as=:date_of_death)
+    death = gensym()
+    @funsql begin
+        left_join($death => from(death), $death.person_id == person_id)
+        define($as => $death.death_date)
+        undefine($death)
+    end
+end
+
+function funsql_define_year_of_death(;as=:year_of_death)
+    death = gensym()
+    @funsql begin
+        left_join($death => from(death), $death.person_id == person_id)
+        define($as => year($death.death_date))
+        undefine($death)
     end
 end
 
