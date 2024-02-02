@@ -26,6 +26,8 @@ icontains(s, pats...) = or($([@funsql(icontains($s, $pat)) for pat in pats]...))
 is_integer(s) = rlike($s, "^[0-9]+\$")
 roundup(n) =  ceiling($n/10)*10
 
+collect_to_string(v) = array_join(array_sort(array_distinct(collect_list($v))), "; ")
+
 deduplicate(keys...; order_by=[]) = begin
     partition($(keys...), order_by = [$([keys..., order_by...]...)], name = deduplicate)
     filter(deduplicate.row_number() <= 1)
