@@ -41,28 +41,7 @@ function set_aggregate_filter!(node, test, n_replacement = 0)
     return n_replacement
 end
 
-function save_define_csets_aggregates(csets, args::Pair...)
-    aggregates = Pair[]
-    for cpairs in flatten_csets(csets)
-        for (slot, _) in pairs(cpairs)
-            test = @funsql($slot)
-            for (handle, template) in args
-                @assert template isa FunSQL.SQLNode
-                node = deepcopy(template)
-                n_replacement = set_aggregate_filter!(node, test)
-                @assert n_replacement == 1
-                if Symbol("") == handle || "" == handle || handle == nothing
-                    label = string(slot)
-                else
-                    label = "$(slot)_$(handle)"
-                end
-                push!(aggregates, label => node)
-            end
-        end
-    end
-    return @funsql(define($aggregates...))
-end
-function define_csets_aggregates(labels::Vector{Symbol}, args::Pair...)
+function define_csets_aggregates(labels::Vector, args::Pair...)
     aggregates = Pair[]
     for slot in labels
         test = @funsql($slot)
