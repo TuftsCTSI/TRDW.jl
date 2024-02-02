@@ -234,7 +234,7 @@ function find_by_name(vocabulary::Vocabulary, match_name::String;
                    !ismissing(result[1, :standard_concept]))
 end
 
-function lookup_by_name(vocabulary::Vocabulary, match_name::String)::Vector{Concept}
+function lookup_by_name(vocabulary::Vocabulary, match_name::String)
     concept = find_by_name(vocabulary, match_name)
     if isnothing(concept)
         vocabulary_id = getfield(vocabulary, :vocabulary_id)
@@ -243,7 +243,7 @@ function lookup_by_name(vocabulary::Vocabulary, match_name::String)::Vector{Conc
     return [concept]
 end
 
-lookup_by_name(category::AbstractCategory, concept::Concept) = [concept]
+lookup_by_name(category::AbstractCategory, concept::Concept)::Vector{Concept} = [concept]
 lookup_by_name(category::AbstractCategory, match_name::AbstractString) =
     lookup_by_name(category, String(match_name))
 lookup_by_name(category::AbstractCategory, match_name::Symbol) =
@@ -316,7 +316,7 @@ end
 
 (category::Category)(keys...) = lookup_by_name(category, collect(keys))
 
-function lookup_by_name(category::Category, match_name::String)::Concept
+function lookup_by_name(category::Category, match_name::String)
     name = getfield(category, :name)
     concept = nothing
     for vocab in getfield(category, :vocabs)
@@ -334,7 +334,7 @@ function lookup_by_name(category::Category, match_name::String)::Concept
     if isnothing(concept)
         throw(ArgumentError("'$match_name' failed to match in category $name"))
     end
-    return concept
+    return [concept]
 end
 
 instr(x::Union{AbstractString, Missing}, values::String...) =
@@ -353,6 +353,9 @@ ComponentClass = Category("ComponentClass", (HemOnc,),
 Ingredient = Category("Ingredient", (RxNorm, RxNorm_Extension),
     row -> standard_domain(row, "Drug") &&
            row.concept_class_id == "Ingredient")
+Route = Category("Route", (SNOMED,),
+    row -> standard_domain(row, "Route") &&
+           row.concept_class_id == "Qualifier Value")
 
 funsql_Ingredient(items...) = Ingredient(items...)
 export funsql_Ingredient
@@ -362,6 +365,9 @@ export funsql_DoseFormGroup
 
 funsql_component_class(items...) = ComponentClass(items...)
 export funsql_ComponentClass
+
+funsql_Route(items...) = Route(items...)
+export funsql_Route
 
 @funsql category_isa(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
     in($concept_id, begin
