@@ -26,24 +26,38 @@ function define_csets_roundups(csets)
 end
 const funsql_define_csets_roundups = define_csets_roundups
 
+function set_aggregate_filter!(node, test, n_replacement = 0)
+    @assert node isa FunSQL.SQLNode
+    core = getfield(node, :core)
+    if core isa FunSQL.AggregateNode
+        core.filter = test
+        return n_replacement + 1
+    end
+    if hasfield(typeof(core), :args)
+        for arg in core.args
+            n_replacement = set_aggregate_filter!(arg, test, n_replacement)
+        end
+    end
+    return n_replacement
+end
+
 function define_csets_aggregates(csets, args::Pair...)
-	aggregates = Pair[]
+    aggregates = Pair[]
     for cpairs in flatten_csets(csets)
         for (slot, _) in pairs(cpairs)
-		    test = @funsql($slot)
-			for (handle, template) in args
-				@assert template isa FunSQL.SQLNode
-				node = deepcopy(template)
-				core = getfield(node, :core)
-				@assert core isa FunSQL.AggregateNode
-				core.filter = test
-				if Symbol("") == handle || "" == handle || handle == nothing
+            test = @funsql($slot)
+            for (handle, template) in args
+                @assert template isa FunSQL.SQLNode
+                node = deepcopy(template)
+                n_replacement = set_aggregate_filter!(node, test)
+                @assert n_replacement == 1
+                if Symbol("") == handle || "" == handle || handle == nothing
                     label = string(slot)
-				else
-					label = "$(slot)_$(handle)"
-				end
-				push!(aggregates, label => node)
-			end
+                else
+                    label = "$(slot)_$(handle)"
+                end
+                push!(aggregates, label => node)
+            end
         end
     end
     return @funsql(define($aggregates...))
