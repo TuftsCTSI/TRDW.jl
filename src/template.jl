@@ -34,12 +34,15 @@ NotebookFooter(;case=nothing, sfid=nothing, pims=nothing) = @htl("""
   </div>
 """)
 
-NotebookHeader(title=nothing; case=nothing, sfid=nothing) = @htl("""
-  <h1>$(title)</h1>
+NotebookHeader(title=nothing, subtitle=nothing; case=nothing, sfid=nothing) = @htl("""
+   <h1>$(title)
+   </h1>
   $(isnothing(case) ? "" : @htl("""
-    <table><tr><td>Service Request#
+    <div style="text-align: center;">Service Request#
     $(isnothing(sfid) ? @htl("""<span>$case</span>""") : @htl("""
       <a href="https://tuftsctsi.my.site.com/s/case/$sfid/">$case</a>
       """))
-    </td></tr></table>"""))
+    </div>"""))
+   $(isnothing(subtitle) ? "" :
+     @htl("""<p style="text-align: left; font-style: italic; font-size: 24px;">$subtitle</p>"""))
 """)

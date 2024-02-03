@@ -64,7 +64,7 @@ link_provider_soarian_to_trdw(StaffOID=nothing) = begin
         `trdwlegacysoarian.omop_common_provider_map` =>
             from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
                                    name = :omop_common_provider_map,
-                                   columns = [:provider_id, :source_id]))))
+                                   columns = [:provider_id, :source_id, :NPI, :MSI, :specialty]))))
     define(provider_id => omop_common_provider_map.provider_id + 1000000000)
 end
 
