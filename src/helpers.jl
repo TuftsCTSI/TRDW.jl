@@ -74,7 +74,7 @@ and then returns the first entry by `occurrence_id` that matches.
 
 TODO: update FunSQL to avoid leaking of `name`.
 """
-function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
+function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     partname = gensym()
     return @funsql(begin
@@ -84,10 +84,24 @@ function filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
         undefine($name)
     end)
 end
-funsql_filter_with = filter_with
 
-filter_with(node::FunSQL.SQLNode, predicate=true) =
-    filter_with(gensym() => node, predicate)
+funsql_filter_with(node::FunSQL.SQLNode, predicate=true) =
+    funsql_filter_with(gensym() => node, predicate)
+
+# TODO: be smart use person_id when occurrence_id is not present
+function funsql_filter_person_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
+    (name, base) = pair
+    partname = gensym()
+    return @funsql(begin
+        join($name => $base, $name.person_id == person_id && $predicate)
+        partition(person_id; order_by = [person_id], name = $partname)
+        filter($partname.row_number() <= 1)
+        undefine($name)
+    end)
+end
+
+funsql_filter_person_with(node::FunSQL.SQLNode, predicate=true) =
+    funsql_filter_person_with(gensym() => node, predicate)
 
 """filter_without(pair, filter)
 
@@ -96,7 +110,7 @@ and then returns the first entry by `occurrence_id` that doesn't match.
 
 TODO: update FunSQL to avoid leaking of `name`.
 """
-function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
+function funsql_filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     return @funsql(begin
         left_join($name => $base, $name.person_id == person_id)
@@ -105,12 +119,11 @@ function filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
         undefine($name)
     end)
 end
-funsql_filter_without = filter_without
 
-filter_without(node::FunSQL.SQLNode, predicate=true) =
-    filter_without(gensym() => node, predicate)
+funsql_filter_without(node::FunSQL.SQLNode, predicate=true) =
+    funsql_filter_without(gensym() => node, predicate)
 
-function group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true; partname=nothing)
+function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true; partname=nothing)
     (name, base) = pair
     return @funsql(begin
         left_join($name => $base, $name.person_id == person_id && $predicate)
@@ -119,11 +132,16 @@ function group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true; partname
         undefine($name)
     end)
 end
-funsql_group_with = group_with
 
-#group_with(node::FunSQL.SQLNode, predicate=true) =
-#    group_with(gensym() => node, predicate)
-
+function funsql_group_person_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true; partname=nothing)
+    (name, base) = pair
+    return @funsql(begin
+        left_join($name => $base, $name.person_id == person_id && $predicate)
+        partition(person_id; order_by = [person_id], name = $partname)
+        filter($partname.row_number() <= 1)
+        undefine($name)
+    end)
+end
 
 """ castbool(v)
 
