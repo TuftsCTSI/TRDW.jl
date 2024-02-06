@@ -266,6 +266,14 @@ macro run_funsql(db, q)
     :(run($db, @funsql($q)); annotate_keys=$annotate_keys)
 end
 
+env_catalog() = Symbol(get(ENV, "DATABRICKS_CATALOG", "ctsi"))
+
+sqlname(db, schema::Symbol) =
+    FunSQL.render(db, FunSQL.ID(env_catalog()) |> FunSQL.ID(schema))
+
+sqlname(db, schema::Symbol, table::Symbol) =
+    FunSQL.render(db, FunSQL.ID(env_catalog()) |> FunSQL.ID(schema) |> FunSQL.ID(table))
+
 sqlname(db, t::FunSQL.SQLTable) =
     FunSQL.render(db, FunSQL.ID(t.qualifiers, t.name))
 
@@ -285,14 +293,13 @@ end
 ```
 
 """
-function create_table(db, schema, table, def)
-    catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
-    schema_name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema))
-    name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema) |> FunSQL.ID(table))
+function create_table(db, schema::Symbol, table::Symbol, def)
+    schema_name_sql = sqlname(db, schema)
+    name_sql = sqlname(db, schema, table)
     sql = FunSQL.render(db, def)
     ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
     q = FunSQL.From(table) |> FunSQL.WithExternal(table => def,
-                                                  qualifiers = (catalog, schema),
+                                                  qualifiers = (env_catalog(), schema),
                                                   handler = (p -> ref[] = p))
     FunSQL.render(db, q)
     t, c = ref[]
@@ -305,16 +312,15 @@ function create_table(db, schema, table, def)
 end
 
 function create_table_if_not_exists(db, schema::Symbol, table::Symbol, spec...)
-    catalog = get(ENV, "DATABRICKS_CATALOG", "ctsi")
-    schema_name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema))
-    name_sql = FunSQL.render(db, FunSQL.ID(catalog) |> FunSQL.ID(schema) |> FunSQL.ID(table))
+    schema_name_sql = sqlname(db, schema)
+    name_sql = sqlname(db, schema, table)
     cols = [p[1] for p in spec]
     spec = join(["$(string(p[1])) $(string(p[2]))" for p in spec], ", ")
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS $(name_sql) ($spec)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
-    return FunSQL.SQLTable(qualifiers = [:ctsi, schema], name = table, columns = cols)
+    return FunSQL.SQLTable(qualifiers = [env_catalog(), schema], name = table, columns = cols)
 end
 
 function describe_all(db)
