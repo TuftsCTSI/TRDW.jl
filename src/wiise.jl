@@ -150,4 +150,33 @@ Convert a WIISE patient identifier to a WIISE Viewer link.
 
 @funsql epic_patient() =
    from($(FunSQL.SQLTable(qualifiers = [:main, :epicclarity], name = :patient,
-                          columns = [:pat_id, :pat_mrn_id])))
+                          columns = [:pat_id, :pat_mrn_id, :birth_date, :sex])))
+
+@funsql soarian_map() =
+    from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian], name = :omop_common_person_map,
+                           columns = [:person_id, :mrn])))
+
+function funsql_define_soarian_patient(pair::Pair; filter = true)
+    (name, mrn) = pair
+    sm = gensym()
+    @funsql begin
+        left_join($sm => soarian_map(), $mrn == $sm.mrn && $filter)
+        define($name => $sm.person_id)
+        undefine($sm)
+    end
+end
+
+function funsql_define_epic_patient(pair::Pair; filter = true)
+    (name, mrn) = pair
+    ep = gensym()
+    gp = gensym()
+    p = gensym()
+    @funsql begin
+        left_join($ep => epic_patient(), $ep.pat_mrn_id == $mrn && $filter)
+        left_join($gp => global_patient(), $gp.system_epic_mrn == $mrn && $filter)
+        left_join($p => from(person),
+            $p.person_source_value == coalesce($ep.pat_id, $gp.system_epic_id))
+        define($name => $p.person_id)
+        undefine($ep, $gp, $p)
+    end
+end
