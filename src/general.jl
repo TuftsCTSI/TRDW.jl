@@ -266,6 +266,12 @@ macro run_funsql(db, q)
     :(run($db, @funsql($q)); annotate_keys=$annotate_keys)
 end
 
+sqlname(db, t::FunSQL.SQLTable) =
+    FunSQL.render(db, FunSQL.ID(t.qualifiers, t.name))
+
+sqlname(db, node::FunSQL.SQLNode) =
+    sqlname(db, getfield(getfield(node, :core), :source))
+
 """
 create_table(db, schema, table, def)
 
