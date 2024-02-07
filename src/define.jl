@@ -113,3 +113,53 @@ function FunSQL.resolve(n::UndefineNode, ctx)
     FunSQL.Resolved(FunSQL.RowType(fields), over = n′)
     # FIXME: `select(foo => 1).undefine(foo)`
 end
+
+mutable struct TryGetNode <: FunSQL.AbstractSQLNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    names::Vector{Union{Symbol, Regex}}
+
+    TryGetNode(; over = nothing, names) =
+        new(over, names)
+end
+
+TryGetNode(names...; over = nothing) =
+    TryGetNode(over = over, names = Union{Symbol, Regex}[names...])
+
+TryGet(args...; kws...) =
+    TryGetNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_try_get = TryGet
+
+function FunSQL.PrettyPrinting.quoteof(n::TryGetNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(TryGet), Any[FunSQL.quoteof(name) for name in n.names]...)
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve_scalar(n::TryGetNode, ctx)
+    if n.over !== nothing
+        n′ = FunSQL.rebind(n.over, TryGet(names = n.names), ctx)
+        return FunSQL.resolve_scalar(n′, ctx)
+    end
+    for name in n.names
+        if name isa Symbol
+            if name in keys(ctx.row_type.fields)
+                n′ = FunSQL.Get(name)
+                return FunSQL.resolve_scalar(n′, ctx)
+            end
+        else
+            for f in keys(ctx.row_type.fields)
+                if occursin(name, String(f))
+                    n′ = FunSQL.Get(f)
+                    return FunSQL.resolve_scalar(n′, ctx)
+                end
+            end
+        end
+    end
+    throw(
+        FunSQL.ReferenceError(
+            FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
+            path = FunSQL.get_path(ctx)))
+end
