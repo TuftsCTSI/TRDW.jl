@@ -291,3 +291,61 @@ function FunSQL.resolve_scalar(n::TryGetNode, ctx)
             FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
             path = FunSQL.get_path(ctx)))
 end
+
+mutable struct ExplainConceptIdNode <: FunSQL.AbstractSQLNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    args::Vector{FunSQL.SQLNode}
+    label_map::FunSQL.OrderedDict{Symbol, Int}
+
+    function ExplainConceptIdNode(; over = nothing, args = [FunSQL.Get(:concept_name)], label_map = nothing)
+        if label_map !== nothing
+            new(over, args, label_map)
+        else
+            n = new(over, args, FunSQL.OrderedDict{Symbol, Int}())
+            FunSQL.populate_label_map!(n)
+            n
+        end
+    end
+end
+
+ExplainConceptIdNode(args...; over = nothing) =
+    ExplainConceptIdNode(over = over, args = FunSQL.SQLNode[args...])
+
+ExplainConceptId(args...; kws...) =
+    ExplainConceptIdNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_explain_concept_id = ExplainConceptId
+
+function FunSQL.PrettyPrinting.quoteof(n::ExplainConceptIdNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(ExplainConceptId), Any[FunSQL.quoteof(arg, ctx) for arg in n.args]...)
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve(n::ExplainConceptIdNode, ctx)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    q = over′
+    for (f, ft) in t.fields
+        s = String(f)
+        f === :concept_id || endswith(s, "_concept_id") || continue
+        prefix = s[1:end - 10]
+        alias = Symbol("$(prefix)concept")
+        q = @funsql begin
+            $q
+            left_join(
+                from(concept).define(args = $(n.args)).as($alias),
+                $f == $alias.concept_id,
+                optional = true)
+        end
+        defs = [Symbol("$prefix$label") => @funsql($alias.$label) for label in keys(n.label_map)]
+        dup_field_aliases = [first(def) for def in defs if haskey(t.fields, first(def))]
+        if !isempty(dup_field_aliases)
+            q = q |> Undefine(names = dup_field_aliases)
+        end
+        q = q |> DefineAfter(args = defs, name = f)
+    end
+    FunSQL.resolve(q, ctx)
+end
