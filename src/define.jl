@@ -30,44 +30,25 @@ function FunSQL.PrettyPrinting.quoteof(n::DefineFrontNode, ctx::FunSQL.QuoteCont
     ex
 end
 
-FunSQL.label(n::DefineFrontNode) =
-    FunSQL.label(n.over)
-
-FunSQL.rebase(n::DefineFrontNode, n′) =
-    DefineFrontNode(over = FunSQL.rebase(n.over, n′), args = n.args, label_map = n.label_map)
-
-function FunSQL.annotate(n::DefineFrontNode, ctx)
-    over′ = FunSQL.annotate(n.over, ctx)
-    args′ = FunSQL.annotate_scalar(n.args, ctx)
-    DefineFront(over = over′, args = args′, label_map = n.label_map)
-end
-
 function FunSQL.resolve(n::DefineFrontNode, ctx)
-    t = FunSQL.box_type(n.over)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    args′ = FunSQL.resolve_scalar(n.args, ctx, t)
     fields = FunSQL.FieldTypeMap()
-    for f in keys(n.label_map)
-        if !haskey(t.row.fields, f)
-            fields[f] = FunSQL.ScalarType()
+    for (f, i) in n.label_map
+        if !haskey(t.fields, f)
+            fields[f] = FunSQL.type(args′[i])
         end
     end
-    for (f, ft) in t.row.fields
-        if f in keys(n.label_map)
-            ft = FunSQL.ScalarType()
+    for (f, ft) in t.fields
+        i = get(n.label_map, f, nothing)
+        if i !== nothing
+            ft = FunSQL.type(args′[i])
         end
         fields[f] = ft
     end
-    row = FunSQL.RowType(fields, t.row.group)
-    FunSQL.BoxType(t.name, row, t.handle_map)
-end
-
-function FunSQL.link!(n::DefineFrontNode, refs::Vector{FunSQL.SQLNode}, ctx)
-    n′ = FunSQL.DefineNode(over = n.over, args = n.args, label_map = n.label_map)
-    FunSQL.link!(n′, refs, ctx)
-end
-
-function FunSQL.assemble(n::DefineFrontNode, refs, ctx)
-    n′ = FunSQL.DefineNode(over = n.over, args = n.args, label_map = n.label_map)
-    FunSQL.assemble(n′, refs, ctx)
+    n′ = FunSQL.Define(over = over′, args = args′, label_map = n.label_map)
+    FunSQL.Resolved(FunSQL.RowType(fields, t.group), over = n′)
 end
 
 mutable struct UndefineNode <: FunSQL.TabularNode
@@ -108,46 +89,27 @@ function FunSQL.PrettyPrinting.quoteof(n::UndefineNode, ctx::FunSQL.QuoteContext
     ex
 end
 
-FunSQL.label(n::UndefineNode) =
-    FunSQL.label(n.over)
-
-FunSQL.rebase(n::UndefineNode, n′) =
-    UndefineNode(over = FunSQL.rebase(n.over, n′), names = n.names, label_map = n.label_map)
-
-function FunSQL.annotate(n::UndefineNode, ctx)
-    over′ = FunSQL.annotate(n.over, ctx)
-    Undefine(over = over′, names = n.names, label_map = n.label_map)
-end
-
 function FunSQL.resolve(n::UndefineNode, ctx)
-    t = FunSQL.box_type(n.over)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
     for name in n.names
-        ft = get(t.row.fields, name, FunSQL.EmptyType())
+        ft = get(t.fields, name, FunSQL.EmptyType())
         if ft isa FunSQL.EmptyType
             throw(
                 FunSQL.ReferenceError(
                     FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
                     name = name,
-                    path = FunSQL.get_path(ctx, convert(FunSQL.SQLNode, n))))
+                    path = FunSQL.get_path(ctx)))
         end
     end
     fields = FunSQL.FieldTypeMap()
-    for (f, ft) in t.row.fields
+    for (f, ft) in t.fields
         if f in keys(n.label_map)
             continue
         end
         fields[f] = ft
     end
-    row = FunSQL.RowType(fields, t.row.group)
-    FunSQL.BoxType(t.name, row, t.handle_map)
-end
-
-function FunSQL.link!(n::UndefineNode, refs::Vector{FunSQL.SQLNode}, ctx)
-    box = n.over[]::FunSQL.BoxNode
-    append!(box.refs, refs)
-end
-
-function FunSQL.assemble(n::UndefineNode, refs, ctx)
-    FunSQL.assemble(n.over, ctx)
+    n′ = FunSQL.IntAutoDefine(over = over′)
+    FunSQL.Resolved(FunSQL.RowType(fields), over = n′)
     # FIXME: `select(foo => 1).undefine(foo)`
 end
