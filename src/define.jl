@@ -349,3 +349,107 @@ function FunSQL.resolve(n::ExplainConceptIdNode, ctx)
     end
     FunSQL.resolve(q, ctx)
 end
+
+mutable struct DensityNode <: FunSQL.TabularNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    names::Vector{Symbol}
+    top_k::Int
+    nested::Bool
+
+    DensityNode(; over = nothing, names = Symbol[], top_k = 0, nested = false) =
+        new(over, names, top_k, nested)
+end
+
+DensityNode(names...; over = nothing, top_k = 0, nested = false) =
+    DensityNode(over = over, names = Symbol[names...], top_k = top_k, nested = nested)
+
+Density(args...; kws...) =
+    DensityNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_density = Density
+
+function FunSQL.PrettyPrinting.quoteof(n::DensityNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(Density), FunSQL.quoteof(n.names, ctx)...)
+    if n.top_k > 0
+        push!(ex.args, Expr(:kw, :top_k, n.top_k))
+    end
+    if n.nested
+        push!(ex.args, Expr(:kw, :nested, n.nested))
+    end
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve(n::DensityNode, ctx)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    for name in n.names
+        if !haskey(t.fields, name)
+            throw(
+                FunSQL.ReferenceError(
+                    FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
+                    name = name,
+                    path = FunSQL.get_path(ctx)))
+        end
+    end
+    cases = _density_cases(t, isempty(n.names) ? Set(keys(t.fields)) : Set(n.names), n.nested)
+    cols = last.(cases)
+    max_i = length(cases)
+    args =FunSQL.SQLNode[]
+    push!(
+        args,
+        :name => _density_switch(first.(cases)),
+        :n_not_null => _density_switch(map(col -> @funsql(count($col)), cols)),
+        :pct_not_null => _density_switch(map(col -> @funsql(100 * count($col) / count()), cols)),
+        :approx_n_distinct => _density_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
+    if n.top_k > 0
+        push!(
+            args,
+            :approx_top_val =>
+                _density_switch(map(col -> @funsql(approx_top_k_val($col, $(n.top_k))), cols)),
+            :approx_top_pct =>
+                _density_switch(map(col -> @funsql(approx_top_k_pct($col, $(n.top_k))), cols)))
+    end
+    q = @funsql begin
+        $over′
+        group()
+        cross_join(density_case => from(explode(sequence(1, $max_i)), columns = [index]))
+        define(args = $args)
+    end
+    FunSQL.resolve(q, ctx)
+end
+
+function _density_cases(t, name_set, nested)
+    cases = Tuple{String, FunSQL.SQLNode}[]
+    for (f, ft) in t.fields
+        f in name_set || continue
+        if ft isa FunSQL.ScalarType
+            push!(cases, (String(f), FunSQL.Get(f)))
+        elseif ft isa FunSQL.RowType && nested
+            subcases = _density_cases(ft, Set(keys(ft.fields)), nested)
+            for (n, q) in subcases
+                push!(cases, ("$f.$n", FunSQL.Get(f) |> q))
+            end
+        end
+    end
+    cases
+end
+
+function _density_switch(branches)
+    args = FunSQL.SQLNode[]
+    for (i, branch) in enumerate(branches)
+        push!(args, @funsql(density_case.index == $i), branch)
+    end
+    FunSQL.Fun.case(args = args)
+end
+
+@funsql approx_top_k_val(q, k = 5) =
+    maybe_first_only(fun(`transform(?, val -> string(val))`, approx_top_k($q, $k, filter = is_not_null($q)) >> item), $k)
+
+@funsql approx_top_k_pct(q, k = 5) =
+    maybe_first_only(fun(`transform(?, k -> round(100 * k / ?, 1))`, approx_top_k($q, $k, filter = is_not_null($q)) >> count, count($q)), $k)
+
+funsql_maybe_first_only(q, k) =
+    k == 1 ? FunSQL.Fun."?[0]"(q) : q
