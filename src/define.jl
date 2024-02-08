@@ -453,3 +453,61 @@ end
 
 funsql_maybe_first_only(q, k) =
     k == 1 ? FunSQL.Fun."?[0]"(q) : q
+
+mutable struct CountAllNode <: FunSQL.TabularNode
+    include::Union{Regex, Nothing}
+    exclude::Union{Regex, Nothing}
+    filter::Union{FunSQL.SQLNode, Nothing}
+
+    CountAllNode(; include = nothing, exclude = nothing, filter = nothing) =
+        new(include, exclude, filter)
+end
+
+CountAll(args...; kws...) =
+    CountAllNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_count_all = CountAll
+
+function FunSQL.PrettyPrinting.quoteof(n::CountAllNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(CountAll))
+    if n.include !== nothing
+        push!(ex.args, Expr(:kw, :include, FunSQL.quoteof(n.include)))
+    end
+    if n.exclude !== nothing
+        push!(ex.args, Expr(:kw, :exclude, FunSQL.quoteof(n.exclude)))
+    end
+    if n.filter !== nothing
+        push!(ex.args, Expr(:kw, :filter, FunSQL.quoteof(n.filter)))
+    end
+    ex
+end
+
+function FunSQL.resolve(n::CountAllNode, ctx)
+    names = sort(collect(keys(ctx.tables)))
+    include = n.include
+    if include !== nothing
+        names = [name for name in names if occursin(include, String(name))]
+    end
+    exclude = n.exclude
+    if exclude !== nothing
+        name = [name for name in names if !occursin(exclude, String(name))]
+    end
+    filter = n.filter
+    args = FunSQL.SQLNode[]
+    for name in names
+        arg = @funsql from($name)
+        if filter !== nothing
+            arg = @funsql $arg.filter($filter)
+            try
+                arg = FunSQL.resolve(arg, ctx)
+            catch e
+                e isa FunSQL.ReferenceError || rethrow()
+                continue
+            end
+        end
+        arg = @funsql $arg.group().define(name => $(String(name)), n => count())
+        push!(args, arg)
+    end
+    q = @funsql append(args = $args)
+    FunSQL.resolve(q, ctx)
+end
