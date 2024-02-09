@@ -490,7 +490,7 @@ function FunSQL.resolve(n::CountAllNode, ctx)
     end
     exclude = n.exclude
     if exclude !== nothing
-        name = [name for name in names if !occursin(exclude, String(name))]
+        names = [name for name in names if !occursin(exclude, String(name))]
     end
     filter = n.filter
     args = FunSQL.SQLNode[]
