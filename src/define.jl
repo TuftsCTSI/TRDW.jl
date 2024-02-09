@@ -405,12 +405,12 @@ function FunSQL.resolve(n::DensityNode, ctx)
         :pct_not_null => _density_switch(map(col -> @funsql(100 * count($col) / count()), cols)),
         :approx_n_distinct => _density_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
     if n.top_k > 0
-        push!(
-            args,
-            :approx_top_val =>
-                _density_switch(map(col -> @funsql(approx_top_k_val($col, $(n.top_k))), cols)),
-            :approx_top_pct =>
-                _density_switch(map(col -> @funsql(approx_top_k_pct($col, $(n.top_k))), cols)))
+        for i = 1:n.top_k
+            push!(
+                args,
+                Symbol("approx_top_$i") =>
+                    _density_switch(map(col -> @funsql(_density_approx_top($col, $(n.top_k), $(i - 1))), cols)))
+        end
     end
     q = @funsql begin
         $over′
@@ -445,14 +445,8 @@ function _density_switch(branches)
     FunSQL.Fun.case(args = args)
 end
 
-@funsql approx_top_k_val(q, k = 5) =
-    maybe_first_only(fun(`transform(?, val -> string(val))`, approx_top_k($q, $k, filter = is_not_null($q)) >> item), $k)
-
-@funsql approx_top_k_pct(q, k = 5) =
-    maybe_first_only(fun(`transform(?, k -> round(100 * k / ?, 1))`, approx_top_k($q, $k, filter = is_not_null($q)) >> count, count($q)), $k)
-
-funsql_maybe_first_only(q, k) =
-    k == 1 ? FunSQL.Fun."?[0]"(q) : q
+@funsql _density_approx_top(q, k, i) =
+    `[]`(agg(`transform(approx_top_k(?, ?) FILTER (WHERE ? IS NOT NULL), el -> concat(el.item, ' (', round(100 * el.count / count(?), 1), '%)'))`, $q, $k, $q, $q), $i)
 
 mutable struct CountAllNode <: FunSQL.TabularNode
     include::Union{Regex, Nothing}
