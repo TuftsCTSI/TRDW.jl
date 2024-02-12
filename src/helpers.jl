@@ -189,16 +189,20 @@ function funsql_assert_one_row(; carry=[])
     return q |> @funsql(define($parts...))
 end
 
-function funsql_take_first(keys...; order_by=[])
-    partname = gensym()
+function funsql_take_first(keys...; order_by=[], name=nothing)
+    partname = something(name, gensym())
+    udefine = isnothing(name) ? @funsql(undefine($partname)) : @funsql(define())
     @funsql begin
         partition($(keys...), order_by = [$([keys..., order_by...]...)], name = $partname)
         filter($partname.row_number() <= 1)
+        $udefine
     end
 end
 
-funsql_take_first_occurrence() = @funsql(take_first(person_id; order_by=[datetime]))
-funsql_take_latest_occurrence() = @funsql(take_first(person_id; order_by=[datetime.desc()]))
+funsql_take_first_occurrence(;name=nothing) =
+    @funsql(take_first(person_id; order_by=[datetime], name=$name))
+funsql_take_latest_occurrence(;name=nothing) =
+    @funsql(take_first(person_id; order_by=[datetime.desc()], name=$name))
 
 function funsql_rollup(items...; define=[])
     base = gensym()

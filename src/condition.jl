@@ -72,7 +72,7 @@ condition(match...) =
     condition().filter(concept_matches($match))
 
 is_primary_discharge_diagnosis() =
-    (omop.condition_status_concept_id == 32903)
+    ifnull(omop.condition_status_concept_id == 32903, false)
 
 condition_status_isa(args...) =
     category_isa($Condition_Status, $args, omop.condition_status_concept_id)
