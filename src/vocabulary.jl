@@ -24,10 +24,10 @@ function vocab_connection()
     return g_vocab_conn[]
 end
 
-function match_icdcm(concepts, concept_id::Symbol)
-     @assert concept_id == :concept_id
-     concepts = ["$(c.concept_code)%" for c in concepts]
-     tests = build_or([@funsql(like(concept_code, $m)) for m in concepts])
+function match_icdcm(concepts, concept_id)
+    concept_id = something(concept_id, @funsql(omop.condition_source_concept_id))
+    concepts = ["$(c.concept_code)%" for c in concepts]
+    tests = build_or([@funsql(like(concept_code, $m)) for m in concepts])
     @funsql begin
         coalesce($concept_id in begin
             append(begin
@@ -45,12 +45,13 @@ function match_icdcm(concepts, concept_id::Symbol)
                     filter(relationship_id == "ICD9CM - ICD10CM gem")
                 end, concept_id_2 == icd10.concept_id)
                 select(concept_id => concept_id_1)
-            end)
+            end).select(concept_id)
         end, false)
     end
 end
 
-match_descendants(concepts, concept_id::Symbol) =
+function match_descendants(concepts, concept_id)
+    concept_id = something(concept_id, :concept_id)
     @funsql begin
         exists(begin
             from(concept_ancestor)
@@ -59,8 +60,10 @@ match_descendants(concepts, concept_id::Symbol) =
             bind(:concept_id => $concept_id)
         end)
     end
+end
 
-match_children(concepts, concept_id::Symbol) =
+function match_children(concepts, concept_id)
+    concept_id = something(concept_id, :concept_id)
     @funsql begin
         exists(begin
             concept($concepts...)
@@ -69,8 +72,10 @@ match_children(concepts, concept_id::Symbol) =
             bind(:concept_id => $concept_id)
         end)
     end
+end
 
-match_isa_relatives(concepts, concept_id::Symbol) =
+function match_isa_relatives(concepts, concept_id)
+    concept_id = something(concept_id, :concept_id)
     @funsql begin
         in($concept_id, $concepts...) ||
         exists(begin
@@ -81,6 +86,7 @@ match_isa_relatives(concepts, concept_id::Symbol) =
             bind(:concept_id => $concept_id)
         end)
     end
+end
 
 function Vocabulary(vocabulary_id; constructor=nothing, match_strategy=nothing)
     if haskey(g_vocabularies, vocabulary_id)
@@ -477,11 +483,14 @@ end
 
 function concept_matches(match...; match_on=nothing)
     match = unnest_concept_set(match)
-    match_on = something(match_on, :concept_id)
-    if contains(string(match_on), "concept_id")
-        concept_id = Symbol(match_on)
+    if isnothing(match_on)
+        concept_id = nothing
     else
-        concept_id = Symbol("$(match_on)_concept_id")
+        if contains(string(match_on), "concept_id")
+            concept_id = Symbol(match_on)
+        else
+            concept_id = Symbol("$(match_on)_concept_id")
+        end
     end
     buckets = Dict()
     non_standard = Dict()
