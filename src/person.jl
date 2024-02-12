@@ -181,7 +181,7 @@ function funsql_define_epic_mrn()
     end
 end
 
-function funsql_define_demographics(args...)
+function funsql_define_profile(args...)
     query = @funsql(define())
     for arg in args
         query = query |> begin
