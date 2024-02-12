@@ -91,6 +91,15 @@ drug_ingredient_via_NDFRT(code, name) = begin
     filter_out_descendants()
 end
 
+drug_ingredient_via_ATC(code, name) = begin
+    concept(ATC($code, $name))
+    concept_relatives("Subsumes",1:3)
+    concept_relatives("ATC - RxNorm pr lat")
+    filter(concept_class_id=="Ingredient")
+    deduplicate(concept_id)
+    filter_out_descendants()
+end
+
 drug_ingredient_via_HemOnc(code, name) = begin
     concept(HemOnc($code, $name))
     concept_children()
