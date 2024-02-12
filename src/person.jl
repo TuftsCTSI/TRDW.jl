@@ -66,6 +66,14 @@ ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
 end
 
+function funsql_define_age()
+    person = gensym()
+    @funsql begin
+        join($person => person(), $person.person_id == person_id)
+        define(age=> current_age($person))
+    end
+end
+
 function funsql_define_race()
     person = gensym()
     @funsql begin
@@ -103,38 +111,38 @@ function funsql_define_sex()
     end
 end
 
-function funsql_define_date_of_birth(;as=:date_of_birth)
+function funsql_define_birth_date(;name=:birth_date)
     person = gensym()
     @funsql begin
         join($person => from(person), $person.person_id == person_id)
-        define($as => date($person.birth_datetime))
+        define($name => date($person.birth_datetime))
         undefine($person)
     end
 end
 
-function funsql_define_year_of_birth(;as=:year_of_birth)
+function funsql_define_birth_year(;name=:birth_year)
     person = gensym()
     @funsql begin
         join($person => from(person), $person.person_id == person_id)
-        define($as => $person.year_of_birth)
+        define($name => $person.year_of_birth)
         undefine($person)
     end
 end
 
-function funsql_define_date_of_death(;as=:date_of_death)
+function funsql_define_death_date(;name=:death_date)
     death = gensym()
     @funsql begin
         left_join($death => from(death), $death.person_id == person_id)
-        define($as => $death.death_date)
+        define($name => $death.death_date)
         undefine($death)
     end
 end
 
-function funsql_define_year_of_death(;as=:year_of_death)
+function funsql_define_death_year(;name=:death_year)
     death = gensym()
     @funsql begin
         left_join($death => from(death), $death.person_id == person_id)
-        define($as => year($death.death_date))
+        define($name => year($death.death_date))
         undefine($death)
     end
 end
@@ -173,13 +181,19 @@ function funsql_define_epic_mrn()
     end
 end
 
-function funsql_define_person(args...)
+function funsql_define_demographics(args...)
     query = @funsql(define())
     for arg in args
         query = query |> begin
+            arg == :age ? funsql_define_age() :
             arg == :epic_mrn ? funsql_define_epic_mrn() :
             arg == :soarian_mrn ? funsql_define_soarian_mrn() :
+            arg == :birth_date ? funsql_define_birth_date() :
+            arg == :death_date ? funsql_define_death_date() :
+            arg == :birth_year ? funsql_define_birth_year() :
+            arg == :death_year ? funsql_define_death_year() :
             arg == :sex ? funsql_define_sex() :
+            arg == :ethnicity ? funsql_define_ethnicity() :
             arg == :race ? funsql_define_race() :
             @error("unknown define $arg")
         end
