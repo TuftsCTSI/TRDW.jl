@@ -66,7 +66,7 @@ ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
 end
 
-function funsql_define_age()
+function funsql_define_current_age()
     person = gensym()
     @funsql begin
         join($person => person(), $person.person_id == person_id)
@@ -185,7 +185,7 @@ function funsql_define_profile(args...)
     query = @funsql(define())
     for arg in args
         query = query |> begin
-            arg == :age ? funsql_define_age() :
+            arg == :current_age ? funsql_define_current_age() :
             arg == :epic_mrn ? funsql_define_epic_mrn() :
             arg == :soarian_mrn ? funsql_define_soarian_mrn() :
             arg == :birth_date ? funsql_define_birth_date() :
