@@ -62,6 +62,20 @@ end
 stratify_by_race(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).stratify_by_race(; roundup=$roundup)
 
+stratify_by_sex(; roundup=true) = begin
+    deduplicate(person_id)
+    as(base)
+    join(from(person), base.person_id == person_id)
+    left_join(sex => from(concept), gender_concept_id == sex.concept_id)
+    define(sex_name => gender_concept_id == 0 ? "Unspecified" : sex.concept_name)
+    group(sex_name)
+    count_n_person(; roundup=$roundup)
+    select(n_person, sex_name)
+end
+
+stratify_by_sex(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+    $(pair[2]).stratify_by_sex(; roundup=$roundup)
+
 stratify_by_ethnicity(; roundup=true) = begin
     deduplicate(person_id)
     as(base)
