@@ -27,6 +27,7 @@ include("wiise.jl")
 include("soarian.jl")
 include("clarity.jl")
 include("template.jl")
+include("profile.jl")
 
 include("care_site.jl")
 include("concept.jl")
