@@ -32,10 +32,6 @@ condition() = begin
         concept_id == concept.concept_id,
         optional = true)
     left_join(
-        icd_concept => concept(),
-        icd_concept_id == icd_concept.concept_id,
-        optional = true)
-    left_join(
         type_concept => concept(),
         type_concept_id == type_concept.concept_id,
         optional = true)
