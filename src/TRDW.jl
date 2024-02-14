@@ -9,6 +9,8 @@ using FunSQL
 using FunSQL: @dissect
 using HypertextLiteral
 using ODBC
+using HTTP
+using LightXML
 
 include("general.jl")
 include("define.jl")
