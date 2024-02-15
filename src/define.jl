@@ -237,7 +237,7 @@ function FunSQL.resolve(n::UndefineNode, ctx)
         end
         fields[f] = ft
     end
-    n′ = FunSQL.IntAutoDefine(over = over′)
+    n′ = FunSQL.Padding(over = over′)
     FunSQL.Resolved(FunSQL.RowType(fields), over = n′)
     # FIXME: `select(foo => 1).undefine(foo)`
 end
