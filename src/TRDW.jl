@@ -11,6 +11,7 @@ using HypertextLiteral
 using ODBC
 using HTTP
 using LightXML
+using JSON
 
 include("general.jl")
 include("define.jl")
