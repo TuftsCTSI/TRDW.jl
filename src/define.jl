@@ -505,3 +505,65 @@ function FunSQL.resolve(n::CountAllNode, ctx)
     q = @funsql append(args = $args)
     FunSQL.resolve(q, ctx)
 end
+
+mutable struct CustomResolveNode <: FunSQL.AbstractSQLNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    resolve::Any
+    resolve_scalar::Any
+    terminal::Bool
+
+    CustomResolveNode(; over = nothing, resolve = nothing, resolve_scalar = nothing, terminal = false) =
+        new(over, resolve, resolve_scalar, terminal)
+end
+
+CustomResolveNode(resolve; over = nothing, terminal = false) =
+    CustomResolveNode(over = over, resolve = resolve, terminal = terminal)
+
+CustomResolve(args...; kws...) =
+    CustomResolveNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_custom_resolve = CustomResolve
+
+function FunSQL.PrettyPrinting.quoteof(n::CustomResolveNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(CustomResolve))
+    if n.resolve !== nothing
+        push!(ex.args, Expr(:kw, :resolve, FunSQL.quoteof(n.resolve)))
+    end
+    if n.resolve_scalar !== nothing
+        push!(ex.args, Expr(:kw, :resolve_scalar, FunSQL.quoteof(n.resolve_scalar)))
+    end
+    if n.terminal
+        push!(ex.args, Expr(:kw, :terminal, n.terminal))
+    end
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.rebase(n::CustomResolveNode, n′)
+    if n.terminal
+        throw(FunSQL.RebaseError(path = [n]))
+    end
+    CustomResolveNode(
+        over = FunSQL.rebase(n.over, n′),
+        resolve = n.resolve,
+        resolve_scalar = n.resolve_scalar,
+        terminal = n.terminal)
+end
+
+function FunSQL.resolve(n::CustomResolveNode, ctx)
+    f = n.resolve
+    if f === nothing
+        throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
+    end
+    FunSQL.resolve(f(n, ctx), ctx)
+end
+
+function FunSQL.resolve_scalar(n::CustomResolveNode, ctx)
+    f = n.resolve_scalar
+    if f === nothing
+        throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
+    end
+    FunSQL.resolve_scalar(f(n, ctx), ctx)
+end
