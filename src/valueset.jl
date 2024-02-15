@@ -83,7 +83,7 @@ function parse_valuesets(s)
 end
 
 function resolve_valuesets!(valuesets)
-    valuesets[1]["concepts"][1]["concept"] = RxNorm(1804799)
+    valuesets[1]["concepts"][1]["concept"] = nothing#RxNorm(1804799)
     valuesets[1]["concepts"][2]["concept"] = RxNorm(1804804)
     valuesets[1]["concepts"][3]["concept"] = RxNorm(313212)
     valuesets[2]["concepts"][1]["concept"] = SNOMED(10205009)
@@ -171,13 +171,13 @@ function valueset(oid, name=nothing)
     ans = ans[1]
 
     if !isnothing(name) && ans["name"] != name
-        error("Provided name does not match name of Value Set ($(ans["name"])).")
+        error("Provided name does not match name of Valueset ($(ans["name"])).")
     end
    
-    ret = []
+    ret = Concept[]
     for a in ans["concepts"]
         if any(isnothing(a["concept"])) 
-            error("Unresolved concept ($(a["codeSystemName"]), $(a["code"]))")
+            error("Valueset $oid has unresolved concept ($(a["codeSystemName"]), $(a["code"]))")
         end
         push!(ret, a["concept"])
     end
@@ -187,7 +187,6 @@ end
 
 macro valuesets(expr::Expr)
     @assert expr.head==:block
-    dump(expr)
     oids = []
     len = convert(Int, (length(expr.args) / 2))
     for idx in range(1, len)
@@ -198,17 +197,9 @@ macro valuesets(expr::Expr)
         push!(oids, item.args[2])
     end
     (htmls, csets) = valuesets(oids)
-    push!(expr.args, string(htmls))
+    push!(expr.args, HTML(htmls))
     for (idx, val) in enumerate(csets)
         expr.args[idx * 2].args[2] = val
     end
     return expr
 end
-
-# @valuesets begin
-#     anemia = "12.3.4.5.6",
-#     ttt = "1234.536.234"
-# end
-# valuesets(tpa_therapy => "2.16...", anemia => "2.....23")
-
-# (tpa_therapy=[...], anemia=[...])

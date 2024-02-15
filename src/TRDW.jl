@@ -1,6 +1,6 @@
 module TRDW
 
-export @run_funsql, @concepts
+export @run_funsql, @concepts, @valuesets
 
 using CSV
 using DataFrames

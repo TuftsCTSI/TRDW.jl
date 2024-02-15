@@ -462,7 +462,11 @@ macro concepts(expr::Expr)
         if ex isa Symbol
             push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
         elseif @dissect(ex, Expr(:(=), name::Symbol, query))
-            item = concepts_unpack!(query)
+            if query isa Expr && query.head == :call && query.args[1] == :valueset
+                item = valueset(query.args[2])
+            else
+                item = concepts_unpack!(query)
+            end    
             push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), item))
         else
             error("expecting name=funsql or name=[concept...] assignments")
