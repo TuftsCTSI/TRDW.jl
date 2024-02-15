@@ -23,92 +23,65 @@ end
 
 function parse_valuesets(s)
     xdoc = LightXML.parse_string(s)
+    retval = []
     try
-        nothing
+        xroot = root(xdoc)
+        @assert name(xroot) == "RetrieveMultipleValueSetsResponse"
+        for vs in get_elements_by_tagname(xroot, "DescribedValueSet")
+            valueset = Dict()
+            valueset["id"] = attribute(vs, "ID")
+            valueset["name"] = attribute(vs, "displayName")    
+            valueset["purpose"] = content(get_elements_by_tagname(vs, "Purpose")[1])
+            valueset["concepts"] = []
+            for cl in get_elements_by_tagname(vs, "ConceptList")
+                for c in get_elements_by_tagname(cl, "Concept")
+                    concept = Dict()
+                    concept["code"] = attribute(c, "code")
+                    concept["codeSystemName"] = attribute(c, "codeSystemName")
+                    concept["displayName"] = attribute(c, "displayName")
+                    push!(valueset["concepts"], concept)
+                end
+            end
+            push!(retval, valueset)
+        end
     finally
         LightXML.free(xdoc)
     end
-    ttt = """
-        {
-            "id" : "2.16.840.1.113883.3.117.1.7.1.226",
-            "name" : "Thrombolytic tPA Therapy",
-            "purpose" : "Clinical Focus: The purpose of this value set is to represent concepts",
-            "concepts" : [
-                {
-                    "code":"1804799",
-                    "codeSystemName":"RXNORM",
-                    "displayName":"alteplase 100 MG Injection"
-                },
-                {
-                    "code":"1804804",
-                    "codeSystemName":"RXNORM",
-                    "displayName":"alteplase 50 MG Injection"
-                },
-                {
-                    "code":"313212",
-                    "codeSystemName":"RXNORM",
-                    "displayName":"tenecteplase 50 MG Injection"
-                }
-            ]
-        }
-    """
-    anem = """
-        {
-            "id" : "2.16.840.1.113762.1.4.1251.23",
-            "name" : "Anemia",
-            "purpose" : "Clinical Focus: The purpose of this value set is to represent concepts",
-            "concepts" : [
-                {
-                    "code":"10205009",
-                    "codeSystemName":"SNOMEDCT",
-                    "displayName":"Megaloblastic anemia due to exfoliative dermatitis (disorder)"
-                },
-                {
-                    "code":"105599000",
-                    "codeSystemName":"SNOMEDCT",
-                    "displayName":"Anemia related to disturbed deoxyribonucleic acid synthesis (disorder)"
-                },
-                {
-                    "code":"10564005",
-                    "codeSystemName":"SNOMEDCT",
-                    "displayName":"Severe hereditary spherocytosis due to combined deficiency of spectrin AND ankyrin (disorder)"
-                }
-                
-            ]
-        }
-    """
-    [JSON.parse(ttt), JSON.parse(anem)]
-
-
+    return retval
 end
 
+resolve_lookup = Dict(
+    "RXNORM" => RxNorm,
+    "SNOMEDCT" => SNOMED
+)
+
 function resolve_valuesets!(valuesets)
-    valuesets[1]["concepts"][1]["concept"] = nothing#RxNorm(1804799)
-    valuesets[1]["concepts"][2]["concept"] = RxNorm(1804804)
-    valuesets[1]["concepts"][3]["concept"] = RxNorm(313212)
-    valuesets[2]["concepts"][1]["concept"] = SNOMED(10205009)
-    valuesets[2]["concepts"][2]["concept"] = SNOMED(105599000)
-    valuesets[2]["concepts"][3]["concept"] = nothing
+    for vs in valuesets
+        for cs in vs["concepts"]
+            vocab = get(resolve_lookup, cs["codeSystemName"], nothing)
+            if isnothing(vocab)
+                cs["concept"] = nothing
+            else 
+                cs["concept"] = lookup_vsac_code(vocab, cs["code"])
+            end
+        end
+    end
 end
 
 function valuesets(oids)
-
-    # TODO: check cache here
-    # algorithm: for each id, look to see if there is a cached xml response
-    # if yes, parse and add it to the results
-
-    oids_to_fetch = oids # minus cahced values
-
-    res = fetch_valuesets([p for p in oids])
-
-    ans = parse_valuesets(String(res.body))
-    
+    VALUESET_PATH = joinpath(tempdir(), "valuesets")
+    oids_to_fetch = [oid for oid in oids if !isfile(joinpath(VALUESET_PATH, oid))]
+    res = fetch_valuesets([p for p in oids_to_fetch])
+    for a in parse_valuesets(String(res.body))
+        mkpath(VALUESET_PATH)
+        open(joinpath(VALUESET_PATH, a["id"]),"w") do f
+            JSON.print(f, a)
+        end
+    end
+    ans = [JSON.parsefile(joinpath(VALUESET_PATH, oid)) for oid in oids]
     resolve_valuesets!(ans)
-
     csets = []
-
     htmls = []
-
     for oid in oids
         for a in ans
             if a["id"] == oid

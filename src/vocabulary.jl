@@ -186,6 +186,23 @@ function is_concept_name_match(concept_name::AbstractString, match_name::String)
     return false
 end
 
+function lookup_vsac_code(vocabulary::Vocabulary, concept_code)
+    println(concept_code)
+    vocabulary_id = getfield(vocabulary, :vocabulary_id)
+    vocabulary_data = vocabulary_data!(vocabulary)
+    concept_code = normalize_name(string(concept_code))
+    test = row -> normalize_name(row.concept_code) == concept_code
+    result = filter(test, vocabulary_data)
+    if 1 != size(result)[1]
+        return nothing
+    end
+    Concept(vocabulary,
+            result[1, :concept_id],
+            result[1, :concept_code],
+            result[1, :concept_name],
+            !ismissing(result[1, :standard_concept]))
+end
+
 function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
