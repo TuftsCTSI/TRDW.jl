@@ -18,4 +18,4 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 
 [compat]
-FunSQL = "0.12.0"
+FunSQL = "0.13.0"
