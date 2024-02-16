@@ -268,7 +268,7 @@ end
 
 function FunSQL.resolve_scalar(n::TryGetNode, ctx)
     if n.over !== nothing
-        n′ = FunSQL.rebind(n.over, TryGet(names = n.names), ctx)
+        n′ = FunSQL.unnest(n.over, TryGet(names = n.names), ctx)
         return FunSQL.resolve_scalar(n′, ctx)
     end
     for name in n.names
