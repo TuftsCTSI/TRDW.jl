@@ -30,44 +30,153 @@ function FunSQL.PrettyPrinting.quoteof(n::DefineFrontNode, ctx::FunSQL.QuoteCont
     ex
 end
 
-FunSQL.label(n::DefineFrontNode) =
-    FunSQL.label(n.over)
-
-FunSQL.rebase(n::DefineFrontNode, n′) =
-    DefineFrontNode(over = FunSQL.rebase(n.over, n′), args = n.args, label_map = n.label_map)
-
-function FunSQL.annotate(n::DefineFrontNode, ctx)
-    over′ = FunSQL.annotate(n.over, ctx)
-    args′ = FunSQL.annotate_scalar(n.args, ctx)
-    DefineFront(over = over′, args = args′, label_map = n.label_map)
-end
-
 function FunSQL.resolve(n::DefineFrontNode, ctx)
-    t = FunSQL.box_type(n.over)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    args′ = FunSQL.resolve_scalar(n.args, ctx, t)
     fields = FunSQL.FieldTypeMap()
-    for f in keys(n.label_map)
-        if !haskey(t.row.fields, f)
-            fields[f] = FunSQL.ScalarType()
+    for (f, i) in n.label_map
+        if !haskey(t.fields, f)
+            fields[f] = FunSQL.type(args′[i])
         end
     end
-    for (f, ft) in t.row.fields
-        if f in keys(n.label_map)
-            ft = FunSQL.ScalarType()
+    for (f, ft) in t.fields
+        i = get(n.label_map, f, nothing)
+        if i !== nothing
+            ft = FunSQL.type(args′[i])
         end
         fields[f] = ft
     end
-    row = FunSQL.RowType(fields, t.row.group)
-    FunSQL.BoxType(t.name, row, t.handle_map)
+    n′ = FunSQL.Define(over = over′, args = args′, label_map = n.label_map)
+    FunSQL.Resolved(FunSQL.RowType(fields, t.group), over = n′)
 end
 
-function FunSQL.link!(n::DefineFrontNode, refs::Vector{FunSQL.SQLNode}, ctx)
-    n′ = FunSQL.DefineNode(over = n.over, args = n.args, label_map = n.label_map)
-    FunSQL.link!(n′, refs, ctx)
+mutable struct DefineBeforeNode <: FunSQL.TabularNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    args::Vector{FunSQL.SQLNode}
+    name::Symbol
+    label_map::FunSQL.OrderedDict{Symbol, Int}
+
+    function DefineBeforeNode(; over = nothing, args = [], name, label_map = nothing)
+        if label_map !== nothing
+            new(over, args, name, label_map)
+        else
+            n = new(over, args, name, FunSQL.OrderedDict{Symbol, Int}())
+            FunSQL.populate_label_map!(n)
+            n
+        end
+    end
 end
 
-function FunSQL.assemble(n::DefineFrontNode, refs, ctx)
-    n′ = FunSQL.DefineNode(over = n.over, args = n.args, label_map = n.label_map)
-    FunSQL.assemble(n′, refs, ctx)
+DefineBeforeNode(args...; over = nothing, name) =
+    DefineBeforeNode(over = over, args = FunSQL.SQLNode[args...], name = name)
+
+DefineBefore(args...; kws...) =
+    DefineBeforeNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_define_before = DefineBefore
+
+function FunSQL.PrettyPrinting.quoteof(n::DefineBeforeNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(DefineBefore), FunSQL.quoteof(n.args, ctx)...)
+    push!(ex.args, Expr(:kw, :name, QuoteNode(n.name)))
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve(n::DefineBeforeNode, ctx)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    if !haskey(t.fields, n.name)
+        throw(
+            FunSQL.ReferenceError(
+                    FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
+                    name = n.name,
+                    path = FunSQL.get_path(ctx)))
+    end
+    args′ = FunSQL.resolve_scalar(n.args, ctx, t)
+    fields = FunSQL.FieldTypeMap()
+    for (f, ft) in t.fields
+        if f === n.name
+            for (l, i) in n.label_map
+                if !haskey(t.fields, l)
+                    fields[l] = FunSQL.type(args′[i])
+                end
+            end
+        end
+        i = get(n.label_map, f, nothing)
+        if i !== nothing
+            ft = FunSQL.type(args′[i])
+        end
+        fields[f] = ft
+    end
+    n′ = FunSQL.Define(over = over′, args = args′, label_map = n.label_map)
+    FunSQL.Resolved(FunSQL.RowType(fields, t.group), over = n′)
+end
+
+mutable struct DefineAfterNode <: FunSQL.TabularNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    args::Vector{FunSQL.SQLNode}
+    name::Symbol
+    label_map::FunSQL.OrderedDict{Symbol, Int}
+
+    function DefineAfterNode(; over = nothing, args = [], name, label_map = nothing)
+        if label_map !== nothing
+            new(over, args, name, label_map)
+        else
+            n = new(over, args, name, FunSQL.OrderedDict{Symbol, Int}())
+            FunSQL.populate_label_map!(n)
+            n
+        end
+    end
+end
+
+DefineAfterNode(args...; over = nothing, name) =
+    DefineAfterNode(over = over, args = FunSQL.SQLNode[args...], name = name)
+
+DefineAfter(args...; kws...) =
+    DefineAfterNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_define_after = DefineAfter
+
+function FunSQL.PrettyPrinting.quoteof(n::DefineAfterNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(DefineAfter), FunSQL.quoteof(n.args, ctx)...)
+    push!(ex.args, Expr(:kw, :name, QuoteNode(n.name)))
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve(n::DefineAfterNode, ctx)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    if !haskey(t.fields, n.name)
+        throw(
+            FunSQL.ReferenceError(
+                    FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
+                    name = n.name,
+                    path = FunSQL.get_path(ctx)))
+    end
+    args′ = FunSQL.resolve_scalar(n.args, ctx, t)
+    fields = FunSQL.FieldTypeMap()
+    for (f, ft) in t.fields
+        i = get(n.label_map, f, nothing)
+        if i !== nothing
+            ft = FunSQL.type(args′[i])
+        end
+        fields[f] = ft
+        if f === n.name
+            for (l, i) in n.label_map
+                if !haskey(t.fields, l)
+                    fields[l] = FunSQL.type(args′[i])
+                end
+            end
+        end
+    end
+    n′ = FunSQL.Define(over = over′, args = args′, label_map = n.label_map)
+    FunSQL.Resolved(FunSQL.RowType(fields, t.group), over = n′)
 end
 
 mutable struct UndefineNode <: FunSQL.TabularNode
@@ -108,46 +217,353 @@ function FunSQL.PrettyPrinting.quoteof(n::UndefineNode, ctx::FunSQL.QuoteContext
     ex
 end
 
-FunSQL.label(n::UndefineNode) =
-    FunSQL.label(n.over)
-
-FunSQL.rebase(n::UndefineNode, n′) =
-    UndefineNode(over = FunSQL.rebase(n.over, n′), names = n.names, label_map = n.label_map)
-
-function FunSQL.annotate(n::UndefineNode, ctx)
-    over′ = FunSQL.annotate(n.over, ctx)
-    Undefine(over = over′, names = n.names, label_map = n.label_map)
-end
-
 function FunSQL.resolve(n::UndefineNode, ctx)
-    t = FunSQL.box_type(n.over)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
     for name in n.names
-        ft = get(t.row.fields, name, FunSQL.EmptyType())
+        ft = get(t.fields, name, FunSQL.EmptyType())
         if ft isa FunSQL.EmptyType
             throw(
                 FunSQL.ReferenceError(
                     FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
                     name = name,
-                    path = FunSQL.get_path(ctx, convert(FunSQL.SQLNode, n))))
+                    path = FunSQL.get_path(ctx)))
         end
     end
     fields = FunSQL.FieldTypeMap()
-    for (f, ft) in t.row.fields
+    for (f, ft) in t.fields
         if f in keys(n.label_map)
             continue
         end
         fields[f] = ft
     end
-    row = FunSQL.RowType(fields, t.row.group)
-    FunSQL.BoxType(t.name, row, t.handle_map)
-end
-
-function FunSQL.link!(n::UndefineNode, refs::Vector{FunSQL.SQLNode}, ctx)
-    box = n.over[]::FunSQL.BoxNode
-    append!(box.refs, refs)
-end
-
-function FunSQL.assemble(n::UndefineNode, refs, ctx)
-    FunSQL.assemble(n.over, ctx)
+    n′ = FunSQL.Padding(over = over′)
+    FunSQL.Resolved(FunSQL.RowType(fields), over = n′)
     # FIXME: `select(foo => 1).undefine(foo)`
+end
+
+mutable struct TryGetNode <: FunSQL.AbstractSQLNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    names::Vector{Union{Symbol, Regex}}
+
+    TryGetNode(; over = nothing, names) =
+        new(over, names)
+end
+
+TryGetNode(names...; over = nothing) =
+    TryGetNode(over = over, names = Union{Symbol, Regex}[names...])
+
+TryGet(args...; kws...) =
+    TryGetNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_try_get = TryGet
+
+function FunSQL.PrettyPrinting.quoteof(n::TryGetNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(TryGet), Any[FunSQL.quoteof(name) for name in n.names]...)
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve_scalar(n::TryGetNode, ctx)
+    if n.over !== nothing
+        n′ = FunSQL.unnest(n.over, TryGet(names = n.names), ctx)
+        return FunSQL.resolve_scalar(n′, ctx)
+    end
+    for name in n.names
+        if name isa Symbol
+            if name in keys(ctx.row_type.fields)
+                n′ = FunSQL.Get(name)
+                return FunSQL.resolve_scalar(n′, ctx)
+            end
+        else
+            for f in keys(ctx.row_type.fields)
+                if occursin(name, String(f))
+                    n′ = FunSQL.Get(f)
+                    return FunSQL.resolve_scalar(n′, ctx)
+                end
+            end
+        end
+    end
+    throw(
+        FunSQL.ReferenceError(
+            FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
+            path = FunSQL.get_path(ctx)))
+end
+
+mutable struct ExplainConceptIdNode <: FunSQL.AbstractSQLNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    args::Vector{FunSQL.SQLNode}
+    label_map::FunSQL.OrderedDict{Symbol, Int}
+
+    function ExplainConceptIdNode(; over = nothing, args = [FunSQL.Get(:concept_name)], label_map = nothing)
+        if label_map !== nothing
+            new(over, args, label_map)
+        else
+            n = new(over, args, FunSQL.OrderedDict{Symbol, Int}())
+            FunSQL.populate_label_map!(n)
+            n
+        end
+    end
+end
+
+ExplainConceptIdNode(args...; over = nothing) =
+    ExplainConceptIdNode(over = over, args = FunSQL.SQLNode[args...])
+
+ExplainConceptId(args...; kws...) =
+    ExplainConceptIdNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_explain_concept_id = ExplainConceptId
+
+function FunSQL.PrettyPrinting.quoteof(n::ExplainConceptIdNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(ExplainConceptId), Any[FunSQL.quoteof(arg, ctx) for arg in n.args]...)
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve(n::ExplainConceptIdNode, ctx)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    q = over′
+    for (f, ft) in t.fields
+        s = String(f)
+        f === :concept_id || endswith(s, "_concept_id") || continue
+        prefix = s[1:end - 10]
+        alias = Symbol("$(prefix)concept")
+        q = @funsql begin
+            $q
+            left_join(
+                from(concept).define(args = $(n.args)).as($alias),
+                $f == $alias.concept_id,
+                optional = true)
+        end
+        defs = [Symbol("$prefix$label") => @funsql($alias.$label) for label in keys(n.label_map)]
+        dup_field_aliases = [first(def) for def in defs if haskey(t.fields, first(def))]
+        if !isempty(dup_field_aliases)
+            q = q |> Undefine(names = dup_field_aliases)
+        end
+        q = q |> DefineAfter(args = defs, name = f)
+    end
+    FunSQL.resolve(q, ctx)
+end
+
+mutable struct DensityNode <: FunSQL.TabularNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    names::Vector{Symbol}
+    top_k::Int
+    nested::Bool
+
+    DensityNode(; over = nothing, names = Symbol[], top_k = 0, nested = false) =
+        new(over, names, top_k, nested)
+end
+
+DensityNode(names...; over = nothing, top_k = 0, nested = false) =
+    DensityNode(over = over, names = Symbol[names...], top_k = top_k, nested = nested)
+
+Density(args...; kws...) =
+    DensityNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_density = Density
+
+function FunSQL.PrettyPrinting.quoteof(n::DensityNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(Density), FunSQL.quoteof(n.names, ctx)...)
+    if n.top_k > 0
+        push!(ex.args, Expr(:kw, :top_k, n.top_k))
+    end
+    if n.nested
+        push!(ex.args, Expr(:kw, :nested, n.nested))
+    end
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve(n::DensityNode, ctx)
+    over′ = FunSQL.resolve(n.over, ctx)
+    t = FunSQL.row_type(over′)
+    for name in n.names
+        if !haskey(t.fields, name)
+            throw(
+                FunSQL.ReferenceError(
+                    FunSQL.REFERENCE_ERROR_TYPE.UNDEFINED_NAME,
+                    name = name,
+                    path = FunSQL.get_path(ctx)))
+        end
+    end
+    cases = _density_cases(t, isempty(n.names) ? Set(keys(t.fields)) : Set(n.names), n.nested)
+    cols = last.(cases)
+    max_i = length(cases)
+    args =FunSQL.SQLNode[]
+    push!(
+        args,
+        :name => _density_switch(first.(cases)),
+        :n_not_null => _density_switch(map(col -> @funsql(count($col)), cols)),
+        :pct_not_null => _density_switch(map(col -> @funsql(100 * count($col) / count()), cols)),
+        :approx_n_distinct => _density_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
+    if n.top_k > 0
+        for i = 1:n.top_k
+            push!(
+                args,
+                Symbol("approx_top_$i") =>
+                    _density_switch(map(col -> @funsql(_density_approx_top($col, $(n.top_k), $(i - 1))), cols)))
+        end
+    end
+    q = @funsql begin
+        $over′
+        group()
+        cross_join(density_case => from(explode(sequence(1, $max_i)), columns = [index]))
+        define(args = $args)
+    end
+    FunSQL.resolve(q, ctx)
+end
+
+function _density_cases(t, name_set, nested)
+    cases = Tuple{String, FunSQL.SQLNode}[]
+    for (f, ft) in t.fields
+        f in name_set || continue
+        if ft isa FunSQL.ScalarType
+            push!(cases, (String(f), FunSQL.Get(f)))
+        elseif ft isa FunSQL.RowType && nested
+            subcases = _density_cases(ft, Set(keys(ft.fields)), nested)
+            for (n, q) in subcases
+                push!(cases, ("$f.$n", FunSQL.Get(f) |> q))
+            end
+        end
+    end
+    cases
+end
+
+function _density_switch(branches)
+    args = FunSQL.SQLNode[]
+    for (i, branch) in enumerate(branches)
+        push!(args, @funsql(density_case.index == $i), branch)
+    end
+    FunSQL.Fun.case(args = args)
+end
+
+@funsql _density_approx_top(q, k, i) =
+    `[]`(agg(`transform(approx_top_k(?, ?) FILTER (WHERE ? IS NOT NULL), el -> concat(el.item, ' (', round(100 * el.count / count(?), 1), '%)'))`, $q, $k, $q, $q), $i)
+
+mutable struct CountAllNode <: FunSQL.TabularNode
+    include::Union{Regex, Nothing}
+    exclude::Union{Regex, Nothing}
+    filter::Union{FunSQL.SQLNode, Nothing}
+
+    CountAllNode(; include = nothing, exclude = nothing, filter = nothing) =
+        new(include, exclude, filter)
+end
+
+CountAll(args...; kws...) =
+    CountAllNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_count_all = CountAll
+
+function FunSQL.PrettyPrinting.quoteof(n::CountAllNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(CountAll))
+    if n.include !== nothing
+        push!(ex.args, Expr(:kw, :include, FunSQL.quoteof(n.include)))
+    end
+    if n.exclude !== nothing
+        push!(ex.args, Expr(:kw, :exclude, FunSQL.quoteof(n.exclude)))
+    end
+    if n.filter !== nothing
+        push!(ex.args, Expr(:kw, :filter, FunSQL.quoteof(n.filter)))
+    end
+    ex
+end
+
+function FunSQL.resolve(n::CountAllNode, ctx)
+    names = sort(collect(keys(ctx.tables)))
+    include = n.include
+    if include !== nothing
+        names = [name for name in names if occursin(include, String(name))]
+    end
+    exclude = n.exclude
+    if exclude !== nothing
+        names = [name for name in names if !occursin(exclude, String(name))]
+    end
+    filter = n.filter
+    args = FunSQL.SQLNode[]
+    for name in names
+        arg = @funsql from($name)
+        if filter !== nothing
+            arg = @funsql $arg.filter($filter)
+            try
+                arg = FunSQL.resolve(arg, ctx)
+            catch e
+                e isa FunSQL.ReferenceError || rethrow()
+                continue
+            end
+        end
+        arg = @funsql $arg.group().define(name => $(String(name)), n => count())
+        push!(args, arg)
+    end
+    q = @funsql append(args = $args)
+    FunSQL.resolve(q, ctx)
+end
+
+mutable struct CustomResolveNode <: FunSQL.AbstractSQLNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    resolve::Any
+    resolve_scalar::Any
+    terminal::Bool
+
+    CustomResolveNode(; over = nothing, resolve = nothing, resolve_scalar = nothing, terminal = false) =
+        new(over, resolve, resolve_scalar, terminal)
+end
+
+CustomResolveNode(resolve; over = nothing, terminal = false) =
+    CustomResolveNode(over = over, resolve = resolve, terminal = terminal)
+
+CustomResolve(args...; kws...) =
+    CustomResolveNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_custom_resolve = CustomResolve
+
+function FunSQL.PrettyPrinting.quoteof(n::CustomResolveNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(CustomResolve))
+    if n.resolve !== nothing
+        push!(ex.args, Expr(:kw, :resolve, FunSQL.quoteof(n.resolve)))
+    end
+    if n.resolve_scalar !== nothing
+        push!(ex.args, Expr(:kw, :resolve_scalar, FunSQL.quoteof(n.resolve_scalar)))
+    end
+    if n.terminal
+        push!(ex.args, Expr(:kw, :terminal, n.terminal))
+    end
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.rebase(n::CustomResolveNode, n′)
+    if n.terminal
+        throw(FunSQL.RebaseError(path = [n]))
+    end
+    CustomResolveNode(
+        over = FunSQL.rebase(n.over, n′),
+        resolve = n.resolve,
+        resolve_scalar = n.resolve_scalar,
+        terminal = n.terminal)
+end
+
+function FunSQL.resolve(n::CustomResolveNode, ctx)
+    f = n.resolve
+    if f === nothing
+        throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
+    end
+    FunSQL.resolve(f(n, ctx), ctx)
+end
+
+function FunSQL.resolve_scalar(n::CustomResolveNode, ctx)
+    f = n.resolve_scalar
+    if f === nothing
+        throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
+    end
+    FunSQL.resolve_scalar(f(n, ctx), ctx)
 end
