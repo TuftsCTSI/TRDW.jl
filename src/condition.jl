@@ -180,11 +180,10 @@ group_clinical_finding(carry...) =
 end
 
 function funsql_pick_ICD10CM(specification)
-    @assert uppercase(specification) == specification
-    @assert !occursin(" ", specification)
+    specification = strip(replace(uppercase(specification), r"[\s,]+" => " "))
     predicate = []
     negations = []
-    for chunk in split(specification, ",")
+    for chunk in split(specification, " ")
         if startswith(chunk, "-")
             push!(negations,
                 @funsql(startswith(concept_code, $chunk)))
