@@ -1,21 +1,3 @@
-smoking_behavior_concepts() = [
-        OMOP_Extension("OMOP5181846","Cigar smoker"),
-        OMOP_Extension("OMOP5181838","Cigarette smoker"),
-        OMOP_Extension("OMOP5181836","Electronic cigarette smoker"),
-        OMOP_Extension("OMOP5181847","Hookah smoker"),
-        OMOP_Extension("OMOP5181837","Passive smoker"),
-        OMOP_Extension("OMOP5181845","Pipe smoker")]
-
-never_smoker_concepts() = [OMOP_Extension("OMOP5181834", "Never used tobacco or its derivatives")]
-
-@funsql smoking_behavior_concepts() = concept($(smoking_behavior_concepts())...)
-
-@funsql matches_smoking_behavior() =
-    concept_matches($(smoking_behavior_concepts()); match_on=value_as)
-
-@funsql matches_never_smoker() =
-    concept_matches($(never_smoker_concepts()); match_on=value_as)
-
 function fetch_valuesets(ids)
     valueset_ids = join([HTTP.URIs.escapeuri(strip(x)) for x in ids], ",")
     apikey = ENV["UMLS_APIKEY"]

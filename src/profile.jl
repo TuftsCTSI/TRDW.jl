@@ -121,8 +121,27 @@ function funsql_define_translator(; name=:translator, filter=true)
                 qualifier_concept.concept_name, " language", ""), " dialect", ""))
         end, $filter)
         define($name => collect_to_string($name.language))
+        define($name => $name == "" ? missing : $name)
     end
 end
+
+smoking_behavior_concepts() = [
+        OMOP_Extension("OMOP5181846","Cigar smoker"),
+        OMOP_Extension("OMOP5181838","Cigarette smoker"),
+        OMOP_Extension("OMOP5181836","Electronic cigarette smoker"),
+        OMOP_Extension("OMOP5181847","Hookah smoker"),
+        OMOP_Extension("OMOP5181837","Passive smoker"),
+        OMOP_Extension("OMOP5181845","Pipe smoker")]
+
+never_smoker_concepts() = [OMOP_Extension("OMOP5181834", "Never used tobacco or its derivatives")]
+
+@funsql smoking_behavior_concepts() = concept($(smoking_behavior_concepts())...)
+
+@funsql matches_smoking_behavior() =
+    concept_matches($(smoking_behavior_concepts()); match_on=value_as)
+
+@funsql matches_never_smoker() =
+    concept_matches($(never_smoker_concepts()); match_on=value_as)
 
 function funsql_define_smoking(; name=:smoking, filter=true)
     @funsql begin
@@ -132,6 +151,7 @@ function funsql_define_smoking(; name=:smoking, filter=true)
             define(behavior => value_as_concept.concept_name)
         end, $filter)
         define($name => collect_to_string($name.behavior))
+        define($name => $name == "" ? missing : $name)
     end
 end
 
@@ -143,6 +163,7 @@ function funsql_define_never_smoker(name=:never_smoker, filter=true)
             define(never_smoker => matches_never_smoker())
         end)
         define($name => any($name.never_smoker) && !any($name.was_smoker))
+        define($name => $name == "" ? missing : $name)
     end
 end
 
