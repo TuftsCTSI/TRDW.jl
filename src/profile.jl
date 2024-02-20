@@ -167,11 +167,11 @@ function funsql_define_never_smoker(filter=true; name=:never_smoker)
     end
 end
 
-function funsql_define_mother_person_id(filter=true; name=:mother_person_id)
+function funsql_define_natural_mother_id(filter=true; name=:natural_mother_id)
     @funsql begin
         group_with($name => begin
             from(fact_relationship)
-            filter(relationship_concept_id == 4326600)
+            filter(in(relationship_concept_id, 4326600, 4277283))
             define(person_id => fact_id_1)
             join(p => from(person).filter(gender_concept_id ==8532),
                  p.person_id == fact_id_2)
