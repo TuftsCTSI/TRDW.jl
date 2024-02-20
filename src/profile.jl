@@ -113,20 +113,56 @@ function funsql_define_epic_mrn()
     end
 end
 
+function funsql_define_translator(; name=:translator, filter=true)
+    @funsql begin
+        group_with($name => begin
+            observation(SNOMED(314431000, "Interpreter present"))
+            define(language => replace(replace(
+                qualifier_concept.concept_name, " language", ""), " dialect", ""))
+        end, $filter)
+        define($name => collect_to_string($name.language))
+    end
+end
+
+function funsql_define_smoking(; name=:smoking, filter=true)
+    @funsql begin
+        group_with($name => begin
+            observation()
+            filter(matches_smoking_behavior())
+            define(behavior => value_as_concept.concept_name)
+        end, $filter)
+        define($name => collect_to_string($name.behavior))
+    end
+end
+
+function funsql_define_never_smoker(name=:never_smoker, filter=true)
+    @funsql begin
+        group_with($name => begin
+            observation()
+            define(was_smoker => matches_smoking_behavior())
+            define(never_smoker => matches_never_smoker())
+        end)
+        define($name => any($name.never_smoker) && !any($name.was_smoker))
+    end
+end
+
 function funsql_define_profile(args...)
     query = @funsql(define())
     for arg in args
         query = query |> begin
-            arg == :current_age ? funsql_define_current_age() :
-            arg == :epic_mrn ? funsql_define_epic_mrn() :
-            arg == :soarian_mrn ? funsql_define_soarian_mrn() :
             arg == :birth_date ? funsql_define_birth_date() :
-            arg == :death_date ? funsql_define_death_date() :
             arg == :birth_year ? funsql_define_birth_year() :
+            arg == :current_age ? funsql_define_current_age() :
+            arg == :death_date ? funsql_define_death_date() :
             arg == :death_year ? funsql_define_death_year() :
-            arg == :sex ? funsql_define_sex() :
+            arg == :epic_mrn ? funsql_define_epic_mrn() :
             arg == :ethnicity ? funsql_define_ethnicity() :
+            arg == :never_smoker ? funsql_define_never_smoker() :
             arg == :race ? funsql_define_race() :
+            arg == :sex ? funsql_define_sex() :
+            arg == :smoking ? funsql_define_smoking() :
+            arg == :soarian_mrn ? funsql_define_soarian_mrn() :
+            arg == :translator ? funsql_define_translator() :
             @error("unknown define $arg")
         end
     end
