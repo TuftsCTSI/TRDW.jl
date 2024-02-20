@@ -1,5 +1,7 @@
 module Circe
 
+using CSV
+using DataFrames
 using Markdown
 using Pkg.Artifacts
 
@@ -153,6 +155,17 @@ function cohort_to_sql(
     tr = translate_sql(sql, temp_emulation_schema = temp_emulation_schema)
     tr′ = replace(tr, "\r\n" => '\n')
     split_sql(tr′)
+end
+
+function phenotype_library()
+    csv = CSV.File(
+        joinpath(artifact"PhenotypeLibrary", "PhenotypeLibrary-3.32.0/inst/Cohorts.csv"),
+        select = [:cohortId, :cohortName],
+        types = Dict(:cohortId => Int, :cohortName => String))
+    ids = csv[:cohortId]
+    names = csv[:cohortName]
+    jsons = String[read(joinpath(artifact"PhenotypeLibrary", "PhenotypeLibrary-3.32.0/inst/cohorts/$id.json"), String) for id in ids]
+    DataFrame(id = ids, name = names, json = jsons)
 end
 
 end # module Circe
