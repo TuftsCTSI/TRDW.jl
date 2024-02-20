@@ -113,7 +113,7 @@ function funsql_define_epic_mrn()
     end
 end
 
-function funsql_define_translator(; name=:translator, filter=true)
+function funsql_define_translator(filter=true; name=:translator)
     @funsql begin
         group_with($name => begin
             observation(SNOMED(314431000, "Interpreter present"))
@@ -143,7 +143,7 @@ never_smoker_concepts() = [OMOP_Extension("OMOP5181834", "Never used tobacco or 
 @funsql matches_never_smoker() =
     concept_matches($(never_smoker_concepts()); match_on=value_as)
 
-function funsql_define_smoking(; name=:smoking, filter=true)
+function funsql_define_smoking(filter=true; name=:smoking)
     @funsql begin
         group_with($name => begin
             observation()
@@ -155,15 +155,28 @@ function funsql_define_smoking(; name=:smoking, filter=true)
     end
 end
 
-function funsql_define_never_smoker(name=:never_smoker, filter=true)
+function funsql_define_never_smoker(filter=true; name=:never_smoker)
     @funsql begin
         group_with($name => begin
             observation()
             define(was_smoker => matches_smoking_behavior())
             define(never_smoker => matches_never_smoker())
-        end)
+        end, $filter)
         define($name => any($name.never_smoker) && !any($name.was_smoker))
         define($name => $name == "" ? missing : $name)
+    end
+end
+
+function funsql_define_mother_person_id(filter=true; name=:mother_person_id)
+    @funsql begin
+        group_with($name => begin
+            from(fact_relationship)
+            filter(relationship_concept_id == 4326600)
+            define(person_id => fact_id_1)
+            join(p => from(person).filter(gender_concept_id ==8532),
+                 p.person_id == fact_id_2)
+        end, $filter)
+        define($name => first($name.fact_id_2))
     end
 end
 
