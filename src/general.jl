@@ -1002,7 +1002,11 @@ function write_and_display(expr::Expr, db, case, show)
     vname = esc(name)
     if show
         return quote
-            $vname = TRDW.run($db, @funsql $query.to_subject_id($case).order(subject_id))
+            $vname = TRDW.run($db, @funsql(begin
+                $query
+                if_not_defined(subject_id, to_subject_id($case))
+                order(subject_id)
+            end))
             TRDW.write_and_display($sname, $vname)
         end
     end

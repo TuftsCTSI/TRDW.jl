@@ -58,6 +58,9 @@ function funsql_to_subject_id(case; rename=true, assert=true)
     return @funsql($query.define(person_id => $name.subject_id))
 end
 
+funsql_define_subject_id(case; assert=true) =
+    funsql_to_subject_id(case; rename=false, assert=assert)
+
 funsql_fact_to_subject_id(case) =
     @funsql begin
         fact_to_subject_id($case, domain_concept_id_1, fact_id_1)

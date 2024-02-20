@@ -567,3 +567,17 @@ function FunSQL.resolve_scalar(n::CustomResolveNode, ctx)
     end
     FunSQL.resolve_scalar(f(n, ctx), ctx)
 end
+
+funsql_if_not_defined(field_name, q) =
+    CustomResolve() do n, ctx
+        over′ = FunSQL.resolve(n.over, ctx)
+        t = FunSQL.row_type(over′)
+        !in(field_name, keys(t.fields)) ? over′ |> q : over′
+    end
+
+funsql_if_defined(field_name, q) =
+    CustomResolve() do n, ctx
+        over′ = FunSQL.resolve(n.over, ctx)
+        t = FunSQL.row_type(over′)
+        in(field_name, keys(t.fields)) ? over′ |> q : over′
+    end
