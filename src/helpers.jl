@@ -73,12 +73,9 @@ This function correlates by `person_id` upon the joined table, optionally filter
 It returns a *random* row for each `partition_by` (which default to `occurrence_id`).
 """
 function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
-                            partition_by=[])
+                            partition_by= [@funsql(try_get(occurrence_id, person_id))])
     (name, base) = pair
     partname = gensym()
-    if length(partition_by) == 0
-        push!(partition_by, :occurrence_id)
-    end
     return @funsql(begin
         join($name => $base, $name.person_id == person_id && $predicate)
         partition($partition_by...; order_by=$partition_by, name = $partname)
@@ -89,12 +86,6 @@ end
 
 funsql_filter_with(node::FunSQL.SQLNode, predicate=true) =
     funsql_filter_with(gensym() => node, predicate)
-
-funsql_filter_person_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true) =
-    funsql_filter_with(pair, predicate; partition_by=[:person_id])
-
-funsql_filter_person_with(node::FunSQL.SQLNode, predicate=true) =
-    funsql_filter_person_with(gensym() => node, predicate)
 
 """ filter_without(pair, filter)
 
@@ -119,21 +110,14 @@ This function correlates by `person_id` upon the joined table, as a group.
 It returns a *random* row for each `partition_by` (which default to `occurrence_id`).
 """
 function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
-                           partname=nothing, partition_by=[])
+        partname=nothing, partition_by= [@funsql(try_get(occurrence_id, person_id))])
     (name, base) = pair
-    if length(partition_by) == 0
-        push!(partition_by, :occurrence_id)
-    end
     return @funsql(begin
         left_join($name => $base, $name.person_id == person_id && $predicate)
         partition($partition_by...; order_by=$partition_by, name = $partname)
         filter($partname.row_number() <= 1)
-        undefine($name)
     end)
 end
-
-funsql_group_person_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true; partname=nothing) =
-     funsql_group_with(pair, predicate; partname=partname, partition_by=[:person_id])
 
 """ castbool(v)
 
