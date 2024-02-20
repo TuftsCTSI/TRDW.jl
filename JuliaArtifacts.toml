@@ -5,6 +5,13 @@ git-tree-sha1 = "85addbe09fadb35c746fc1e05669da35a1613165"
     url = "https://github.com/OHDSI/CirceR/archive/refs/tags/v1.3.2.tar.gz"
     sha256 = "2b368e2a9808a97a0765a617de536f2071ee09cbf31be062c22ca1c185f9afd5"
 
+[PhenotypeLibrary]
+git-tree-sha1 = "eb2874c0415bc609fb1dea2990d2b4010aef6748"
+
+    [[PhenotypeLibrary.download]]
+    url = "https://github.com/OHDSI/PhenotypeLibrary/archive/refs/tags/v3.32.0.tar.gz"
+    sha256 = "1280bdf054c2f2eb9595a810abcdb0fa7761d979516976eece981c118a64046b"
+
 [SqlRender]
 git-tree-sha1 = "b9a0a0374e5d335991ecb05f38b18da2399afa0c"
 
