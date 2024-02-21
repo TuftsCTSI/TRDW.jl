@@ -135,6 +135,7 @@ function cohort_to_sql(
     str;
     target_cohort_id,
     cdm_database_schema,
+    session_id = nothing,
     vocabulary_database_schema = cdm_database_schema,
     results_database_schema = cdm_database_schema,
     target_database_schema = cdm_database_schema,
@@ -153,9 +154,9 @@ function cohort_to_sql(
          target_database_schema,
          target_cohort_table,
          generateStats = Int(generate_stats)))
-    tr = translate_sql(sql, temp_emulation_schema = temp_emulation_schema)
+    tr = translate_sql(sql, temp_emulation_schema = temp_emulation_schema, session_id = session_id)
     tr′ = replace(tr, "\r\n" => '\n')
-    split_sql(tr′)
+    String[stmt for stmt in split_sql(tr′) if !startswith(stmt, "TRUNCATE TABLE ")]
 end
 
 function phenotype_library()
