@@ -125,6 +125,17 @@ function funsql_define_translator(filter=true; name=:translator)
     end
 end
 
+function funsql_define_preferred_language(filter=true; name=:preferred_language)
+    @funsql begin
+        group_with($name => begin
+            observation(SNOMED(428996008, "Language preference"))
+		    filter(!icontains(value_as_string, "same") && "" != value_as_string)
+        end, $filter)
+        define($name => last($name.value_as_string))
+    end
+end
+
+
 smoking_behavior_concepts() = [
         OMOP_Extension("OMOP5181846","Cigar smoker"),
         OMOP_Extension("OMOP5181838","Cigarette smoker"),
@@ -192,6 +203,7 @@ function funsql_define_profile(args...)
             arg == :epic_mrn ? funsql_define_epic_mrn() :
             arg == :ethnicity ? funsql_define_ethnicity() :
             arg == :never_smoker ? funsql_define_never_smoker() :
+            arg == :preferred_language ? funsql_define_preferred_language() :
             arg == :race ? funsql_define_race() :
             arg == :sex ? funsql_define_sex() :
             arg == :smoking ? funsql_define_smoking() :
