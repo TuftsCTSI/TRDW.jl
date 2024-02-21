@@ -119,6 +119,11 @@ function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
     end)
 end
 
+function funsql_join_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
+    (name, base) = pair
+    return @funsql(join($name => $base, $name.person_id == person_id && $predicate))
+end
+
 """ castbool(v)
 
 This function permits us to use `!\$v` expressions within a notebook.
