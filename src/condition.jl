@@ -92,12 +92,12 @@ crosswalk_from_icd9cm_to_icd10cm() =
         end)
     end)
 
-prefer_source_icd() =
+prefer_source_icdcm() =
     $(let frame = gensym();
         @funsql(begin
             left_join($frame => begin
                 from(concept)
-                filter(like(vocabulary_id, "ICD%"))
+                filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
             end, omop.condition_source_concept.concept_id == $frame.concept_id)
             define(concept_id => coalesce($frame.concept_id, concept_id))
         end)
@@ -155,7 +155,7 @@ backwalk_snomed_to_icd10cm() =
     end)
 
 to_3char_icd10cm() = begin
-    prefer_source_icd()
+    prefer_source_icdcm()
     crosswalk_from_icd9cm_to_icd10cm()
 	truncate_icd10cm_to_3char()
 end
