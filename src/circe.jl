@@ -4,6 +4,7 @@ using CSV
 using DataFrames
 using Markdown
 using Pkg.Artifacts
+using StringEncodings
 
 const java_initialized = Ref(false)
 
@@ -160,12 +161,13 @@ end
 function phenotype_library()
     csv = CSV.File(
         joinpath(artifact"PhenotypeLibrary", "PhenotypeLibrary-3.32.0/inst/Cohorts.csv"),
-        select = [:cohortId, :cohortName],
-        types = Dict(:cohortId => Int, :cohortName => String))
+        select = [:cohortId, :cohortName, :logicDescription],
+        types = Dict(:cohortId => Int, :cohortName => String, :logicDescription => String))
     ids = csv[:cohortId]
     names = csv[:cohortName]
-    jsons = String[read(joinpath(artifact"PhenotypeLibrary", "PhenotypeLibrary-3.32.0/inst/cohorts/$id.json"), String) for id in ids]
-    DataFrame(id = ids, name = names, json = jsons)
+    descriptions = csv[:logicDescription]
+    definitions = String[decode(read(joinpath(artifact"PhenotypeLibrary", "PhenotypeLibrary-3.32.0/inst/cohorts/$id.json")), "latin1") for id in ids]
+    DataFrame(id = ids, name = names, description = descriptions, definition = definitions)
 end
 
 end # module Circe

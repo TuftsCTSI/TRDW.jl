@@ -19,6 +19,7 @@ PlutoLinks = "0ff47ea0-7a50-410d-8455-4348d5de0420"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+StringEncodings = "69024149-9ee7-55f6-a4c4-859efe599b68"
 
 [compat]
 FunSQL = "0.13.0"
