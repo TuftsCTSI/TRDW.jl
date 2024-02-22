@@ -329,7 +329,7 @@ end
 @make_vocabulary("Race")
 @make_vocabulary("RxNorm Extension")
 @make_vocabulary("RxNorm")
-@make_vocabulary("SNOMECD")
+@make_vocabulary("SNOMED")
 @make_vocabulary("Type Concept")
 @make_vocabulary("UCUM")
 @make_vocabulary("Visit")

@@ -116,7 +116,7 @@ end
 function funsql_define_translator(filter=true; name=:translator)
     @funsql begin
         group_with($name => begin
-            observation(concept(SNOMED(314431000, "Interpreter present")))
+            observation(SNOMED(314431000, "Interpreter present"))
             define(language => replace(replace(
                 qualifier_concept.concept_name, " language", ""), " dialect", ""))
         end, $filter)
@@ -128,7 +128,7 @@ end
 function funsql_define_preferred_language(filter=true; name=:preferred_language)
     @funsql begin
         group_with($name => begin
-            observation(concept(SNOMED(428996008, "Language preference")))
+            observation(SNOMED(428996008, "Language preference"))
 		    filter(!icontains(value_as_string, "same") && "" != value_as_string)
         end, $filter)
         define($name => last($name.value_as_string))
