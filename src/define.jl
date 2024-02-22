@@ -575,9 +575,19 @@ funsql_if_not_defined(field_name, q) =
         !in(field_name, keys(t.fields)) ? over′ |> q : over′
     end
 
-funsql_if_defined(field_name, q) =
+funsql_if_defined(field_name, q, else_q=nothing) =
     CustomResolve() do n, ctx
         over′ = FunSQL.resolve(n.over, ctx)
         t = FunSQL.row_type(over′)
-        in(field_name, keys(t.fields)) ? over′ |> q : over′
+        in(field_name, keys(t.fields)) ?
+            (q !== nothing ? over′ |> q : over′) :
+            (else_q !== nothing ? over′ |> else_q : over′)
     end
+
+funsql_if_defined_scalar(field_name, q, else_q) = begin
+    function custom_resolve(n, ctx)
+        t = ctx.row_type
+        in(field_name, keys(t.fields)) ? q : else_q
+    end
+    CustomResolve(resolve_scalar = custom_resolve, terminal = true)
+end

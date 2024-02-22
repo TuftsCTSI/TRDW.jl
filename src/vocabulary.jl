@@ -306,30 +306,33 @@ macro make_vocabulary(name, match_strategy=nothing)
     end
 end
 
+@make_vocabulary("ABMS")
 @make_vocabulary("ATC")
+@make_vocabulary("CMS Place of Service")
 @make_vocabulary("CPT4")
 @make_vocabulary("Condition Status")
+@make_vocabulary("HES Specialty")
 @make_vocabulary("HemOnc")
 @make_vocabulary("ICD03")
 @make_vocabulary("ICD10CM", match_icdcm)
 @make_vocabulary("ICD10PCS")
-@make_vocabulary("ICD9Proc")
 @make_vocabulary("ICD9CM", match_icdcm)
+@make_vocabulary("ICD9Proc")
 @make_vocabulary("LOINC")
 @make_vocabulary("Medicare Specialty")
 @make_vocabulary("NDFRT")
-@make_vocabulary("None")
 @make_vocabulary("NUCC")
+@make_vocabulary("None")
 @make_vocabulary("OMOP Extension")
+@make_vocabulary("Procedure Type")
+@make_vocabulary("Provider")
 @make_vocabulary("Race")
 @make_vocabulary("RxNorm Extension")
 @make_vocabulary("RxNorm")
-@make_vocabulary("SNOMED")
+@make_vocabulary("SNOMECD")
 @make_vocabulary("Type Concept")
-@make_vocabulary("CMS Place of Service")
-@make_vocabulary("Visit")
 @make_vocabulary("UCUM")
-@make_vocabulary("Procedure Type")
+@make_vocabulary("Visit")
 
 struct Category <: AbstractCategory
     name::String
@@ -385,18 +388,19 @@ Ingredient = Category("Ingredient", (RxNorm, RxNorm_Extension),
 Route = Category("Route", (SNOMED,),
     row -> standard_domain(row, "Route") &&
            row.concept_class_id == "Qualifier Value")
+Specialty = Category("Specialty", (Provider, NUCC, HES_Specialty, Medicare_Specialty, ABMS),
+    row -> standard_domain(row, "Provider"))
 
 funsql_Ingredient(items...) = Ingredient(items...)
 export funsql_Ingredient
-
 funsql_DoseFormGroup(items...) = DoseFormGroup(items...)
 export funsql_DoseFormGroup
-
 funsql_component_class(items...) = ComponentClass(items...)
 export funsql_ComponentClass
-
 funsql_Route(items...) = Route(items...)
 export funsql_Route
+funsql_Specialty(items...) = Specialty(items...)
+export funsql_Specialty
 
 @funsql category_isa(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
     in($concept_id, begin
