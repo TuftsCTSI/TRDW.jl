@@ -14,10 +14,10 @@ concept() = begin
         omop.invalid_reason)
 end
 
-concept(ids...) = begin
-    concept()
-    filter(in(concept_id, $ids...))
-end
+concept(ids...) =
+    concept().filter(in(concept_id, $ids...))
+concept(;match) =
+    concept().filter(concept_matches($match))
 
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 

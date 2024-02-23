@@ -59,5 +59,7 @@ end
 
 specimen(match...) =
     specimen().filter(concept_matches($match))
+specimen(;match) =
+    specimen().filter(concept_matches($match))
 
 end

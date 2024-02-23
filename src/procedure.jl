@@ -54,6 +54,8 @@ end
 
 procedure(match...) =
     procedure().filter(concept_matches($match))
+procedure(;match) =
+    procedure().filter(concept_matches($match))
 
 truncate_icd9proc_to_3dig() =
     $(let frame = gensym();

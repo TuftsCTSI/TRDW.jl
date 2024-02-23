@@ -66,6 +66,8 @@ end
 
 visit_detail(match...) =
     visit_detail().filter(concept_matches($match))
+visit_detail(;match) =
+    visit_detail().filter(concept_matches($match))
 
 visit_detail_isa(args...) = category_isa($Visit, $args, omop.visit_detail_concept_id)
 

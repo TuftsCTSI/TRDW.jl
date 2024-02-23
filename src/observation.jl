@@ -65,6 +65,8 @@ end
 
 observation(match...) =
     observation().filter(concept_matches($match))
+observation(;match) =
+    observation().filter(concept_matches($match))
 
 qualifier_matches(match...) =
     concept_matches($match...; match_on=qualifier_concept_id)

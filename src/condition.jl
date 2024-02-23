@@ -66,6 +66,8 @@ end
 
 condition(match...) =
     condition().filter(concept_matches($match))
+condition(;match) =
+    condition().filter(concept_matches($match))
 
 is_primary_discharge_diagnosis() =
     ifnull(omop.condition_status_concept_id == 32903, false)

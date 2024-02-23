@@ -36,6 +36,8 @@ end
 
 provider(match...) =
     provider().filter(concept_matches($match))
+provider(;match) =
+    provider().filter(concept_matches($match))
 
 specialty_concept() = if_defined_scalar(provider,
                                         provider.omop.specialty_concept_id,

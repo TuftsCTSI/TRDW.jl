@@ -57,5 +57,7 @@ end
 
 device(match...) =
     device().filter(concept_matches($match))
+device(;match) =
+    device().filter(concept_matches($match))
 
 end
