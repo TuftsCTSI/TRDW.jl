@@ -180,8 +180,8 @@ function funsql_take_first(keys...; order_by=[], name=nothing)
     end
 end
 
-funsql_take_first_occurrence(;name=nothing) =
-    @funsql(take_first(person_id; order_by=[datetime], name=$name))
+funsql_take_earliest_occurrence(;name=nothing) =
+    @funsql(take_first(person_id; order_by=[datetime.asc()], name=$name))
 funsql_take_latest_occurrence(;name=nothing) =
     @funsql(take_first(person_id; order_by=[datetime.desc()], name=$name))
 
