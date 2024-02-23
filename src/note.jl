@@ -50,7 +50,5 @@ end
 
 note(match...) =
     note().filter(concept_matches($match))
-note(;match) =
-    note().filter(concept_matches($match))
 
 end

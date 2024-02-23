@@ -61,8 +61,6 @@ end
 
 drug(match...) =
     drug().filter(concept_matches($match))
-drug(;match) =
-    drug().filter(concept_matches($match))
 
 drug_concept() = concept().filter(domain_id == "Drug")
 drug_component_class() = drug_concept().filter(concept_class_id == "Component Class")

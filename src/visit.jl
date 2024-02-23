@@ -60,8 +60,6 @@ end
 
 visit(match...) =
     visit().filter(concept_matches($match))
-visit(;match) =
-    visit().filter(concept_matches($match))
 
 visit_isa(args...) = category_isa($Visit, $args, omop.visit_concept_id)
 

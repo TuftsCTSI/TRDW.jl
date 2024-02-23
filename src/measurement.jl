@@ -66,8 +66,6 @@ end
 
 measurement(match...) =
     measurement().filter(concept_matches($match))
-measurement(;match) =
-    measurement().filter(concept_matches($match))
 
 unit_matches(match...) =
     concept_matches($match...; match_on=unit_concept_id)
