@@ -88,8 +88,8 @@ function group_by_concept(name=nothing; roundup=true,
         order($include..., n_person.desc(nulls=last), c.concept_code)
     end)
     if roundup
-        base = base |> @funsql(define(n_person => concat("≤", roundup(n_person)),
-                                      n_event => concat("≤", roundup(n_event))))
+        base = base |> @funsql(define(n_person => roundups(n_person),
+                                      n_event => roundups(n_event)))
     end
     return base |> @funsql(begin
         select($include..., n_person, n_event, c.concept_id, c.vocabulary_id,

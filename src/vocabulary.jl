@@ -131,6 +131,10 @@ struct Concept
     is_standard::Bool
 end
 
+const ConceptSet = Vector{Concept}
+const NamedConceptSets = NamedTuple{T, <:NTuple{N, ConceptSet}} where {N, T}
+const ConceptMatchExpr = Union{Concept, ConceptSet, NamedConceptSets}
+
 unnest_concept_set(@nospecialize ids) = unnest_concept_set(ids, Vector{Concept}())
 unnest_concept_set(c::Concept, cs::Vector{Concept}) = push!(cs, c)
 unnest_concept_set(p::Pair, cs::Vector{Concept}) =
@@ -150,6 +154,8 @@ end
 
 Base.convert(::Type{FunSQL.SQLNode}, c::Concept) =
     convert(FunSQL.SQLNode, c.concept_name => c.concept_id)
+#Base.convert(::Type{FunSQL.SQLNode}, vc::Vector{Concept}) =
+#    FunSQL.From(DataFrame(concept_id = [c.concept_id for c in vc]))
 
 function Base.show(io::IO, c::Concept)
     print(io, getfield(c.vocabulary, :constructor))
@@ -510,7 +516,10 @@ function concept_matches(match...; match_on=nothing)
     match = unnest_concept_set(match)
     if isnothing(match_on)
         concept_id = nothing
+    elseif match_on isa FunSQL.SQLNode
+        concept_id = match_on
     else
+        @assert typeof(match_on) isa Symbol
         if contains(string(match_on), "concept_id")
             concept_id = Symbol(match_on)
         else
@@ -535,3 +544,13 @@ concept_matches(name::Symbol, match...) =
     concept_matches(match...; match_on=name)
 
 const funsql_concept_matches = concept_matches
+
+function funsql_concept_in(concept_id::Symbol, ids)
+    if ids isa ConceptMatchExpr
+        ids = unnest_concept_ids(ids)
+    end
+    @funsql(filter(in($concept_id, $ids...)))
+end
+
+funsql_concept_in(q) =
+    funsql_concept_in(:concept_id, q)

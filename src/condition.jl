@@ -70,7 +70,7 @@ condition(match...) =
 is_primary_discharge_diagnosis() =
     ifnull(omop.condition_status_concept_id == 32903, false)
 
-condition_status_isa(args...) =
+status_isa(args...) =
     category_isa($Condition_Status, $args, omop.condition_status_concept_id)
 
 define_finding_site(name=finding_site_concept_id, concept_id=concept_id) = begin

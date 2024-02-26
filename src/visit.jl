@@ -61,6 +61,12 @@ end
 visit(match...) =
     visit().filter(concept_matches($match))
 
-visit_isa(args...) = category_isa($Visit, $args, omop.visit_concept_id)
+visit_isa(args...) =
+    category_isa($Visit, $args, if_defined_scalar(visit, visit.omop.visit_concept_id,
+                                                         omop.visit_concept_id))
+
+visit_matches(args...) =
+    if_defined_scalar(visit, concept_matches($args...; match_on=visit.omop.visit_concept_id),
+                             concept_matches($args...; match_on=omop.visit_concept_id))
 
 end

@@ -24,7 +24,7 @@ icontains(s, pats::Vector{String}) = and($([@funsql(icontains($s, $pat)) for pat
 icontains(s, pats...) = or($([@funsql(icontains($s, $pat)) for pat in pats]...))
 
 is_integer(s) = rlike($s, "^[0-9]+\$")
-roundup(n) =  ceiling($n/10)*10
+roundup(n) =  $n < 10 ? "<10" : $n
 
 collect_to_string(v) = array_join(array_sort(array_distinct(collect_list($v))), "; ")
 
@@ -150,7 +150,7 @@ function roundups(n; round=true)
     if !isa(round, Bool)
         round = castbool(round)
     end
-    return round ? @funsql(concat("≤", roundup($n))) : n
+    return round ? @funsql(roundup($n)) : n
 end
 
 funsql_roundups = roundups
