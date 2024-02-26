@@ -12,6 +12,13 @@ git-tree-sha1 = "eb2874c0415bc609fb1dea2990d2b4010aef6748"
     url = "https://github.com/OHDSI/PhenotypeLibrary/archive/refs/tags/v3.32.0.tar.gz"
     sha256 = "1280bdf054c2f2eb9595a810abcdb0fa7761d979516976eece981c118a64046b"
 
+['PhenotypeLibrary-v0.0.1']
+git-tree-sha1 = "2e81ea7d13eb74ed64d3b0a160a24c05441549cd"
+
+    [['PhenotypeLibrary-v0.0.1'.download]]
+    url = "https://github.com/OHDSI/PhenotypeLibrary/archive/refs/tags/v0.0.1.tar.gz"
+    sha256 = "1c0c3c4b5d89b6b73fd8711d4942c9b2c5e733d17468cd8a9e05706fc2d9eb76"
+
 [SqlRender]
 git-tree-sha1 = "b9a0a0374e5d335991ecb05f38b18da2399afa0c"
 

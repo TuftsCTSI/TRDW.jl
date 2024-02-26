@@ -171,4 +171,29 @@ function phenotype_library()
     DataFrame(id = ids, name = names, description = descriptions, definition = definitions)
 end
 
+function phenotype_library_v001()
+    all_ids = Int[]
+    all_names = String[]
+    all_descriptions = Union{String, Missing}[]
+    all_definitions = String[]
+    for dir in readdir(joinpath(artifact"PhenotypeLibrary-v0.0.1", "PhenotypeLibrary-0.0.1/inst"), join = true)
+        isdir(dir) || continue
+        csv = CSV.File(
+            joinpath(dir, "cohortDescription.csv"),
+            select = [:cohortId, :webApiCohortId, :cohortName, :logicDescription],
+            types = Dict(:cohortId => Int, :webApiCohortId => Int, :cohortName => String, :logicDescription => String))
+        basenames = csv[:cohortId]
+        ids = csv[:webApiCohortId]
+        names = csv[:cohortName]
+        descriptions = csv[:logicDescription]
+        definitions = String[decode(read(joinpath(dir, "$basename.json")), "latin1") for basename in basenames]
+        append!(all_ids, ids)
+        append!(all_names, names)
+        append!(all_descriptions, descriptions)
+        append!(all_definitions, definitions)
+    end
+    df = DataFrame(id = all_ids, name = all_names, description = all_descriptions, definition = all_definitions)
+    sort!(df)
+end
+
 end # module Circe
