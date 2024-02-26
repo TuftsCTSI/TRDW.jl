@@ -93,4 +93,20 @@ end
 stratify_by_ethnicity(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).stratify_by_ethnicity(; roundup=$roundup)
 
+stratify_by_translator(; roundup=true) = begin
+	deduplicate(person_id)
+    define_profile(translator)
+	group(translator)
+	count_n_person(; roundup=$roundup)
+    select(n_person, translator)
+end
+
+stratify_by_preferred_language(; roundup=true) = begin
+	deduplicate(person_id)
+    define_profile(preferred_language)
+    group(preferred_language)
+	count_n_person(; roundup=$roundup)
+    select(n_person, preferred_language)
+end
+
 end
