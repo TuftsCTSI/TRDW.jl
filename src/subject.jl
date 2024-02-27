@@ -43,7 +43,7 @@ function user_subject(case::String)
     return linkto_person(base |> FunSQL.Append(FunSQL.From(temp)))
 end
 
-function funsql_to_subject_id(case; rename=true, assert=true)
+function to_subject_id(case; rename=true, assert=true)
     name = gensym()
     subject_query = user_subject(case)
     query = @funsql begin
@@ -58,8 +58,20 @@ function funsql_to_subject_id(case; rename=true, assert=true)
     return @funsql($query.define(person_id => $name.subject_id))
 end
 
+function define_subject_id(case)
+    name = gensym()
+    subject_query = user_subject(case)
+    query = @funsql begin
+        left_join($name => $subject_query, $name.person_id == person_id)
+    end
+    return @funsql($query.define_front($name.subject_id))
+end
+
+funsql_to_subject_id(case; rename=true, assert=true) =
+   funsql_if_not_defined(:subject_id, to_subject_id(case; rename=rename, assert=assert))
+
 funsql_define_subject_id(case; assert=true) =
-    funsql_to_subject_id(case; rename=false, assert=assert)
+    funsql_if_not_defined(:subject_id, define_subject_id(case))
 
 funsql_fact_to_subject_id(case) =
     @funsql begin
