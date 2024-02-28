@@ -1,6 +1,6 @@
 module TRDW
 
-export @run_funsql, @concepts, @valuesets, Circe
+export @run_funsql, @concepts, @valuesets, OHDSI
 
 using CSV
 using DataFrames
@@ -31,7 +31,7 @@ include("soarian.jl")
 include("clarity.jl")
 include("template.jl")
 include("profile.jl")
-include("circe.jl")
+include("ohdsi.jl")
 
 include("care_site.jl")
 include("concept.jl")
