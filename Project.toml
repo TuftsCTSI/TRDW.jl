@@ -10,7 +10,6 @@ FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-JavaCall = "494afd89-becb-516b-aafa-70d2670c0337"
 LightXML = "9c8b4983-aa76-5018-a973-4c85ecc9e179"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 ODBC = "be6f12e9-ca4f-5eb2-a339-a4f995cc0291"
@@ -20,6 +19,13 @@ PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 StringEncodings = "69024149-9ee7-55f6-a4c4-859efe599b68"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+
+[weakdeps]
+JavaCall = "494afd89-becb-516b-aafa-70d2670c0337"
+
+[extensions]
+JavaCallExt = "JavaCall"
 
 [compat]
 FunSQL = "0.13.0"
