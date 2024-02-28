@@ -16,6 +16,7 @@ using ODBC
 
 import Tables
 import DBInterface.execute
+import Base.show
 
 include("general.jl")
 include("define.jl")

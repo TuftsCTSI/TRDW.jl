@@ -171,6 +171,39 @@ DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::Concept) where {T} =
 DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::Vector{Concept}) where {T} =
     DBInterface.execute(conn, @funsql(from($vc)))
 
+@nospecialize
+function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSets
+    print(io, """
+        <table><tr><th><i>variable</i></th>
+                   <th>concept_id</th>
+                   <th>vocabulary_id</th>
+                   <th>concept_code</th>
+                   <th>concept_name</th></tr>
+    """)
+    for k in keys(ncs)
+        vc = getfield(ncs, k)
+        for n in 1:length(vc)
+            c = vc[n]
+            show(io, m,
+                @htl("""
+                  <tr>
+                      $(n==1 ? @htl("""
+                              <td rowspan=$(length(vc))
+                                  style=$(length(vc)>1 ?
+                                          @htl("vertical-align: top") : "")>
+                              <i>$k</i></td>
+                          """) : "")
+                      <td>$(c.concept_id)</td>
+                      <td>$(c.vocabulary.vocabulary_id)</td>
+                      <td>$(c.concept_code)</td>
+                      <td>$(c.concept_name)</td>
+                  </tr>
+                """))
+        end
+    end
+    print(io, "</table>")
+end
+
 function Base.show(io::IO, c::Concept)
     print(io, getfield(c.vocabulary, :constructor))
     print(io, "(")
@@ -462,7 +495,7 @@ function build_concepts(df::DataFrame)
     return retval
 end
 
-function concepts_unpack!(expr)
+function concepts_unpack!(expr, saves)
     if @dissect(expr, Expr(:tuple, args...))
         expr.head = :vect
     end
@@ -472,7 +505,11 @@ function concepts_unpack!(expr)
                 error("no need to ... expand references to arrays within @concepts")
             end
             if value isa Symbol
-                expr.args[index] = Expr(:(...), esc(value))
+                if value in keys(saves)
+                    expr.args[index] = Expr(:(...), saves[value])
+                else
+                    expr.args[index] = Expr(:(...), esc(value))
+                end
             end
         end
         return expr
@@ -483,6 +520,7 @@ end
 
 macro concepts(expr::Expr)
     exs = []
+    saves = Dict{Symbol, Any}()
     if expr.head == :block
         for ex in expr.args
             if ex isa Expr || ex isa Symbol
@@ -494,7 +532,7 @@ macro concepts(expr::Expr)
             end
         end
     elseif expr.head == :vect
-        return concepts_unpack!(expr)
+        return concepts_unpack!(expr, saves)
     else
         exs = [expr]
     end
@@ -506,8 +544,9 @@ macro concepts(expr::Expr)
             if query isa Expr && query.head == :call && query.args[1] == :valueset
                 item = valueset(query.args[2])
             else
-                item = concepts_unpack!(query)
+                item = concepts_unpack!(query, saves)
             end
+            saves[name] = item
             push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), item))
         else
             error("expecting name=funsql or name=[concept...] assignments")
