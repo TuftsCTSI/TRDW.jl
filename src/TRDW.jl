@@ -3,15 +3,19 @@ module TRDW
 export @run_funsql, @concepts, @valuesets, OHDSI
 
 using CSV
+using DBInterface
 using DataFrames
 using Dates
 using FunSQL
 using FunSQL: @dissect
-using HypertextLiteral
-using ODBC
 using HTTP
-using LightXML
+using HypertextLiteral
 using JSON
+using LightXML
+using ODBC
+
+import Tables
+import DBInterface.execute
 
 include("general.jl")
 include("define.jl")

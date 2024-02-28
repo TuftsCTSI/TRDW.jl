@@ -152,10 +152,24 @@ function unnest_concept_set(node::FunSQL.SQLNode, cs::Vector{Concept})
     append!(cs, cset)
 end
 
-Base.convert(::Type{FunSQL.SQLNode}, c::Concept) =
-    convert(FunSQL.SQLNode, c.concept_name => c.concept_id)
-#Base.convert(::Type{FunSQL.SQLNode}, vc::Vector{Concept}) =
-#    FunSQL.From(DataFrame(concept_id = [c.concept_id for c in vc]))
+Base.convert(::Type{FunSQL.SQLNode}, c::Concept) = @funsql(from($c))
+Base.convert(::Type{FunSQL.SQLNode}, vc::Vector{Concept}) = @funsql(from($vc))
+
+Tables.istable(vc::Vector{Concept}) = true
+Tables.rowaccess(vc::Vector{Concept}) = true
+Tables.istable(c::Concept) = true
+Tables.rowaccess(c::Concept) = true
+Tables.rows(c::Concept) = [c]
+Tables.columnnames(c::Concept) = (:concept_id, :vocabulary_id, :concept_code, :concept_name)
+Tables.getcolumn(c::Concept, i::Int) =
+    Tables.getcolumn(c, (:concept_id, :vocabulary_id, :concept_code, :concept_name)[i])
+Tables.getcolumn(c::Concept, n::Symbol) =
+    n == :vocabulary_id ? c.vocabulary.vocabulary_id : getproperty(c, n)
+
+DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::Concept) where {T} =
+    DBInterface.execute(conn, [c])
+DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::Vector{Concept}) where {T} =
+    DBInterface.execute(conn, @funsql(from($vc)))
 
 function Base.show(io::IO, c::Concept)
     print(io, getfield(c.vocabulary, :constructor))
@@ -493,7 +507,7 @@ macro concepts(expr::Expr)
                 item = valueset(query.args[2])
             else
                 item = concepts_unpack!(query)
-            end    
+            end
             push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), item))
         else
             error("expecting name=funsql or name=[concept...] assignments")
