@@ -536,7 +536,8 @@ macro concepts(expr::Expr)
     else
         exs = [expr]
     end
-    parts = Any[]
+    parts = Expr[]
+    queries = Expr[]
     for ex in exs
         if ex isa Symbol
             push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
@@ -546,13 +547,15 @@ macro concepts(expr::Expr)
             else
                 item = concepts_unpack!(query, saves)
             end
-            saves[name] = item
-            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), item))
+            fcall = Expr(:call, Expr(:escape, Symbol("funsql_$name")))
+            push!(queries, Expr(:(=), fcall, item))
+            saves[name] = fcall
+            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), fcall))
         else
             error("expecting name=funsql or name=[concept...] assignments")
         end
     end
-    return Expr(:block, Expr(:tuple, Expr(:parameters, parts...)))
+    return Expr(:block, queries..., Expr(:tuple, Expr(:parameters, parts...)))
 end
 
 function build_or(items)
