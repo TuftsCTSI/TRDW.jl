@@ -37,6 +37,7 @@ include("clarity.jl")
 include("template.jl")
 include("profile.jl")
 include("ohdsi.jl")
+include("xlsx.jl")
 
 include("care_site.jl")
 include("concept.jl")
