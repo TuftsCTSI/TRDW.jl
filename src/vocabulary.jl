@@ -12,6 +12,9 @@ mutable struct Vocabulary <: AbstractCategory
     dataframe::Union{DataFrame, Nothing}
 end
 
+Base.isless(lhs::Vocabulary, rhs::Vocabulary) =
+    isless(lhs.vocabulary_id, rhs.vocabulary_id)
+
 const g_vocabularies = Dict{String, Vocabulary}()
 const g_vocab_conn = Ref{FunSQL.SQLConnection}()
 
@@ -65,6 +68,10 @@ struct Concept
     is_standard::Bool
 end
 
+Base.isless(lhs::Concept, rhs::Concept) =
+    lhs.vocabulary != rhs.vocabulary ? isless(lhs.vocabulary, rhs.vocabulary) :
+    isless(lowercase(lhs.concept_name), lowercase(rhs.concept_name))
+
 const ConceptSet = Vector{Concept}
 const NamedConceptSets = NamedTuple{T, <:NTuple{N, ConceptSet}} where {N, T}
 const ConceptMatchExpr = Union{Concept, ConceptSet, NamedConceptSets}
@@ -116,6 +123,7 @@ function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSe
     """)
     for k in keys(ncs)
         vc = getfield(ncs, k)
+        sort!(vc)
         for n in 1:length(vc)
             c = vc[n]
             show(io, m,
@@ -174,7 +182,6 @@ function is_concept_name_match(concept_name::AbstractString, match_name::String)
 end
 
 function lookup_vsac_code(vocabulary::Vocabulary, concept_code)
-    println(concept_code)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
     concept_code = normalize_name(string(concept_code))
@@ -556,7 +563,7 @@ function concept_matches(match...; match_on=[], span=true)
         end
     else
         if isnothing(match_on) || length(match_on) == 0
-            match_on = [:concept_id]
+            match_on = Any[@funsql(concept_id)]
             if any([contains(c.vocabulary.vocabulary_id, "ICD") for c in match])
                 push!(match_on, @funsql(ext.icd_concept_id))
             end
