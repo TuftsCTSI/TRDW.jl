@@ -396,12 +396,14 @@ export funsql_Route
 funsql_Specialty(items...) = Specialty(items...)
 export funsql_Specialty
 
-@funsql category_isa(type, args::Union{Tuple, AbstractVector}, concept_id = :concept_id) =
-    in($concept_id, begin
+function funsql_category_isa(type, cs::Union{Tuple, AbstractVector}, concept_id = :concept_id)
+    cs = [c.concept_id for c in TRDW.lookup_by_name(type, cs)]
+    @funsql in($concept_id, begin
         from(concept_ancestor)
-        filter(in(ancestor_concept_id, $(lookup_by_name(type, args)...)))
+        filter(in(ancestor_concept_id, $cs...))
         select(descendant_concept_id)
     end)
+end
 
 function print_concepts(df::DataFrame, prefix="        ")
     first = true
