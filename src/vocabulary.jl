@@ -481,7 +481,8 @@ macro concepts(expr::Expr)
     for ex in exs
         if ex isa Symbol
             push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
-        elseif @dissect(ex, Expr(:(=), name::Symbol, query))
+        elseif @dissect(ex, Expr(:(=), name::Symbol, query)) ||
+               @dissect(ex, Expr(:(=), Expr(:call, name::Symbol), Expr(:block, _, query)))
             if query isa Expr && query.head == :call && query.args[1] == :valueset
                 item = valueset(query.args[2])
             else
