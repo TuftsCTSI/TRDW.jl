@@ -10,7 +10,6 @@ mutable struct Vocabulary <: AbstractCategory
     vocabulary_id::String
     constructor::String
     dataframe::Union{DataFrame, Nothing}
-    match_strategy::Function
 end
 
 const g_vocabularies = Dict{String, Vocabulary}()
@@ -32,7 +31,7 @@ function funsql_span(cs...; join=true, icdgem=true)
     qs = FunSQL.SQLNode[]
     join = join ? @funsql(as(base).join(concept(), concept_id == base.concept_id)) : @funsql(define())
     for (v, cs) in pairs(buckets)
-        if v.vocabulary_id in ("ICD9CM", "ICD10CM")
+        if v.vocabulary_id in ("ICD9CM", "ICD10CM", "ICD9Proc", "ICD10PCS", "ICD03")
             cs = ["$(c.concept_code)%" for c in cs]
             tests = build_or([@funsql(like(concept_code, $m)) for m in cs])
             push!(qs, @funsql begin
@@ -128,14 +127,13 @@ function match_isa_relatives(concepts, concept_id)
     end
 end
 
-function Vocabulary(vocabulary_id; constructor=nothing, match_strategy=nothing)
+function Vocabulary(vocabulary_id; constructor=nothing)
     if haskey(g_vocabularies, vocabulary_id)
         return g_vocabularies[vocabulary_id]
     end
     constructor = something(constructor, "Vocabulary($(repr(vocabulary_id)))")
     return g_vocabularies[vocabulary_id] =
-        Vocabulary(vocabulary_id, constructor, nothing,
-                   something(match_strategy, match_descendants))
+        Vocabulary(vocabulary_id, constructor, nothing)
 end
 
 function Base.show(io::IO, v::Vocabulary)
@@ -386,13 +384,12 @@ function lookup_by_name(category::AbstractCategory, keys::AbstractVector)
     return retval
 end
 
-macro make_vocabulary(name, match_strategy=nothing)
+macro make_vocabulary(name)
     lname = replace(name, " " => "_")
     funfn = Symbol("funsql_$lname")
     label = Symbol(lname)
     quote
-        $(esc(label)) = Vocabulary($name; constructor=$lname,
-                                   match_strategy=$match_strategy)
+        $(esc(label)) = Vocabulary($name; constructor=$lname)
         $(esc(funfn))(concept_code, match_name=nothing) =
             lookup_by_code($label, concept_code, match_name)
         export $(esc(funfn))
@@ -407,9 +404,9 @@ end
 @make_vocabulary("HES Specialty")
 @make_vocabulary("HemOnc")
 @make_vocabulary("ICD03")
-@make_vocabulary("ICD10CM", match_icdcm)
+@make_vocabulary("ICD10CM")
 @make_vocabulary("ICD10PCS")
-@make_vocabulary("ICD9CM", match_icdcm)
+@make_vocabulary("ICD9CM")
 @make_vocabulary("ICD9Proc")
 @make_vocabulary("LOINC")
 @make_vocabulary("Medicare Specialty")
@@ -611,7 +608,7 @@ end
 function concept_matches(match...; match_on=nothing)
     match = unnest_concept_set(match)
     if isnothing(match_on)
-        concept_id = nothing
+        concept_id = :concept_id
     elseif match_on isa FunSQL.SQLNode
         concept_id = match_on
     else
@@ -622,18 +619,11 @@ function concept_matches(match...; match_on=nothing)
             concept_id = Symbol("$(match_on)_concept_id")
         end
     end
-    buckets = Dict()
-    non_standard = Dict()
-    for c in match
-        key = getfield(c.vocabulary, :match_strategy)
-        bucket = haskey(buckets, key) ? buckets[key] : (buckets[key] = Concept[])
-        push!(bucket, c)
+    q = @funsql(in($concept_id, $(funsql_span(match)).select(concept_id)))
+    if any([contains(c.vocabulary.vocabulary_id, "ICD") for c in match])
+        q = @funsql(or($q, in(ext.icd_concept_id, $(funsql_span(match)).select(concept_id))))
     end
-    tests = FunSQL.SQLNode[]
-    for (strategy, ids) in buckets
-        push!(tests, strategy(ids, concept_id))
-    end
-    return build_or(tests)
+    q
 end
 
 concept_matches(name::Symbol, match...) =
