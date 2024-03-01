@@ -24,6 +24,46 @@ function vocab_connection()
     return g_vocab_conn[]
 end
 
+function funsql_span(cs...; join=true, icdgem=true)
+    buckets = Dict{Vocabulary, Vector{Concept}}()
+    for c in unnest_concept_set(cs)
+        push!(get!(buckets, c.vocabulary, Concept[]), c)
+    end
+    qs = FunSQL.SQLNode[]
+    join = join ? @funsql(as(base).join(concept(), concept_id == base.concept_id)) : @funsql(define())
+    for (v, cs) in pairs(buckets)
+        if v.vocabulary_id in ("ICD9CM", "ICD10CM")
+            cs = ["$(c.concept_code)%" for c in cs]
+            tests = build_or([@funsql(like(concept_code, $m)) for m in cs])
+            push!(qs, @funsql begin
+                concept()
+                filter(vocabulary_id == $(v.vocabulary_id))
+                filter($tests)
+            end)
+            if v.vocabulary_id == "ICD10CM" && icdgem
+                push!(qs, @funsql begin
+                    $(qs[end])
+                    join(cr => begin
+                        from(concept_relationship)
+                        filter(relationship_id == "ICD9CM - ICD10CM gem")
+                    end, cr.concept_id_2 == concept_id)
+                    select(concept_id => cr.concept_id_1)
+                    $join
+                end)
+            end
+        else
+            cs = [c.concept_id for c in cs]
+            push!(qs, @funsql begin
+                from(concept_ancestor)
+                filter(in(ancestor_concept_id, $cs...))
+                select(concept_id => descendant_concept_id)
+                $join
+            end)
+        end
+    end
+    return @funsql(append($qs...))
+end
+
 function match_icdcm(concepts, concept_id)
     concept_id = something(concept_id, @funsql(omop.condition_source_concept_id))
     concepts = ["$(c.concept_code)%" for c in concepts]

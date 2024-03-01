@@ -1,6 +1,6 @@
 @funsql begin
 
-concept(;match=nothing) = begin
+concept() = begin
     from(concept)
     as(omop)
     define(
@@ -12,11 +12,9 @@ concept(;match=nothing) = begin
         omop.standard_concept,
         omop.concept_code,
         omop.invalid_reason)
-    $(isnothing(match) ? @funsql(define()) : @funsql(filter(concept_matches($match))))
 end
 
-concept(ids...) =
-    concept().filter(in(concept_id, $ids...))
+concept(q) = concept().filter(in(concept_id, $q.select(concept_id)))
 
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 
