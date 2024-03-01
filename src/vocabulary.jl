@@ -517,6 +517,13 @@ function funsql_span(cs...; join=true, icdgem=true)
     qs = FunSQL.SQLNode[]
     join = join ? @funsql(as(base).join(concept(), concept_id == base.concept_id)) : @funsql(define())
     for (v, cs) in pairs(buckets)
+        ids = [c.concept_id for c in cs]
+        push!(qs, @funsql begin
+            from(concept_ancestor)
+            filter(in(ancestor_concept_id, $ids...))
+            select(concept_id => descendant_concept_id)
+            $join
+        end)
         if v.vocabulary_id in ("ICD9CM", "ICD10CM", "ICD9Proc", "ICD10PCS", "ICD03")
             cs = ["$(c.concept_code)%" for c in cs]
             tests = build_or([@funsql(like(concept_code, $m)) for m in cs])
@@ -537,19 +544,11 @@ function funsql_span(cs...; join=true, icdgem=true)
                     $join
                 end)
             end
-        else
-            cs = [c.concept_id for c in cs]
-            push!(qs, @funsql begin
-                from(concept_ancestor)
-                filter(in(ancestor_concept_id, $cs...))
-                select(concept_id => descendant_concept_id)
-                $join
-            end)
         end
     end
     length(qs) == 0 ? @funsql(concept().filter(false)) :
     length(qs) == 1 ? qs[1] :
-    @funsql(append($qs...))
+    @funsql(append($qs...).deduplicate(concept_id))
 end
 
 function concept_matches(match...; match_on=[], span=true)
