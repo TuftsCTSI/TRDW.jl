@@ -464,7 +464,7 @@ end
 function concepts_cset_lookup(cset, args)
     ret = Concept[]
     if length(args) == 0
-        args = keys(cset)
+        return cset
     end
     for n in args
         if n isa FunSQL.SQLNode && getfield(n, :core) isa FunSQL.VariableNode
