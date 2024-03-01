@@ -461,11 +461,29 @@ function concepts_unpack!(expr, saves)
     return :(build_concepts(run($conn, @funsql $expr)))
 end
 
+function concepts_cset_lookup(cset, args)
+    ret = Concept[]
+    if length(args) == 0
+        args = keys(cset)
+    end
+    for n in args
+        if n isa FunSQL.SQLNode && getfield(n, :core) isa FunSQL.VariableNode
+            n = getfield(n, :core).name
+        end
+        append!(ret, cset[n])
+    end
+    return ret
+end
+
 macro concepts(expr::Expr)
-    exs = []
+    if !@dissect(expr, Expr(:(=), Expr(:call, cset_name::Symbol), body))
+        body = expr
+        cset_name = nothing
+    end
     saves = Dict{Symbol, Any}()
-    if expr.head == :block
-        for ex in expr.args
+    exs = []
+    if body.head == :block
+        for ex in body.args
             if ex isa Expr || ex isa Symbol
                 push!(exs, ex)
             elseif ex isa LineNumberNode
@@ -474,32 +492,37 @@ macro concepts(expr::Expr)
                 error("unexpected item in @concepts ", ex)
             end
         end
-    elseif expr.head == :vect
-        return concepts_unpack!(expr, saves)
+    elseif body.head == :vect
+        return concepts_unpack!(body, saves)
     else
-        exs = [expr]
+        exs = [body]
     end
     parts = Expr[]
-    queries = Expr[]
     for ex in exs
         if ex isa Symbol
             push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
-        elseif @dissect(ex, Expr(:(=), name::Symbol, query)) ||
-               @dissect(ex, Expr(:(=), Expr(:call, name::Symbol), Expr(:block, _, query)))
+        elseif @dissect(ex, Expr(:(=), name::Symbol, query))
             if query isa Expr && query.head == :call && query.args[1] == :valueset
                 item = valueset(query.args[2])
             else
                 item = concepts_unpack!(query, saves)
             end
-            fcall = Expr(:call, Expr(:escape, Symbol("funsql_$name")))
-            push!(queries, Expr(:(=), fcall, item))
-            saves[name] = fcall
-            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), fcall))
+            saves[name] = item
+            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), item))
         else
             error("expecting name=funsql or name=[concept...] assignments")
         end
     end
-    return Expr(:block, queries..., Expr(:tuple, Expr(:parameters, parts...)))
+    value = Expr(:tuple, Expr(:parameters, parts...))
+    if isnothing(cset_name)
+        return value
+    end
+    fname = Expr(:escape, Symbol("funsql_$cset_name"))
+    return quote
+        cset = $value
+        $fname(args...) = concepts_cset_lookup(cset, args)
+        cset
+    end
 end
 
 function build_or(items)
