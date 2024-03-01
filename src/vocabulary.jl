@@ -115,11 +115,12 @@ DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::Vector{Concept}) where {T
 @nospecialize
 function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSets
     print(io, """
-        <table><tr><th><i>variable</i></th>
-                   <th>concept_id</th>
-                   <th>vocabulary_id</th>
-                   <th>concept_code</th>
-                   <th>concept_name</th></tr>
+    <div style="overflow:scroll;max-height:500px;">
+    <table><tr><th><i>variable</i></th>
+    <th>concept_id</th>
+    <th>vocabulary_id</th>
+    <th>concept_code</th>
+    <th>concept_name</th></tr>
     """)
     for k in keys(ncs)
         vc = getfield(ncs, k)
@@ -143,7 +144,7 @@ function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSe
                 """))
         end
     end
-    print(io, "</table>")
+    print(io, "</table></div>")
 end
 
 function Base.show(io::IO, c::Concept)
