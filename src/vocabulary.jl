@@ -23,110 +23,6 @@ function vocab_connection()
     return g_vocab_conn[]
 end
 
-function funsql_span(cs...; join=true, icdgem=true)
-    buckets = Dict{Vocabulary, Vector{Concept}}()
-    for c in unnest_concept_set(cs)
-        push!(get!(buckets, c.vocabulary, Concept[]), c)
-    end
-    qs = FunSQL.SQLNode[]
-    join = join ? @funsql(as(base).join(concept(), concept_id == base.concept_id)) : @funsql(define())
-    for (v, cs) in pairs(buckets)
-        if v.vocabulary_id in ("ICD9CM", "ICD10CM", "ICD9Proc", "ICD10PCS", "ICD03")
-            cs = ["$(c.concept_code)%" for c in cs]
-            tests = build_or([@funsql(like(concept_code, $m)) for m in cs])
-            push!(qs, @funsql begin
-                concept()
-                filter(vocabulary_id == $(v.vocabulary_id))
-                filter($tests)
-            end)
-            if v.vocabulary_id == "ICD10CM" && icdgem
-                push!(qs, @funsql begin
-                    $(qs[end])
-                    join(cr => begin
-                        from(concept_relationship)
-                        filter(relationship_id == "ICD9CM - ICD10CM gem")
-                    end, cr.concept_id_2 == concept_id)
-                    select(concept_id => cr.concept_id_1)
-                    $join
-                end)
-            end
-        else
-            cs = [c.concept_id for c in cs]
-            push!(qs, @funsql begin
-                from(concept_ancestor)
-                filter(in(ancestor_concept_id, $cs...))
-                select(concept_id => descendant_concept_id)
-                $join
-            end)
-        end
-    end
-    return @funsql(append($qs...))
-end
-
-function match_icdcm(concepts, concept_id)
-    concept_id = something(concept_id, @funsql(omop.condition_source_concept_id))
-    concepts = ["$(c.concept_code)%" for c in concepts]
-    tests = build_or([@funsql(like(concept_code, $m)) for m in concepts])
-    @funsql begin
-        coalesce($concept_id in begin
-            append(begin
-                from(concept)
-                filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
-                filter($tests)
-                select(concept_id)
-            end, begin
-                from(concept)
-                filter(in(vocabulary_id, "ICD10CM"))
-                filter($tests)
-                as(icd10)
-                join(begin
-                    from(concept_relationship)
-                    filter(relationship_id == "ICD9CM - ICD10CM gem")
-                end, concept_id_2 == icd10.concept_id)
-                select(concept_id => concept_id_1)
-            end).select(concept_id)
-        end, false)
-    end
-end
-
-function match_descendants(concepts, concept_id)
-    concept_id = something(concept_id, :concept_id)
-    @funsql begin
-        exists(begin
-            from(concept_ancestor)
-            filter(descendant_concept_id == :concept_id &&
-                   in(ancestor_concept_id, $concepts...))
-            bind(:concept_id => $concept_id)
-        end)
-    end
-end
-
-function match_children(concepts, concept_id)
-    concept_id = something(concept_id, :concept_id)
-    @funsql begin
-        exists(begin
-            concept($concepts...)
-            concept_children(0:5)
-            filter(concept_id == :concept_id)
-            bind(:concept_id => $concept_id)
-        end)
-    end
-end
-
-function match_isa_relatives(concepts, concept_id)
-    concept_id = something(concept_id, :concept_id)
-    @funsql begin
-        in($concept_id, $concepts...) ||
-        exists(begin
-            from(concept_relationship)
-            filter(relationship_id == "Is a" &&
-                   concept_id_1 == :concept_id &&
-                   in(concept_id_2, $concepts...))
-            bind(:concept_id => $concept_id)
-        end)
-    end
-end
-
 function Vocabulary(vocabulary_id; constructor=nothing)
     if haskey(g_vocabularies, vocabulary_id)
         return g_vocabularies[vocabulary_id]
@@ -605,25 +501,71 @@ function build_or(items)
     return @funsql(or($items...))
 end
 
-function concept_matches(match...; match_on=nothing)
-    match = unnest_concept_set(match)
-    if isnothing(match_on)
-        concept_id = :concept_id
-    elseif match_on isa FunSQL.SQLNode
-        concept_id = match_on
-    else
-        @assert typeof(match_on) isa Symbol
-        if contains(string(match_on), "concept_id")
-            concept_id = Symbol(match_on)
+function funsql_span(cs...; join=true, icdgem=true)
+    buckets = Dict{Vocabulary, Vector{Concept}}()
+    for c in unnest_concept_set(cs)
+        push!(get!(buckets, c.vocabulary, Concept[]), c)
+    end
+    qs = FunSQL.SQLNode[]
+    join = join ? @funsql(as(base).join(concept(), concept_id == base.concept_id)) : @funsql(define())
+    for (v, cs) in pairs(buckets)
+        if v.vocabulary_id in ("ICD9CM", "ICD10CM", "ICD9Proc", "ICD10PCS", "ICD03")
+            cs = ["$(c.concept_code)%" for c in cs]
+            tests = build_or([@funsql(like(concept_code, $m)) for m in cs])
+            push!(qs, @funsql begin
+                concept()
+                filter(vocabulary_id == $(v.vocabulary_id))
+                filter($tests)
+            end)
+            # TODO: ICD9Proc - ICD10PCS gem
+            if v.vocabulary_id == "ICD10CM" && icdgem
+                push!(qs, @funsql begin
+                    $(qs[end])
+                    join(cr => begin
+                        from(concept_relationship)
+                        filter(relationship_id == "ICD9CM - ICD10CM gem")
+                    end, cr.concept_id_2 == concept_id)
+                    select(concept_id => cr.concept_id_1)
+                    $join
+                end)
+            end
         else
-            concept_id = Symbol("$(match_on)_concept_id")
+            cs = [c.concept_id for c in cs]
+            push!(qs, @funsql begin
+                from(concept_ancestor)
+                filter(in(ancestor_concept_id, $cs...))
+                select(concept_id => descendant_concept_id)
+                $join
+            end)
         end
     end
-    q = @funsql(in($concept_id, $(funsql_span(match)).select(concept_id)))
-    if any([contains(c.vocabulary.vocabulary_id, "ICD") for c in match])
-        q = @funsql(or($q, in(ext.icd_concept_id, $(funsql_span(match)).select(concept_id))))
+    length(qs) == 0 ? @funsql(concept().filter(false)) :
+    length(qs) == 1 ? qs[1] :
+    @funsql(append($qs...))
+end
+
+function concept_matches(match...; match_on=[], span=true)
+    match = unnest_concept_set(match)
+    if match_on isa FunSQL.SQLNode
+        match_on = [match_on]
+    elseif match_on isa Symbol
+        if contains(string(match_on), "concept_id")
+            match_on = [match_on]
+        else
+            match_on = [Symbol("$(match_on)_concept_id")]
+        end
+    else
+        if isnothing(match_on) || length(match_on) == 0
+            match_on = [:concept_id]
+            if any([contains(c.vocabulary.vocabulary_id, "ICD") for c in match])
+                push!(match_on, @funsql(ext.icd_concept_id))
+            end
+        end
+        @assert match_on isa Vector
     end
-    q
+    match = span ? funsql_span(match) : match
+    parts = [ @funsql(in($col, $match.select(concept_id))) for col in match_on]
+    build_or(parts)
 end
 
 concept_matches(name::Symbol, match...) =
