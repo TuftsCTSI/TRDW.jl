@@ -75,16 +75,19 @@ Base.isless(lhs::Concept, rhs::Concept) =
     lhs.vocabulary != rhs.vocabulary ? isless(lhs.vocabulary, rhs.vocabulary) :
     isless(lowercase(lhs.concept_name), lowercase(rhs.concept_name))
 
-Tables.istable(vc::ConceptSet) = true
-Tables.rowaccess(vc::ConceptSet) = true
-Tables.istable(c::Concept) = true
-Tables.rowaccess(c::Concept) = true
+Base.getproperty(c::Concept, name::Symbol) =
+    name == :vocabulary_id ? c.vocabulary.vocabulary_id : getfield(c, name)
+
+Tables.istable(::Type{ConceptSet}) = true
+Tables.rowaccess(::Type{ConceptSet}) = true
+Tables.istable(::Type{Concept}) = true
+Tables.rowaccess(::Type{Concept}) = true
 Tables.rows(c::Concept) = [c]
-Tables.columnnames(::ConceptSet) = (:concept_id, :vocabulary_id, :concept_code, :concept_name)
-Tables.columnnames(::Concept) = (:concept_id, :vocabulary_id, :concept_code, :concept_name)
+Tables.columnnames(::Concept) =
+    (:concept_id, :vocabulary_id, :concept_code, :concept_name)
+Tables.columnnames(::ConceptSet) =
+    (:concept_id, :vocabulary_id, :concept_code, :concept_name)
 Tables.getcolumn(c::Concept, i::Int) = Tables.getcolumn(c, columnnames(c)[i])
-Tables.getcolumn(c::Concept, n::Symbol) =
-    n == :vocabulary_id ? c.vocabulary.vocabulary_id : getproperty(c, n)
 
 DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::Concept) where {T} =
     DBInterface.execute(conn, [c])
@@ -114,18 +117,19 @@ Base.isless(lhs::ConceptExpr, rhs::ConceptExpr) = isless(lhs.concept, rhs.concep
 Base.isless(lhs::Concept, rhs::ConceptExpr) = isless(lhs, rhs.concept)
 Base.isless(lhs::ConceptExpr, rhs::Concept) = isless(lhs, rhs.concept)
 
-Tables.istable(vc::ConceptSetExpr) = true
-Tables.rowaccess(vc::ConceptSetExpr) = true
-Tables.istable(c::ConceptExpr) = true
-Tables.rowaccess(c::ConceptExpr) = true
+Base.getproperty(c::ConceptExpr, name::Symbol) =
+    in(name, (:concept_id, :vocabulary_id, :concept_code, :concept_name)) ?
+        getproperty(c.concept, name) : getfield(c, name)
+
+Tables.istable(::Type{ConceptSetExpr}) = true
+Tables.rowaccess(::Type{ConceptSetExpr}) = true
+Tables.istable(::Type{ConceptExpr}) = true
+Tables.rowaccess(::Type{ConceptExpr}) = true
 Tables.rows(c::ConceptExpr) = [c]
 Tables.columnnames(::ConceptExpr) =
     (:concept_id, :vocabulary_id, :concept_code, :concept_name, :exclude, :descend, :mapped)
 Tables.columnnames(::Vector{ConceptExpr}) =
     (:concept_id, :vocabulary_id, :concept_code, :concept_name, :exclude, :descend, :mapped)
-Tables.getcolumn(c::ConceptExpr, n::Symbol) =
-    in(n, (:exclude, :descend, :mapped)) ? getproperty(c, n) :
-    Tables.getcolumn(c.concept, n)
 
 DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::ConceptExpr) where {T} =
     DBInterface.execute(conn, [c])
@@ -146,20 +150,26 @@ mapped(e::ConceptExpr) = ConceptExpr(e.concept; exclude=e.exclude, descend=e.des
 exclude(cs::Vector) = [exclude(c) for c in cs]
 descend(cs::Vector) = [descend(c) for c in cs]
 mapped(cs::Vector) = [mapped(c) for c in cs]
+exclude(cs...) = exclude(collect(cs))
+descend(cs...) = descend(collect(cs))
+mapped(cs...) = mapped(collect(cs))
 
 Base.convert(::Type{ConceptExpr}, c::Concept) = ConceptExpr(c)
 Base.convert(::Type{ConceptSetExpr}, cs::ConceptSet) =  [ConceptExpr(c) for c in cs]
 
 function Base.show(io::IO, ce::ConceptExpr)
+    ce.exclude ? print(io, "exclude(") : nothing
+    ce.descend ? print(io, "descend(") : nothing
+    ce.mapped ? print(io, "mapped(") : nothing
     print(io, getfield(ce.concept.vocabulary, :constructor))
     print(io, "(")
     show(io, ce.concept.concept_code isa Integer ?
          ce.cconcept.concept_code : String(ce.concept.concept_code))
     print(io, ", ")
     show(io, String(ce.concept.concept_name))
-    ce.exclude ? print(io, ", exclude=true") : nothing
-    ce.descend ? print(io, ", descend=true") : nothing
-    ce.mapped ? print(io, ", mapped=true") : nothing
+    ce.exclude ? print(io, ")") : nothing
+    ce.descend ? print(io, ")") : nothing
+    ce.mapped ? print(io, ")") : nothing
     print(io, ")")
 end
 
@@ -260,7 +270,7 @@ function lookup_vsac_code(vocabulary::Vocabulary, concept_code)
             !ismissing(result[1, :standard_concept]))
 end
 
-function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing)
+function (vocabulary::Vocabulary)(concept_code, match_name = nothing)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
     if concept_code == nothing
@@ -291,9 +301,6 @@ function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing
     end
     throw(ArgumentError("'$concept_code' failed name check in vocabulary $vocabulary_id"))
 end
-
-(vocabulary::Vocabulary)(concept_code, match_name = nothing) =
-    lookup_by_code(vocabulary, concept_code, match_name)
 
 function find_by_name(vocabulary::Vocabulary, match_name::String;
             having::Union{Function, Nothing} = nothing)::Union{Concept, Nothing}
@@ -355,9 +362,7 @@ macro make_vocabulary(name)
     funfn = Symbol("funsql_$lname")
     label = Symbol(lname)
     quote
-        $(esc(label)) = Vocabulary($name; constructor=$lname)
-        $(esc(funfn))(concept_code, match_name=nothing) =
-            lookup_by_code($label, concept_code, match_name)
+        $(esc(funfn)) = $(esc(label)) = Vocabulary($name; constructor=$lname)
         export $(esc(funfn))
     end
 end
