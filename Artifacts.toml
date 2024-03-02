@@ -1,3 +1,10 @@
+[csv2xlsx]
+git-tree-sha1 = "a21aa47d63275649c2001c9855a8e06e15663887"
+
+    [[csv2xlsx.download]]
+    url = "https://github.com/TuftsCTSI/csv2xlsx/releases/download/v1.1/csv2xlsx.jar.tgz"
+    sha256 = "914ea96b79957e25ed491c157d9d849eefe54395ef03f3398103465e5095fdef"
+
 [CirceR]
 git-tree-sha1 = "85addbe09fadb35c746fc1e05669da35a1613165"
 
