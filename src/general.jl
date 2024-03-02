@@ -1013,15 +1013,6 @@ function write_and_display(expr::Expr, db, case, show)
     :(TRDW.write_cleanup($sname))
 end
 
-function write_xlsx(data, filename, password)
-    @assert endswith(filename, ".xlsx")
-    password = strip(password)
-    p = open(`java -jar /opt/java/csv2xlsx.jar --password $password --file $filename`, "w")
-    CSV.write(p, data)
-    flush(p)
-    close(p)
-end
-
 function get_password(case)
     password = strip(get(ENV, "PASSWORD", ""))
     paths = ["/run", "notebooks", "cache"]
@@ -1043,11 +1034,20 @@ function get_password(case)
     return password
 end
 
+""" write_and_encrypt(df, name, pass)
+
+For this to work, include this boilerplate in your notebook:
+```
+    using JavaCall
+    JavaCall.isloaded() ? nothing : JavaCall.init()
+    JavaCall.assertroottask_or_goodenv()
+```
+"""
 function write_and_encrypt(dataframe::DataFrame, basename, password)
     @assert length(password) > 0
     n_rows = size(dataframe)[1]
     filename = "$basename.xlsx"
-    write_xlsx(dataframe, filename, password)
+    TRDW.XLSX.write(filename, dataframe; password=password)
     @htl("""
         <hr />
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
