@@ -60,6 +60,7 @@ function vocabulary_data!(vocabulary)
     return vocabulary_data
 end
 
+#--------------------------------------------------------------------------
 struct Concept
     vocabulary::Vocabulary
     concept_id::Int64
@@ -68,11 +69,102 @@ struct Concept
     is_standard::Bool
 end
 
+const ConceptSet = Vector{Concept}
+
 Base.isless(lhs::Concept, rhs::Concept) =
     lhs.vocabulary != rhs.vocabulary ? isless(lhs.vocabulary, rhs.vocabulary) :
     isless(lowercase(lhs.concept_name), lowercase(rhs.concept_name))
 
-const ConceptSet = Vector{Concept}
+Tables.istable(vc::ConceptSet) = true
+Tables.rowaccess(vc::ConceptSet) = true
+Tables.istable(c::Concept) = true
+Tables.rowaccess(c::Concept) = true
+Tables.rows(c::Concept) = [c]
+Tables.columnnames(::ConceptSet) = (:concept_id, :vocabulary_id, :concept_code, :concept_name)
+Tables.columnnames(::Concept) = (:concept_id, :vocabulary_id, :concept_code, :concept_name)
+Tables.getcolumn(c::Concept, i::Int) = Tables.getcolumn(c, columnnames(c)[i])
+Tables.getcolumn(c::Concept, n::Symbol) =
+    n == :vocabulary_id ? c.vocabulary.vocabulary_id : getproperty(c, n)
+
+DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::Concept) where {T} =
+    DBInterface.execute(conn, [c])
+DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::ConceptSet) where {T} =
+    DBInterface.execute(conn, @funsql(from($vc)))
+
+function Base.show(io::IO, c::Concept)
+    print(io, getfield(c.vocabulary, :constructor))
+    print(io, "(")
+    show(io, c.concept_code isa Integer ? c.concept_code : String(c.concept_code))
+    print(io, ",")
+    show(io, String(c.concept_name))
+    print(io, ")")
+end
+
+#--------------------------------------------------------------------------
+struct ConceptExpr
+    concept::Concept
+    exclude::Bool
+    descend::Bool
+    mapped::Bool
+end
+
+const ConceptSetExpr = Vector{ConceptExpr}
+
+Base.isless(lhs::ConceptExpr, rhs::ConceptExpr) = isless(lhs.concept, rhs.concept)
+Base.isless(lhs::Concept, rhs::ConceptExpr) = isless(lhs, rhs.concept)
+Base.isless(lhs::ConceptExpr, rhs::Concept) = isless(lhs, rhs.concept)
+
+Tables.istable(vc::ConceptSetExpr) = true
+Tables.rowaccess(vc::ConceptSetExpr) = true
+Tables.istable(c::ConceptExpr) = true
+Tables.rowaccess(c::ConceptExpr) = true
+Tables.rows(c::ConceptExpr) = [c]
+Tables.columnnames(::ConceptExpr) =
+    (:concept_id, :vocabulary_id, :concept_code, :concept_name, :exclude, :descend, :mapped)
+Tables.columnnames(::Vector{ConceptExpr}) =
+    (:concept_id, :vocabulary_id, :concept_code, :concept_name, :exclude, :descend, :mapped)
+Tables.getcolumn(c::ConceptExpr, n::Symbol) =
+    in(n, (:exclude, :descend, :mapped)) ? getproperty(c, n) :
+    Tables.getcolumn(c.concept, n)
+
+DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::ConceptExpr) where {T} =
+    DBInterface.execute(conn, [c])
+DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::ConceptSetExpr) where {T} =
+    DBInterface.execute(conn, @funsql(from($vc)))
+
+Concept(c::ConceptExpr) = c.concept
+ConceptExpr(c::ConceptExpr) = c
+ConceptExpr(c::Concept; exclude=false, descend=false, mapped=false) =
+    ConceptExpr(c, exclude, descend, mapped)
+
+exclude(c::Concept) = ConceptExpr(c; exclude=true)
+descend(c::Concept) = ConceptExpr(c; descend=true)
+mapped(c::Concept) = ConceptExpr(c; mapped=true)
+exclude(e::ConceptExpr) = ConceptExpr(e.concept; exclude=true, descend=e.descend, e.mapped )
+descend(e::ConceptExpr) = ConceptExpr(e.concept; exclude=e.exclude, descend=true, e.mapped )
+mapped(e::ConceptExpr) = ConceptExpr(e.concept; exclude=e.exclude, descend=e.descend, mapped=true)
+exclude(cs::Vector) = [exclude(c) for c in cs]
+descend(cs::Vector) = [descend(c) for c in cs]
+mapped(cs::Vector) = [mapped(c) for c in cs]
+
+Base.convert(::Type{ConceptExpr}, c::Concept) = ConceptExpr(c)
+Base.convert(::Type{ConceptSetExpr}, cs::ConceptSet) =  [ConceptExpr(c) for c in cs]
+
+function Base.show(io::IO, ce::ConceptExpr)
+    print(io, getfield(ce.concept.vocabulary, :constructor))
+    print(io, "(")
+    show(io, ce.concept.concept_code isa Integer ?
+         ce.cconcept.concept_code : String(ce.concept.concept_code))
+    print(io, ", ")
+    show(io, String(ce.concept.concept_name))
+    ce.exclude ? print(io, ", exclude=true") : nothing
+    ce.descend ? print(io, ", descend=true") : nothing
+    ce.mapped ? print(io, ", mapped=true") : nothing
+    print(io, ")")
+end
+
+#--------------------------------------------------------------------------
+
 const NamedConceptSets = NamedTuple{T, <:NTuple{N, ConceptSet}} where {N, T}
 const ConceptMatchExpr = Union{Concept, ConceptSet, NamedConceptSets}
 
@@ -95,22 +187,6 @@ end
 
 Base.convert(::Type{FunSQL.SQLNode}, c::Concept) = @funsql(from($c))
 Base.convert(::Type{FunSQL.SQLNode}, vc::Vector{Concept}) = @funsql(from($vc))
-
-Tables.istable(vc::Vector{Concept}) = true
-Tables.rowaccess(vc::Vector{Concept}) = true
-Tables.istable(c::Concept) = true
-Tables.rowaccess(c::Concept) = true
-Tables.rows(c::Concept) = [c]
-Tables.columnnames(c::Concept) = (:concept_id, :vocabulary_id, :concept_code, :concept_name)
-Tables.getcolumn(c::Concept, i::Int) =
-    Tables.getcolumn(c, (:concept_id, :vocabulary_id, :concept_code, :concept_name)[i])
-Tables.getcolumn(c::Concept, n::Symbol) =
-    n == :vocabulary_id ? c.vocabulary.vocabulary_id : getproperty(c, n)
-
-DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::Concept) where {T} =
-    DBInterface.execute(conn, [c])
-DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::Vector{Concept}) where {T} =
-    DBInterface.execute(conn, @funsql(from($vc)))
 
 @nospecialize
 function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSets
@@ -145,20 +221,6 @@ function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSe
         end
     end
     print(io, "</table></div>")
-end
-
-function Base.show(io::IO, c::Concept)
-    print(io, getfield(c.vocabulary, :constructor))
-    print(io, "(")
-    show(io, c.concept_code isa Integer ? c.concept_code : String(c.concept_code))
-    print(io, ",")
-    show(io, String(c.concept_name))
-    print(io, ")")
-end
-
-function Base.repr(c::Concept)
-    vname = "Vocabulary($(repr(c.vocabulary.vocabulary_id)))"
-    return "$vname($(repr(c.concept_code)), $(repr(c.concept_name)))"
 end
 
 function is_concept_name_match(concept_name::AbstractString, match_name::String)
