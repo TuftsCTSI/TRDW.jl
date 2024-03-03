@@ -15,7 +15,7 @@ end
 Base.isless(lhs::Vocabulary, rhs::Vocabulary) =
     isless(lhs.vocabulary_id, rhs.vocabulary_id)
 
-const g_vocabularies = Dict{String, Vocabulary}()
+const g_vocabularies = Dict{Symbol, Vocabulary}()
 const g_vocab_conn = Ref{FunSQL.SQLConnection}()
 
 function vocab_connection()
@@ -27,12 +27,12 @@ function vocab_connection()
 end
 
 function Vocabulary(vocabulary_id; constructor=nothing)
-    if haskey(g_vocabularies, vocabulary_id)
-        return g_vocabularies[vocabulary_id]
+    key = Symbol(replace(string(vocabulary_id), " " => "_"))
+    if haskey(g_vocabularies, key)
+        return g_vocabularies[key]
     end
     constructor = something(constructor, "Vocabulary($(repr(vocabulary_id)))")
-    return g_vocabularies[vocabulary_id] =
-        Vocabulary(vocabulary_id, constructor, nothing)
+    return g_vocabularies[key] = Vocabulary(vocabulary_id, constructor, nothing)
 end
 
 function Base.show(io::IO, v::Vocabulary)
@@ -150,9 +150,13 @@ mapped(e::ConceptExpr) = ConceptExpr(e.concept; exclude=e.exclude, descend=e.des
 exclude(cs::Vector) = [exclude(c) for c in cs]
 descend(cs::Vector) = [descend(c) for c in cs]
 mapped(cs::Vector) = [mapped(c) for c in cs]
-exclude(cs...) = exclude(collect(cs))
-descend(cs...) = descend(collect(cs))
-mapped(cs...) = mapped(collect(cs))
+exclude(cs::Union{Concept, ConceptExpr}...) = exclude(collect(cs))
+descend(cs::Union{Concept, ConceptExpr}...) = descend(collect(cs))
+mapped(cs::Union{Concept, ConceptExpr}...) = mapped(collect(cs))
+
+funsql_exclude = exclude
+funsql_descend = descend
+funsql_mapped = mapped
 
 Base.convert(::Type{ConceptExpr}, c::Concept) = ConceptExpr(c)
 Base.convert(::Type{ConceptSetExpr}, cs::ConceptSet) =  [ConceptExpr(c) for c in cs]
@@ -197,6 +201,8 @@ end
 
 Base.convert(::Type{FunSQL.SQLNode}, c::Concept) = @funsql(from($c))
 Base.convert(::Type{FunSQL.SQLNode}, vc::Vector{Concept}) = @funsql(from($vc))
+
+# FunSQL.Append(c::ConceptSet, rest::ConceptSet...) = ConceptSet(...)
 
 @nospecialize
 function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSets
@@ -493,6 +499,20 @@ print_concepts(q::FunSQL.SQLNode, prefix="        ") =
 print_concepts(ids::Vector{<:Integer}, prefix="        ") =
     print_concepts(@funsql(concept($ids...)), prefix)
 
+function concepts_cset_lookup(cset, args)
+    ret = Concept[]
+    if length(args) == 0
+        return cset
+    end
+    for n in args
+        if n isa FunSQL.SQLNode && getfield(n, :core) isa FunSQL.VariableNode
+            n = getfield(n, :core).name
+        end
+        append!(ret, cset[n])
+    end
+    return ret
+end
+
 function build_concepts(df::DataFrame)
     retval = Concept[]
     sort!(df, [:vocabulary_id, :concept_code])
@@ -505,7 +525,7 @@ function build_concepts(df::DataFrame)
     return retval
 end
 
-function concepts_unpack!(expr, saves)
+function build_csets_unpack(db::FunSQL.SQLConnection, expr::Expr, saves)
     if @dissect(expr, Expr(:tuple, args...))
         expr.head = :vect
     end
@@ -524,22 +544,90 @@ function concepts_unpack!(expr, saves)
         end
         return expr
     end
-    conn = vocab_connection()
-    return :(build_concepts(run($conn, @funsql $expr)))
+    return :(build_concepts(run($db, @funsql $expr)))
 end
 
-function concepts_cset_lookup(cset, args)
-    ret = Concept[]
-    if length(args) == 0
-        return cset
-    end
-    for n in args
-        if n isa FunSQL.SQLNode && getfield(n, :core) isa FunSQL.VariableNode
-            n = getfield(n, :core).name
+function build_csets_value(ctx, db::FunSQL.SQLConnection, @nospecialize(expr), csets)
+    retval = ConceptExpr[] 
+    if @dissect(expr, Expr(:block, _, Expr(:call, fname::Symbol, args...))) ||
+       @dissect(expr, Expr(:call, fname::Symbol, args...))
+        if haskey(g_vocabularies, fname)
+            if length(args) == 1
+                push!(retval, ConceptExpr(g_vocabularies[fname](args[1])))
+            else
+                @assert length(args) == 2
+                push!(retval, ConceptExpr(g_vocabularies[fname](args[1], args[2])))
+            end
+        elseif fname in (:exclude, :descend, :mapped)
+            parts = ConceptExpr[] 
+            for arg in args
+                append!(parts, build_csets_value(ctx, db, arg, csets))
+            end
+            append!(retval, fname == :descend ? descend(parts) :
+                            fname == :exclude ? exclude(parts) :
+                            mapped(parts))
+        elseif haskey(csets, fname)
+            @assert length(args) == 0
+            append!(retval, csets[fname])
+        else
+            #q = Base.eval(ctx.mod, FunSQL.transliterate(expr, ctx))
+            #cset = build_concepts(run(db, q))
+            #println(cset)
+            println("passing on ", fname)
         end
-        append!(ret, cset[n])
+    elseif @dissect(expr, Expr(:block, _, Expr(:vect, args...))) ||
+           @dissect(expr, Expr(:vect, args...))
+        for arg in args
+            append!(retval, build_csets_value(ctx, db, arg, csets))
+        end
+    else
+        error("expecting array of concept expressions")
     end
-    return ret
+    return retval
+end
+
+function build_csets(mod::Module, db::FunSQL.SQLConnection, @nospecialize(expr))
+    if !@dissect(expr, Expr(:(=), Expr(:call, cset_name::Symbol), Expr(:block, src, args...)))
+        error("expecting `names() = begin ... end`")
+    end
+    ctx = FunSQL.TransliterateContext(mod, src)
+    csets = Dict{Symbol, Vector{ConceptExpr}}()
+    for expr in args
+        if expr isa LineNumberNode
+            ctx = FunSQL.TransliterateContext(mod, expr)
+            continue
+        end
+        @dissect(expr, Expr(:(=), Expr(:call, name::Symbol), value))
+        csets[name] = build_csets_value(ctx, db, value, csets)
+    end
+    return :($csets)
+#   parts = Expr[]
+#   queries = Expr[]
+#   for ex in exs
+#       if ex isa Symbol
+#           push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
+#       elseif @dissect(ex, Expr(:(=), name::Symbol, query)) || # TODO: leave temporarily
+#              @dissect(ex, Expr(:(=), Expr(:call, name::Symbol), Expr(:block, _, query)))
+#           item = concepts_unpack!(query, saves)
+#           fcall = Expr(:call, Expr(:escape, Symbol("funsql_$name")))
+#           push!(queries, Expr(:(=), fcall, item))
+#           saves[name] = fcall
+#           push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), fcall))
+#       else
+#           error("expecting name() = funsql or name() = [concept...] assignments")
+#       end
+#   end
+#   value = Expr(:tuple, Expr(:parameters, parts...))
+#   block = Expr(:block, queries...)
+#   if isnothing(cset_name)
+#       push!(block.args, value)
+#   else
+#       fname = Expr(:escape, Symbol("funsql_$cset_name"))
+#       push!(block.args, :(cset = $value))
+#       push!(block.args, :($fname(args...) = concepts_cset_lookup(cset, args)))
+#       push!(block.args, :(cset))
+#   end
+#   return block
 end
 
 macro concepts(expr::Expr)
