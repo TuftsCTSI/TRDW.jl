@@ -4,12 +4,22 @@ const CONCEPT_PATH = (tempdir(), VOCAB_SCHEMA)
 normalize_name(s) = replace(lowercase(s), r"[ -]" => "_")
 cache_filename(s) = joinpath([CONCEPT_PATH..., "$(normalize_name(s)).csv"])
 
+abstract type AbstractConcept end
 abstract type AbstractCategory end
 
 mutable struct Vocabulary <: AbstractCategory
+    constructor::Symbol
     vocabulary_id::String
-    constructor::String
+    concept_cache::Dict{String, T} where {T <: AbstractConcept}
     dataframe::Union{DataFrame, Nothing}
+end
+
+struct Concept <: AbstractConcept
+    vocabulary::Vocabulary
+    concept_id::Int64
+    concept_code::AbstractString
+    concept_name::AbstractString
+    is_standard::Bool
 end
 
 Base.isless(lhs::Vocabulary, rhs::Vocabulary) =
@@ -26,13 +36,20 @@ function vocab_connection()
     return g_vocab_conn[]
 end
 
-function Vocabulary(vocabulary_id; constructor=nothing)
-    key = Symbol(replace(string(vocabulary_id), " " => "_"))
+function Vocabulary(vocabulary_id::String; constructor=nothing)
+    key = Symbol(replace(vocabulary_id, " " => "_"))
     if haskey(g_vocabularies, key)
         return g_vocabularies[key]
     end
-    constructor = something(constructor, "Vocabulary($(repr(vocabulary_id)))")
-    return g_vocabularies[key] = Vocabulary(vocabulary_id, constructor, nothing)
+    return g_vocabularies[key] = Vocabulary(key, vocabulary_id, Dict{String, Concept}(), nothing)
+end
+
+function Vocabulary(key::Symbol)
+    if haskey(g_vocabularies, key)
+        return g_vocabularies[key]
+    end
+    vocabulary_id = :GCN_SEQNO ? "GCN_SEQNO" : replace(string(key), "_" => " ")
+    return g_vocabularies[key] = Vocabulary(key, vocabulary_id, Dict{String, Concept}(), nothing)
 end
 
 function Base.show(io::IO, v::Vocabulary)
@@ -60,15 +77,6 @@ function vocabulary_data!(vocabulary)
     return vocabulary_data
 end
 
-#--------------------------------------------------------------------------
-struct Concept
-    vocabulary::Vocabulary
-    concept_id::Int64
-    concept_code::AbstractString
-    concept_name::AbstractString
-    is_standard::Bool
-end
-
 const ConceptSet = Vector{Concept}
 
 Base.isless(lhs::Concept, rhs::Concept) =
@@ -89,6 +97,9 @@ Tables.columnnames(::ConceptSet) =
     (:concept_id, :vocabulary_id, :concept_code, :concept_name)
 Tables.getcolumn(c::Concept, i::Int) = Tables.getcolumn(c, columnnames(c)[i])
 
+Base.convert(::Type{FunSQL.SQLNode}, c::Concept) = @funsql(from($c))
+Base.convert(::Type{FunSQL.SQLNode}, vc::Vector{Concept}) = @funsql(from($vc))
+
 DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::Concept) where {T} =
     DBInterface.execute(conn, [c])
 DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::ConceptSet) where {T} =
@@ -102,82 +113,6 @@ function Base.show(io::IO, c::Concept)
     show(io, String(c.concept_name))
     print(io, ")")
 end
-
-#--------------------------------------------------------------------------
-struct ConceptExpr
-    concept::Concept
-    exclude::Bool
-    descend::Bool
-    mapped::Bool
-end
-
-const ConceptSetExpr = Vector{ConceptExpr}
-
-Base.isless(lhs::ConceptExpr, rhs::ConceptExpr) = isless(lhs.concept, rhs.concept)
-Base.isless(lhs::Concept, rhs::ConceptExpr) = isless(lhs, rhs.concept)
-Base.isless(lhs::ConceptExpr, rhs::Concept) = isless(lhs, rhs.concept)
-
-Base.getproperty(c::ConceptExpr, name::Symbol) =
-    in(name, (:concept_id, :vocabulary_id, :concept_code, :concept_name)) ?
-        getproperty(c.concept, name) : getfield(c, name)
-
-Tables.istable(::Type{ConceptSetExpr}) = true
-Tables.rowaccess(::Type{ConceptSetExpr}) = true
-Tables.istable(::Type{ConceptExpr}) = true
-Tables.rowaccess(::Type{ConceptExpr}) = true
-Tables.rows(c::ConceptExpr) = [c]
-Tables.columnnames(::ConceptExpr) =
-    (:concept_id, :vocabulary_id, :concept_code, :concept_name, :exclude, :descend, :mapped)
-Tables.columnnames(::Vector{ConceptExpr}) =
-    (:concept_id, :vocabulary_id, :concept_code, :concept_name, :exclude, :descend, :mapped)
-
-DBInterface.execute(conn::FunSQL.SQLConnection{T}, c::ConceptExpr) where {T} =
-    DBInterface.execute(conn, [c])
-DBInterface.execute(conn::FunSQL.SQLConnection{T}, vc::ConceptSetExpr) where {T} =
-    DBInterface.execute(conn, @funsql(from($vc)))
-
-Concept(c::ConceptExpr) = c.concept
-ConceptExpr(c::ConceptExpr) = c
-ConceptExpr(c::Concept; exclude=false, descend=false, mapped=false) =
-    ConceptExpr(c, exclude, descend, mapped)
-
-exclude(c::Concept) = ConceptExpr(c; exclude=true)
-descend(c::Concept) = ConceptExpr(c; descend=true)
-mapped(c::Concept) = ConceptExpr(c; mapped=true)
-exclude(e::ConceptExpr) = ConceptExpr(e.concept; exclude=true, descend=e.descend, e.mapped )
-descend(e::ConceptExpr) = ConceptExpr(e.concept; exclude=e.exclude, descend=true, e.mapped )
-mapped(e::ConceptExpr) = ConceptExpr(e.concept; exclude=e.exclude, descend=e.descend, mapped=true)
-exclude(cs::Vector) = [exclude(c) for c in cs]
-descend(cs::Vector) = [descend(c) for c in cs]
-mapped(cs::Vector) = [mapped(c) for c in cs]
-exclude(cs::Union{Concept, ConceptExpr}...) = exclude(collect(cs))
-descend(cs::Union{Concept, ConceptExpr}...) = descend(collect(cs))
-mapped(cs::Union{Concept, ConceptExpr}...) = mapped(collect(cs))
-
-funsql_exclude = exclude
-funsql_descend = descend
-funsql_mapped = mapped
-
-Base.convert(::Type{ConceptExpr}, c::Concept) = ConceptExpr(c)
-Base.convert(::Type{ConceptSetExpr}, cs::ConceptSet) =  [ConceptExpr(c) for c in cs]
-
-function Base.show(io::IO, ce::ConceptExpr)
-    ce.exclude ? print(io, "exclude(") : nothing
-    ce.descend ? print(io, "descend(") : nothing
-    ce.mapped ? print(io, "mapped(") : nothing
-    print(io, getfield(ce.concept.vocabulary, :constructor))
-    print(io, "(")
-    show(io, ce.concept.concept_code isa Integer ?
-         ce.cconcept.concept_code : String(ce.concept.concept_code))
-    print(io, ", ")
-    show(io, String(ce.concept.concept_name))
-    ce.exclude ? print(io, ")") : nothing
-    ce.descend ? print(io, ")") : nothing
-    ce.mapped ? print(io, ")") : nothing
-    print(io, ")")
-end
-
-#--------------------------------------------------------------------------
 
 const NamedConceptSets = NamedTuple{T, <:NTuple{N, ConceptSet}} where {N, T}
 const ConceptMatchExpr = Union{Concept, ConceptSet, NamedConceptSets}
@@ -198,11 +133,6 @@ function unnest_concept_set(node::FunSQL.SQLNode, cs::Vector{Concept})
     cset = build_concepts(run(conn, node))
     append!(cs, cset)
 end
-
-Base.convert(::Type{FunSQL.SQLNode}, c::Concept) = @funsql(from($c))
-Base.convert(::Type{FunSQL.SQLNode}, vc::Vector{Concept}) = @funsql(from($vc))
-
-# FunSQL.Append(c::ConceptSet, rest::ConceptSet...) = ConceptSet(...)
 
 @nospecialize
 function Base.show(io::IO, m::MIME"text/html", ncs::T) where T <: NamedConceptSets
@@ -261,7 +191,6 @@ function is_concept_name_match(concept_name::AbstractString, match_name::String)
 end
 
 function lookup_vsac_code(vocabulary::Vocabulary, concept_code)
-    vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
     concept_code = normalize_name(string(concept_code))
     test = row -> normalize_name(row.concept_code) == concept_code
@@ -276,7 +205,7 @@ function lookup_vsac_code(vocabulary::Vocabulary, concept_code)
             !ismissing(result[1, :standard_concept]))
 end
 
-function (vocabulary::Vocabulary)(concept_code, match_name = nothing)
+function lookup_by_code(vocabulary::Vocabulary, concept_code, match_name=nothing)
     vocabulary_id = getfield(vocabulary, :vocabulary_id)
     vocabulary_data = vocabulary_data!(vocabulary)
     if concept_code == nothing
@@ -288,6 +217,9 @@ function (vocabulary::Vocabulary)(concept_code, match_name = nothing)
         end
     else
         concept_code = normalize_name(string(concept_code))
+        #if haskey(vocabulary.concept_cache, concept_code)
+        #    return vocabulary.concept_cache[concept_code]
+        #end
         test = row -> normalize_name(row.concept_code) == concept_code
         result = filter(test, vocabulary_data)
         if 1 != size(result)[1]
@@ -299,6 +231,7 @@ function (vocabulary::Vocabulary)(concept_code, match_name = nothing)
                    result[1, :concept_code],
                    result[1, :concept_name],
                    !ismissing(result[1, :standard_concept]))
+    vocabulary.concept_cache[concept_code] = concept
     if isnothing(match_name)
         return concept
     end
@@ -307,6 +240,9 @@ function (vocabulary::Vocabulary)(concept_code, match_name = nothing)
     end
     throw(ArgumentError("'$concept_code' failed name check in vocabulary $vocabulary_id"))
 end
+
+lookup_by_code(vocab, concept_code, match_name=nothing) =
+    lookup_by_code(Vocabulary(vocab), concept_code, match_name)
 
 function find_by_name(vocabulary::Vocabulary, match_name::String;
             having::Union{Function, Nothing} = nothing)::Union{Concept, Nothing}
@@ -368,7 +304,9 @@ macro make_vocabulary(name)
     funfn = Symbol("funsql_$lname")
     label = Symbol(lname)
     quote
-        $(esc(funfn)) = $(esc(label)) = Vocabulary($name; constructor=$lname)
+        $(esc(label)) = Vocabulary($name; constructor=$lname)
+        $(esc(funfn))(concept_code, match_name=nothing) =
+            lookup_by_code($label, concept_code, match_name)
         export $(esc(funfn))
     end
 end
@@ -499,275 +437,3 @@ print_concepts(q::FunSQL.SQLNode, prefix="        ") =
 print_concepts(ids::Vector{<:Integer}, prefix="        ") =
     print_concepts(@funsql(concept($ids...)), prefix)
 
-function concepts_cset_lookup(cset, args)
-    ret = Concept[]
-    if length(args) == 0
-        return cset
-    end
-    for n in args
-        if n isa FunSQL.SQLNode && getfield(n, :core) isa FunSQL.VariableNode
-            n = getfield(n, :core).name
-        end
-        append!(ret, cset[n])
-    end
-    return ret
-end
-
-function build_concepts(df::DataFrame)
-    retval = Concept[]
-    sort!(df, [:vocabulary_id, :concept_code])
-    for row in eachrow(df)
-        vocabulary = Vocabulary(row.vocabulary_id)
-        push!(retval, Concept(vocabulary, row.concept_id,
-                              row.concept_code, row.concept_name,
-                              !ismissing(row.standard_concept)))
-    end
-    return retval
-end
-
-function build_csets_unpack(db::FunSQL.SQLConnection, expr::Expr, saves)
-    if @dissect(expr, Expr(:tuple, args...))
-        expr.head = :vect
-    end
-    if @dissect(expr, Expr(:vect, args...))
-        for (index, value) in enumerate(expr.args)
-            if @dissect(value, Expr(:(...), item, _...)) && item isa Symbol
-                error("no need to ... expand references to arrays within @concepts")
-            end
-            if value isa Symbol
-                if value in keys(saves)
-                    expr.args[index] = Expr(:(...), saves[value])
-                else
-                    expr.args[index] = Expr(:(...), esc(value))
-                end
-            end
-        end
-        return expr
-    end
-    return :(build_concepts(run($db, @funsql $expr)))
-end
-
-function build_csets_value(ctx, db::FunSQL.SQLConnection, @nospecialize(expr), csets)
-    retval = ConceptExpr[] 
-    if @dissect(expr, Expr(:block, _, Expr(:call, fname::Symbol, args...))) ||
-       @dissect(expr, Expr(:call, fname::Symbol, args...))
-        if haskey(g_vocabularies, fname)
-            if length(args) == 1
-                push!(retval, ConceptExpr(g_vocabularies[fname](args[1])))
-            else
-                @assert length(args) == 2
-                push!(retval, ConceptExpr(g_vocabularies[fname](args[1], args[2])))
-            end
-        elseif fname in (:exclude, :descend, :mapped)
-            parts = ConceptExpr[] 
-            for arg in args
-                append!(parts, build_csets_value(ctx, db, arg, csets))
-            end
-            append!(retval, fname == :descend ? descend(parts) :
-                            fname == :exclude ? exclude(parts) :
-                            mapped(parts))
-        elseif haskey(csets, fname)
-            @assert length(args) == 0
-            append!(retval, csets[fname])
-        else
-            #q = Base.eval(ctx.mod, FunSQL.transliterate(expr, ctx))
-            #cset = build_concepts(run(db, q))
-            #println(cset)
-            println("passing on ", fname)
-        end
-    elseif @dissect(expr, Expr(:block, _, Expr(:vect, args...))) ||
-           @dissect(expr, Expr(:vect, args...))
-        for arg in args
-            append!(retval, build_csets_value(ctx, db, arg, csets))
-        end
-    else
-        error("expecting array of concept expressions")
-    end
-    return retval
-end
-
-function build_csets(mod::Module, db::FunSQL.SQLConnection, @nospecialize(expr))
-    if !@dissect(expr, Expr(:(=), Expr(:call, cset_name::Symbol), Expr(:block, src, args...)))
-        error("expecting `names() = begin ... end`")
-    end
-    ctx = FunSQL.TransliterateContext(mod, src)
-    csets = Dict{Symbol, Vector{ConceptExpr}}()
-    for expr in args
-        if expr isa LineNumberNode
-            ctx = FunSQL.TransliterateContext(mod, expr)
-            continue
-        end
-        @dissect(expr, Expr(:(=), Expr(:call, name::Symbol), value))
-        csets[name] = build_csets_value(ctx, db, value, csets)
-    end
-    return :($csets)
-#   parts = Expr[]
-#   queries = Expr[]
-#   for ex in exs
-#       if ex isa Symbol
-#           push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
-#       elseif @dissect(ex, Expr(:(=), name::Symbol, query)) || # TODO: leave temporarily
-#              @dissect(ex, Expr(:(=), Expr(:call, name::Symbol), Expr(:block, _, query)))
-#           item = concepts_unpack!(query, saves)
-#           fcall = Expr(:call, Expr(:escape, Symbol("funsql_$name")))
-#           push!(queries, Expr(:(=), fcall, item))
-#           saves[name] = fcall
-#           push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), fcall))
-#       else
-#           error("expecting name() = funsql or name() = [concept...] assignments")
-#       end
-#   end
-#   value = Expr(:tuple, Expr(:parameters, parts...))
-#   block = Expr(:block, queries...)
-#   if isnothing(cset_name)
-#       push!(block.args, value)
-#   else
-#       fname = Expr(:escape, Symbol("funsql_$cset_name"))
-#       push!(block.args, :(cset = $value))
-#       push!(block.args, :($fname(args...) = concepts_cset_lookup(cset, args)))
-#       push!(block.args, :(cset))
-#   end
-#   return block
-end
-
-macro concepts(expr::Expr)
-    if !@dissect(expr, Expr(:(=), Expr(:call, cset_name::Symbol), body))
-        body = expr
-        cset_name = nothing
-    end
-    saves = Dict{Symbol, Any}()
-    exs = []
-    if body.head == :block
-        for ex in body.args
-            if ex isa Expr || ex isa Symbol
-                push!(exs, ex)
-            elseif ex isa LineNumberNode
-                continue
-            else
-                error("unexpected item in @concepts ", ex)
-            end
-        end
-    elseif body.head == :vect
-        return concepts_unpack!(body, saves)
-    else
-        exs = [body]
-    end
-    parts = Expr[]
-    queries = Expr[]
-    for ex in exs
-        if ex isa Symbol
-            push!(parts, Expr(:(...), Expr(:call, esc(:pairs), esc(ex))))
-        elseif @dissect(ex, Expr(:(=), name::Symbol, query)) || # TODO: leave temporarily
-               @dissect(ex, Expr(:(=), Expr(:call, name::Symbol), Expr(:block, _, query)))
-            item = concepts_unpack!(query, saves)
-            fcall = Expr(:call, Expr(:escape, Symbol("funsql_$name")))
-            push!(queries, Expr(:(=), fcall, item))
-            saves[name] = fcall
-            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(name), fcall))
-        else
-            error("expecting name() = funsql or name() = [concept...] assignments")
-        end
-    end
-    value = Expr(:tuple, Expr(:parameters, parts...))
-    block = Expr(:block, queries...)
-    if isnothing(cset_name)
-        push!(block.args, value)
-    else
-        fname = Expr(:escape, Symbol("funsql_$cset_name"))
-        push!(block.args, :(cset = $value))
-        push!(block.args, :($fname(args...) = concepts_cset_lookup(cset, args)))
-        push!(block.args, :(cset))
-    end
-    return block
-end
-
-function build_or(items)
-    if length(items) == 0
-        return @funsql(false)
-    end
-    if length(items) == 1
-        return items[1]
-    end
-    return @funsql(or($items...))
-end
-
-function funsql_span(cs...; join=true, icdgem=true)
-    buckets = Dict{Vocabulary, Vector{Concept}}()
-    for c in unnest_concept_set(cs)
-        push!(get!(buckets, c.vocabulary, Concept[]), c)
-    end
-    qs = FunSQL.SQLNode[]
-    join = join ? @funsql(as(base).join(concept(), concept_id == base.concept_id)) : @funsql(define())
-    for (v, cs) in pairs(buckets)
-        ids = [c.concept_id for c in cs]
-        push!(qs, @funsql begin
-            from(concept_ancestor)
-            filter(in(ancestor_concept_id, $ids...))
-            select(concept_id => descendant_concept_id)
-            $join
-        end)
-        if v.vocabulary_id in ("ICD9CM", "ICD10CM", "ICD9Proc", "ICD10PCS", "ICD03")
-            cs = ["$(c.concept_code)%" for c in cs]
-            tests = build_or([@funsql(like(concept_code, $m)) for m in cs])
-            push!(qs, @funsql begin
-                concept()
-                filter(vocabulary_id == $(v.vocabulary_id))
-                filter($tests)
-            end)
-            # TODO: ICD9Proc - ICD10PCS gem
-            if v.vocabulary_id == "ICD10CM" && icdgem
-                push!(qs, @funsql begin
-                    $(qs[end])
-                    join(cr => begin
-                        from(concept_relationship)
-                        filter(relationship_id == "ICD9CM - ICD10CM gem")
-                    end, cr.concept_id_2 == concept_id)
-                    select(concept_id => cr.concept_id_1)
-                    $join
-                end)
-            end
-        end
-    end
-    length(qs) == 0 ? @funsql(concept().filter(false)) :
-    length(qs) == 1 ? qs[1] :
-    @funsql(append($qs...).deduplicate(concept_id))
-end
-
-function concept_matches(match...; match_on=[], span=true)
-    match = unnest_concept_set(match)
-    if match_on isa FunSQL.SQLNode
-        match_on = [match_on]
-    elseif match_on isa Symbol
-        if contains(string(match_on), "concept_id")
-            match_on = [match_on]
-        else
-            match_on = [Symbol("$(match_on)_concept_id")]
-        end
-    else
-        if isnothing(match_on) || length(match_on) == 0
-            match_on = Any[@funsql(concept_id)]
-            if any([contains(c.vocabulary.vocabulary_id, "ICD") for c in match])
-                push!(match_on, @funsql(ext.icd_concept_id))
-            end
-        end
-        @assert match_on isa Vector
-    end
-    match = span ? funsql_span(match) : match
-    parts = [ @funsql(in($col, $match.select(concept_id))) for col in match_on]
-    build_or(parts)
-end
-
-concept_matches(name::Symbol, match...) =
-    concept_matches(match...; match_on=name)
-
-const funsql_concept_matches = concept_matches
-
-function funsql_concept_in(concept_id::Symbol, ids)
-    if ids isa ConceptMatchExpr
-        ids = unnest_concept_ids(ids)
-    end
-    @funsql(filter(in($concept_id, $ids...)))
-end
-
-funsql_concept_in(q) =
-    funsql_concept_in(:concept_id, q)
