@@ -1005,6 +1005,7 @@ function write_and_display(expr::Expr, db, case, show)
             $vname = TRDW.run($db, @funsql(begin
                 $query
                 if_not_defined(subject_id, to_subject_id($case))
+                if_defined(person_id, undefine(person_id))
                 order(subject_id)
             end))
             TRDW.write_and_display($sname, $vname)
@@ -1063,7 +1064,12 @@ function write_and_encrypt(expr::Expr, db, case, show::Bool)
     password = get_password(case)
     if show && length(password) > 0
         return quote
-            $vname = TRDW.run($db, @funsql $query.to_subject_id($case).order(subject_id))
+            $vname = TRDW.run($db, @funsql(begin
+                $query
+                if_not_defined(subject_id, to_subject_id($case))
+                if_defined(person_id, undefine(person_id))
+                order(subject_id)
+            end))
             TRDW.write_and_encrypt($vname, $sname, $password)
         end
     end
