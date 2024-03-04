@@ -47,8 +47,13 @@ function TRDW.XLSX.write(file, table; password = nothing)
             jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
         end
     end
+    row = jcall(sheet, "createRow", XSSFRow, (jint,), 0)
+    for (i, c) in enumerate(Tables.columnnames(table))
+        cell = jcall(row, "createCell", XSSFCell, (jint,), i-1)
+        jcall(cell, "setCellValue", Nothing, (JString,), string(c))
+    end
     for (k, r) in enumerate(Tables.rows(table))
-        row = jcall(sheet, "createRow", XSSFRow, (jint,), k-1)
+        row = jcall(sheet, "createRow", XSSFRow, (jint,), k)
         vals = Any[Tables.getcolumn(r, c) for c in Tables.columnnames(r)]
         for (i, val) in enumerate(vals)
             cell = jcall(row, "createCell", XSSFCell, (jint,), i-1)
