@@ -1047,7 +1047,7 @@ function write_and_encrypt(dataframe::DataFrame, basename, password)
     @assert length(password) > 0
     n_rows = size(dataframe)[1]
     filename = "$basename.xlsx"
-    TRDW.XLSX.write(filename, dataframe; password=password)
+    TRDW.XLSX.write(filename, dataframe; password=string(password))
     @htl("""
         <hr />
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
