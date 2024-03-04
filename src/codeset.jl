@@ -1,4 +1,25 @@
-""" top level concept block lookup function... (too clever) """
+struct CodeSets
+    name::Symbol
+    sets::Dict{Symbol, FunSQL.SQLNode}
+    vals::Dict{Symbol, Vector{Concept}}
+end
+
+CodeSets(name) = CodeSets(name, Dict{Symbol, FunSQL.SQLNode}(), Dict{Symbol, Vector{Concept}}())
+
+Base.push!(cs::CodeSets, p::Pair{Symbol, FunSQL.SQLNode}) = push!(cs.sets, p)
+Base.push!(cs::CodeSets, p::Pair{Symbol, Vector{Concept}} = begin
+    push!(cs.vals, p)
+    push!(cs.sets, p[1] => FunSQL.From(p[2]))
+end
+
+function Base.convert(::Type{FunSQL.SQLNode}, cs::CodeSets)
+    qs = FunSQL.SQLNode[]
+    for q in values(cs.sets)
+        push!(qs, @funsql($q.define_front(codeset => $cs.name)))
+    end
+    @funsql(append($qs...))
+end
+
 function concepts_cset_lookup(cset, args)
     ret = Concept[]
     if length(args) == 0
@@ -26,7 +47,7 @@ function build_concepts(df::DataFrame)
 end
 
 function build_codesets(@nospecialize(expr), ctx)
-    if !@dissect(expr, Expr(:(=), Expr(:call, block_name::Symbol), Expr(:block, src, body...)))
+    if @dissect(expr, Expr(:(=), Expr(:call, block_name::Symbol), Expr(:block, src, body...)))
         block_name = nothing
         @assert @dissect(expr, Expr(:block, src, body...))
     end
@@ -34,6 +55,7 @@ function build_codesets(@nospecialize(expr), ctx)
     priors = Dict{Symbol, Any}() #Vector{Concept}}()
     parts = Expr[]
     queries = Expr[]
+    push!(parts, :(cs = CodeSets($block_name)))
     for expr in body
         expr isa LineNumberNode ? continue : nothing
         if @dissect(expr, Expr(:(=), cset_name::Symbol, query)) || # backward compatibility
@@ -89,6 +111,10 @@ function build_codesets(@nospecialize(expr), ctx)
 end
 
 macro concepts(expr::Expr)
+    build_codesets(expr, FunSQL.TransliterateContext(__module__, __source__))
+end
+
+macro codesets(expr::Expr)
     build_codesets(expr, FunSQL.TransliterateContext(__module__, __source__))
 end
 
