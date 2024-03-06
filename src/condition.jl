@@ -70,6 +70,9 @@ condition(match...) =
 is_primary_discharge_diagnosis() =
     ifnull(omop.condition_status_concept_id == 32903, false)
 
+type_isa(args...) =
+    category_isa($Type_Concept, $args, type_concept_id)
+
 status_isa(args...) =
     category_isa($Condition_Status, $args, omop.condition_status_concept_id)
 

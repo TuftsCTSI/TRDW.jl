@@ -70,15 +70,14 @@ end
 """ filter_with(pair, filter)
 
 This function correlates by `person_id` upon the joined table, optionally filters.
-It returns a *random* row for each `partition_by` (which default to `occurrence_id`).
 """
-function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
-                            partition_by= [@funsql(try_get(occurrence_id, person_id))])
+function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     partname = gensym()
     return @funsql(begin
+        partition(order_by = [person_id], name = $partname)
         join($name => $base, $name.person_id == person_id && $predicate)
-        partition($partition_by...; order_by=$partition_by, name = $partname)
+        partition($partname.row_number(); order_by = [person_id], name = $partname)
         filter($partname.row_number() <= 1)
         undefine($name)
     end)
@@ -107,14 +106,14 @@ funsql_filter_without(node::FunSQL.SQLNode, predicate=true) =
 """ group_with(pair, filter)
 
 This function correlates by `person_id` upon the joined table, as a group.
-It returns a *random* row for each `partition_by` (which default to `occurrence_id`).
 """
 function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
-        partname=nothing, partition_by= [@funsql(try_get(occurrence_id, person_id))])
+        partname=nothing)
     (name, base) = pair
     return @funsql(begin
+        partition(order_by = [person_id], name = $partname)
         left_join($name => $base, $name.person_id == person_id && $predicate)
-        partition($partition_by...; order_by=$partition_by, name = $partname)
+        partition($partname.row_number(); order_by = [person_id], name = $partname)
         filter($partname.row_number() <= 1)
     end)
 end

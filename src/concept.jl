@@ -14,6 +14,9 @@ concept() = begin
         omop.invalid_reason)
 end
 
+concept(concept_id::Integer...) =
+    concept().filter(in(concept_id, $concept_id...))
+
 concept(q) = concept().filter(in(concept_id, $q.select(concept_id)))
 
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
