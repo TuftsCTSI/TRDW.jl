@@ -66,33 +66,41 @@ function build_codesets(@nospecialize(expr), ctx)
             continue
         end
         if @dissect(expr, Expr(:(=), cset_name::Symbol, query))
-
+            if @dissect(query, Expr(:block, src, query))
+                ctx = FunSQL.TransliterateContext(ctx, src = src)
+            end
             # [] syntax for listing of queries and priors
             if @dissect(query, Expr(:vect, items...))
                 for (index, value) in enumerate(items)
                     if value isa Symbol
                         if value in keys(priors)
-                            query.args[index] = Expr(:(...), priors[value])
+                            item = Expr(:(...), priors[value])
                         else
                             error("bare $value must be mentioned previously")
                         end
                     elseif @dissect(value, Expr(:call, fname::Symbol, args...))
-                        query.args[index] = Expr(:call, Expr(:(.), @__MODULE__, 
-                                                QuoteNode(:lookup_by_code)),
-                                                QuoteNode(fname), args...)
+                        item = Expr(:call, Expr(:(.), @__MODULE__,
+                                    QuoteNode(:lookup_by_code)),
+                                    QuoteNode(fname), args...)
                     else
-                        # queries in this context include descendants
-                        query = FunSQL.transliterate(query, ctx)
+                        error("general queries not permitted in []")
                     end
+                    query.args[index] = item
                 end
+                priors[cset_name] = query
+                descend = :(FunSQL.Define(:include_descendants => true))
+                query = :($query |> $descend)
             else
-                # everything else is a query
                 query = FunSQL.transliterate(query, ctx)
+                descend = Expr(:call, Expr(:(.), @__MODULE__,
+                            QuoteNode(:funsql_if_not_defined)),
+                            QuoteNode(:include_descendants),
+                            :(FunSQL.Define(:include_descendants => false)))
+                query = :($query |> $descend)
             end
-            priors[cset_name] = query
             push!(parts, Expr(:call, esc(:(=>)), QuoteNode(cset_name), query))
         else
-            error("expecting name() = funsql or name() = [concept...] assignments")
+            error("expecting name = funsql or name = [concept...] assignments")
         end
     end
     block = Expr(:block)
