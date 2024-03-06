@@ -244,6 +244,9 @@ end
 lookup_by_code(vocab, concept_code, match_name=nothing) =
     lookup_by_code(Vocabulary(vocab), concept_code, match_name)
 
+(vocab::Vocabulary)(concept_code, match_name=nothing) =
+    lookup_by_code(vocab, concept_code, match_name)
+
 function find_by_name(vocabulary::Vocabulary, match_name::String;
             having::Union{Function, Nothing} = nothing)::Union{Concept, Nothing}
     vocabulary_id = getfield(vocabulary, :vocabulary_id)

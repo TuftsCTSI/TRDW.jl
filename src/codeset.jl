@@ -1,38 +1,44 @@
-struct CodeSets
-    name::Symbol
-    sets::Dict{Symbol, FunSQL.SQLNode}
-    vals::Dict{Symbol, Vector{Concept}}
-end
+struct CodeSetMap # <: FunSQL.AbstractSQLNode
+    sets::NamedTuple{T, <: NTuple{N, FunSQL.SQLNode}} where {N, T}
 
-CodeSets(name) = CodeSets(name, Dict{Symbol, FunSQL.SQLNode}(), Dict{Symbol, Vector{Concept}}())
-
-Base.push!(cs::CodeSets, p::Pair{Symbol, FunSQL.SQLNode}) = push!(cs.sets, p)
-Base.push!(cs::CodeSets, p::Pair{Symbol, Vector{Concept}} = begin
-    push!(cs.vals, p)
-    push!(cs.sets, p[1] => FunSQL.From(p[2]))
-end
-
-function Base.convert(::Type{FunSQL.SQLNode}, cs::CodeSets)
-    qs = FunSQL.SQLNode[]
-    for q in values(cs.sets)
-        push!(qs, @funsql($q.define_front(codeset => $cs.name)))
+    function CodeSetMap(sets::NamedTuple{T, NT}) where {T, NT}
+        items = Pair{Symbol, FunSQL.SQLNode}[]
+        for (name, query) in pairs(sets)
+            query = @funsql begin
+                    $query
+                    if_not_defined(vocabulary_id, begin
+                        as(base)
+                        join(from(concept), concept_id == base.concept_id)
+                    end)
+                    if_not_defined(concept_id, begin
+                        as(base)
+                        join(from(concept),
+                             vocabulary_id == base.vocabulary_id &&
+                             concept_code == base.concept_code)
+                    end)
+                end
+            push!(items, name => query)
+        end
+        new((; items...))
     end
+end
+CodeSetMap(sets::Pair...) = CodeSetMap((; sets...))
+Base.keys(csm::CodeSetMap) = keys(getfield(csm, :sets))
+Base.pairs(csm::CodeSetMap) = pairs(getfield(csm, :sets))
+Base.values(csm::CodeSetMap) = values(getfield(csm, :sets))
+Base.iterate(csm::CodeSetMap) = iterate(getfield(csm, :sets))
+Base.iterate(csm::CodeSetMap, idx) = iterate(getfield(csm, :sets), idx)
+Base.length(csm::CodeSetMap) = length(getfield(csm, :sets))
+Base.getproperty(csm::CodeSetMap, k::Symbol) = getfield(getfield(csm, :sets), k)
+Base.convert(::Type{FunSQL.SQLNode}, csm::CodeSetMap) = begin
+    qs = [@funsql($q.define_front(codeset => $(string(n)))) for (n, q) in pairs(csm)]
     @funsql(append($qs...))
 end
+(csm::CodeSetMap)(name::Symbol) = getproperty(csm, name)
+(csm::CodeSetMap)() = convert(FunSQL.SQLNode, csm)
 
-function concepts_cset_lookup(cset, args)
-    ret = Concept[]
-    if length(args) == 0
-        return cset
-    end
-    for n in args
-        if n isa FunSQL.SQLNode && getfield(n, :core) isa FunSQL.VariableNode
-            n = getfield(n, :core).name
-        end
-        append!(ret, cset[n])
-    end
-    return ret
-end
+DBInterface.execute(conn::FunSQL.SQLConnection{T}, csm::CodeSetMap) where {T} =
+    DBInterface.execute(conn, csm())
 
 function build_concepts(df::DataFrame)
     retval = Concept[]
@@ -47,22 +53,21 @@ function build_concepts(df::DataFrame)
 end
 
 function build_codesets(@nospecialize(expr), ctx)
-    if @dissect(expr, Expr(:(=), Expr(:call, block_name::Symbol), Expr(:block, src, body...)))
+    if !@dissect(expr, Expr(:(=), Expr(:call, block_name::Symbol), Expr(:block, src, body...)))
         block_name = nothing
         @assert @dissect(expr, Expr(:block, src, body...))
     end
     ctx = FunSQL.TransliterateContext(ctx, src = src)
-    priors = Dict{Symbol, Any}() #Vector{Concept}}()
+    priors = Dict{Symbol, Any}()
     parts = Expr[]
-    queries = Expr[]
-    push!(parts, :(cs = CodeSets($block_name)))
     for expr in body
-        expr isa LineNumberNode ? continue : nothing
-        if @dissect(expr, Expr(:(=), cset_name::Symbol, query)) || # backward compatibility
-           @dissect(expr, Expr(:(=), Expr(:call, cset_name::Symbol), Expr(:block, src, query)))
-            #ctx = FunSQL.TransliterateContext(ctx, src = src)
+        if expr isa LineNumberNode
+            ctx = FunSQL.TransliterateContext(ctx, src = expr)
+            continue
+        end
+        if @dissect(expr, Expr(:(=), cset_name::Symbol, query))
 
-            # backward compatibility with [] syntax
+            # [] syntax for listing of queries and priors
             if @dissect(query, Expr(:vect, items...))
                 for (index, value) in enumerate(items)
                     if value isa Symbol
@@ -71,43 +76,34 @@ function build_codesets(@nospecialize(expr), ctx)
                         else
                             error("bare $value must be mentioned previously")
                         end
-                    elseif @dissect(value, Expr(:call, fname::Symbol))
-                        if fname in keys(priors)
-                            query.args[index] = Expr(:(...), priors[fname])
-                        else
-                            error("bare $fname() must be mentioned previously")
-                        end
                     elseif @dissect(value, Expr(:call, fname::Symbol, args...))
                         query.args[index] = Expr(:call, Expr(:(.), @__MODULE__, 
                                                 QuoteNode(:lookup_by_code)),
                                                 QuoteNode(fname), args...)
                     else
-                        error("expecting only concept functions")
+                        # queries in this context include descendants
+                        query = FunSQL.transliterate(query, ctx)
                     end
                 end
             else
-                # forward compatibility when everything is a query
+                # everything else is a query
                 query = FunSQL.transliterate(query, ctx)
             end
-            fcall = Expr(:call, Expr(:escape, Symbol("funsql_$cset_name")))
-            push!(queries, Expr(:(=), fcall, query))
             priors[cset_name] = query
-            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(cset_name), fcall))
+            push!(parts, Expr(:call, esc(:(=>)), QuoteNode(cset_name), query))
         else
             error("expecting name() = funsql or name() = [concept...] assignments")
         end
     end
+    block = Expr(:block)
     value = Expr(:tuple, Expr(:parameters, parts...))
-    block = Expr(:block, queries...)
-    if isnothing(block_name)
-        push!(block.args, value)
-    else
+    value = :(CodeSetMap($value))
+    if !isnothing(block_name)
        fname = Expr(:escape, Symbol("funsql_$block_name"))
-       push!(block.args, :(cset = $value))
-       push!(block.args, :($fname(args...) = TRDW.concepts_cset_lookup(cset, args)))
-       push!(block.args, :(cset))
-   end
-   return block
+       push!(block.args, :($fname = $value))
+    end
+    push!(block.args, value)
+    return block
 end
 
 macro concepts(expr::Expr)
