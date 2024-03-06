@@ -115,6 +115,7 @@ function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
         left_join($name => $base, $name.person_id == person_id && $predicate)
         partition($partname.row_number(); order_by = [person_id], name = $partname)
         filter($partname.row_number() <= 1)
+        undefine($name)
     end)
 end
 
