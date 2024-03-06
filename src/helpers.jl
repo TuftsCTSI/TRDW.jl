@@ -119,6 +119,30 @@ function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
     end)
 end
 
+function funsql_attach_earliest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true)
+    (name, base) = pair
+    partname = gensym()
+    return @funsql begin
+        partition(order_by = [person_id], name = $partname)
+        left_join($name => $base, $name.person_id == person_id && $predicate)
+        partition($partname.row_number(), order_by = [$name.datetime.asc(nulls = last)], name = $partname)
+        filter($partname.row_number() <= 1)
+        undefine($partname)
+    end
+end
+
+function funsql_attach_latest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true)
+    (name, base) = pair
+    partname = gensym()
+    return @funsql begin
+        partition(order_by = [person_id], name = $partname)
+        left_join($name => $base, $name.person_id == person_id && $predicate)
+        partition($partname.row_number(), order_by = [$name.datetime.desc(nulls = last)], name = $partname)
+        filter($partname.row_number() <= 1)
+        undefine($partname)
+    end
+end
+
 function funsql_join_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     return @funsql(join($name => $base, $name.person_id == person_id && $predicate))
