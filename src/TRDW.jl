@@ -1,13 +1,13 @@
 module TRDW
 
-export @connect, @concepts, @valuesets, OHDSI
+export @connect, Chain, Fun, Var, @concepts, @valuesets, OHDSI
 
 using CSV
 using DBInterface
 using DataFrames
 using Dates
 using FunSQL
-using FunSQL: @dissect
+using FunSQL: @dissect, Chain, Fun, Var
 using HTTP
 using HypertextLiteral
 using JSON

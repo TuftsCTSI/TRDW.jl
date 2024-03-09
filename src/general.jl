@@ -271,8 +271,12 @@ macro connect(args...)
         const $(esc(:db)) = TRDW.connect_with_funsql($(args...))
 
         macro $(esc(:query))(q)
+            ex = TRDW.FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext($(esc(:__module__)), $(esc(:__source__))))
+            if ex isa Expr && ex.head in (:block, :(=), :const, :global, :local)
+                return ex
+            end
             return quote
-                TRDW.run($(esc(:db)), @funsql $q)
+                TRDW.run($(esc(:db)), $ex)
             end
         end
 
