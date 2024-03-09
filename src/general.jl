@@ -268,7 +268,7 @@ end
 
 macro connect(args...)
     return quote
-        const $(esc(:db)) = TRDW.connect_with_funsql($(args...))
+        const $(esc(:db)) = TRDW.connect_with_funsql($(Any[esc(arg) for arg in args]...))
 
         macro $(esc(:query))(q)
             ex = TRDW.FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext($(esc(:__module__)), $(esc(:__source__))))
