@@ -1,6 +1,6 @@
 module TRDW
 
-export @run_funsql, @concepts, @valuesets, OHDSI
+export @connect, @concepts, @valuesets, OHDSI
 
 using CSV
 using DBInterface

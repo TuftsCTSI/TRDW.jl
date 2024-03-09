@@ -266,6 +266,20 @@ macro run_funsql(db, q)
     :(run($db, @funsql($q)); annotate_keys=$annotate_keys)
 end
 
+macro connect(args...)
+    return quote
+        const $(esc(:db)) = TRDW.connect_with_funsql($(args...))
+
+        macro $(esc(:query))(q)
+            return quote
+                TRDW.run($(esc(:db)), @funsql $q)
+            end
+        end
+
+        nothing
+    end
+end
+
 env_catalog() = Symbol(get(ENV, "DATABRICKS_CATALOG", "ctsi"))
 
 sqlname(db, schema::Symbol) =
