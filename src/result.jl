@@ -1,3 +1,21 @@
+struct SQLResult
+    db::FunSQL.SQLConnection{ODBC.Connection}
+    sql::String
+    ref::Ref{DataFrame}
+
+    SQLResult(db, sql) =
+        new(db, sql, Ref{DataFrame}())
+
+    SQLResult(db, sql, data) =
+        new(db, sql, Ref{DataFrame}(data))
+end
+
+Base.convert(::Type{FunSQL.AbstractSQLNode}, df::DataFrame) =
+    FunSQL.From(df)
+
+Base.convert(::Type{FunSQL.AbstractSQLNode}, r::SQLResult) =
+    convert(FunSQL.SQLNode, ensure_result!(r))
+
 run(db, q) =
     run(db, convert(FunSQL.SQLNode, q))
 
@@ -10,20 +28,20 @@ function run(db, q::FunSQL.SQLNode)
     SQLResult(db, sql)
 end
 
-struct SQLResult
-    db::FunSQL.SQLConnection{ODBC.Connection}
-    sql::String
-    result::Ref{DataFrame}
+function run(db, df::DataFrame)
+    sql = "" # FunSQL.render(db, FunSQL.From(df))
+    SQLResult(db, sql, df)
+end
 
-    SQLResult(db, sql) =
-        new(db, sql, Ref{DataFrame}())
+function run(db, r::SQLResult)
+    db === r.db ? r : run(db, ensure_result!(r))
 end
 
 function ensure_result!(r::SQLResult)
-    if !isassigned(r.result)
-        r.result[] = cursor_to_dataframe(DBInterface.execute(r.db, r.sql))
+    if !isassigned(r.ref)
+        r.ref[] = cursor_to_dataframe(DBInterface.execute(r.db, r.sql))
     end
-    r.result[]
+    r.ref[]
 end
 
 function cursor_to_dataframe(cr)

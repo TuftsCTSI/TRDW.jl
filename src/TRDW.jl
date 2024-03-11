@@ -11,6 +11,8 @@ using FunSQL: @dissect, Chain, Fun, Var
 using HTTP
 using HypertextLiteral
 using JSON
+using OrderedCollections: OrderedDict
+using Unicode
 using LightXML
 using ODBC
 
@@ -27,7 +29,7 @@ include("spark.jl")
 include("helpers.jl")
 include("export.jl")
 include("vocabulary.jl")
-include("valueset.jl")
+#include("valueset.jl")
 include("subject.jl")
 include("filters.jl")
 include("linking.jl")

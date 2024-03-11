@@ -1,8 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.1"
+julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "6b71a3bb98317512cdef300aebefed330090250c"
+project_hash = "4a29b92794d51ac57a6c5ca0f476f6c50db75227"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
