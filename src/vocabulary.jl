@@ -76,6 +76,9 @@ const ConceptSet = Vector{Concept}
 const NamedConceptSets = NamedTuple{T, <:NTuple{N, ConceptSet}} where {N, T}
 const ConceptMatchExpr = Union{Concept, ConceptSet, NamedConceptSets}
 
+FunSQL.Chain(ncs::NamedConceptSets, name::Symbol) =
+    getfield(ncs, name)
+
 unnest_concept_set(@nospecialize ids) = unnest_concept_set(ids, Vector{Concept}())
 unnest_concept_set(c::Concept, cs::Vector{Concept}) = push!(cs, c)
 unnest_concept_set(p::Pair, cs::Vector{Concept}) =
