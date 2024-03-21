@@ -26,6 +26,13 @@ struct NamedConceptSets
     dict::OrderedDict{Symbol, SQLResult}
 end
 
+Base.convert(::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
+    if isempty(sets.dict)
+        @funsql concept().filter(false)
+    else
+        FunSQL.Append(args = FunSQL.SQLNode[values(sets.dict)...])
+    end
+
 function Base.show(io::IO, m::MIME"text/html", sets::NamedConceptSets)
     print(io, """
     <div style="overflow:scroll;max-height:500px;">
@@ -65,7 +72,7 @@ function Base.show(io::IO, m::MIME"text/html", sets::NamedConceptSets)
 end
 
 Base.getindex(sets::NamedConceptSets, key::Symbol) =
-    sets.dict[name]
+    sets.dict[key]
 
 Base.get(sets::NamedConceptSets, key::Symbol, default) =
     get(sets.dict, key, default)
@@ -268,6 +275,27 @@ Specialty_concept() = begin
         is_null(invalid_reason))
 end
 
+end
+
+funsql_concept_matches(cs::Tuple{Any}, on = :concept_id, with_descendants = true) =
+    funsql_concept_matches(cs[1], on = on, with_descendants = with_descendants)
+
+funsql_concept_matches(cs::Vector; on = :concept_id, with_descendants = true) =
+    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on, with_descendants = with_descendants)
+
+function funsql_concept_matches(cs; on = :concept_id, with_descendants = true)
+    cs = convert(FunSQL.SQLNode, cs)
+    if with_descendants
+        cs = @funsql begin
+            $cs
+            join(from(concept_ancestor), concept_id == ancestor_concept_id)
+            define(concept_id => descendant_concept_id)
+        end
+    end
+    if on isa Symbol && !endswith(string(on), "concept_id")
+        on = Symbol("$(on)_concept_id")
+    end
+    return @funsql $on in $cs.select(concept_id)
 end
 
 #=

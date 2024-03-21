@@ -721,6 +721,9 @@ end
 
 write_and_display(name, ::Nothing; empty_cols=[]) = nothing
 
+write_and_display(name, r::SQLResult) =
+    write_and_display(name, ensure_result!(r))
+
 function write_cleanup(name)
     isfile("$(name).csv") ? rm("$(name).csv") : nothing
     isfile("$(name).xlsx") ? rm("$(name).xlsx") : nothing
