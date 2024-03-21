@@ -111,6 +111,7 @@ end
 macro connect(args...)
     return quote
         const $(esc(:db)) = TRDW.connect($(Any[esc(arg) for arg in args]...))
+        export $(esc(:db))
 
         macro $(esc(:query))(q)
             ex = TRDW.FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext($(esc(:__module__)), $(esc(:__source__))))
@@ -121,6 +122,7 @@ macro connect(args...)
                 TRDW.run($(esc(:db)), $ex)
             end
         end
+        export $(esc(Symbol("@query")))
 
         if :concept in keys($(esc(:db)).catalog.tables)
 
@@ -157,6 +159,40 @@ macro connect(args...)
             const $(esc(:funsql_Ingredient)) = TRDW.Vocabulary("Ingredient", TRDW.run($(esc(:db)), @funsql Ingredient_concept()))
             const $(esc(:funsql_Route)) = TRDW.Vocabulary("Route", TRDW.run($(esc(:db)), @funsql Route_concept()))
             const $(esc(:funsql_Specialty)) = TRDW.Vocabulary("Specialty", TRDW.run($(esc(:db)), @funsql Specialty_concept()))
+
+            export $(esc(:funsql_ABMS))
+            export $(esc(:funsql_ATC))
+            export $(esc(:funsql_CMS_Place_of_Service))
+            export $(esc(:funsql_CPT4))
+            export $(esc(:funsql_Condition_Status))
+            export $(esc(:funsql_HES_Specialty))
+            export $(esc(:funsql_HemOnc))
+            export $(esc(:funsql_ICDO3))
+            export $(esc(:funsql_ICD10CM))
+            export $(esc(:funsql_ICD10PCS))
+            export $(esc(:funsql_ICD9CM))
+            export $(esc(:funsql_ICD9Proc))
+            export $(esc(:funsql_LOINC))
+            export $(esc(:funsql_Medicare_Specialty))
+            export $(esc(:funsql_NDFRT))
+            export $(esc(:funsql_NUCC))
+            export $(esc(:funsql_None))
+            export $(esc(:funsql_OMOP_Extension))
+            export $(esc(:funsql_Procedure_Type))
+            export $(esc(:funsql_Provider))
+            export $(esc(:funsql_Race))
+            export $(esc(:funsql_RxNorm_Extension))
+            export $(esc(:funsql_RxNorm))
+            export $(esc(:funsql_SNOMED))
+            export $(esc(:funsql_Type_Concept))
+            export $(esc(:funsql_UCUM))
+            export $(esc(:funsql_Visit))
+
+            export $(esc(:funsql_Dose_Form_Group))
+            export $(esc(:funsql_Component_Class))
+            export $(esc(:funsql_Ingredient))
+            export $(esc(:funsql_Route))
+            export $(esc(:funsql_Specialty))
 
         end
 
