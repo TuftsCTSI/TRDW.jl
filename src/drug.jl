@@ -68,11 +68,6 @@ drug_dose_form_group() = drug_concept().filter(concept_class_id == "Dose Form Gr
 drug_ingredient() = drug_concept().filter(concept_class_id == "Ingredient")
 drug_pharmacologic_class() = drug_concept().filter(concept_class_id == "Pharmacologic Class")
 
-route_isa(args...) = category_isa($Route, $args, route_concept_id)
-component_class_isa(args...) = category_isa($ComponentClass, $args, omop.drug_concept_id)
-dose_form_group_isa(args...) = category_isa($DoseFormGroup, $args, omop.drug_concept_id)
-ingredient_isa(args...) = category_isa($Ingredient, $args, omop.drug_concept_id)
-
 drug_ingredient_via_SNOMED(code, name) = begin
     concept(SNOMED($code, $name))
     concept_relatives("Subsumes",1:3)

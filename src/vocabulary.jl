@@ -1,14 +1,11 @@
 struct NamedConceptSetsSpecification
-    dict::OrderedDict{Symbol, Union{FunSQL.SQLNode, DataFrame}}
+    dict::OrderedDict{Symbol, FunSQL.SQLNode}
 end
 
 function funsql_concept_sets(; kws...)
     dict = OrderedDict{Symbol, FunSQL.SQLNode}()
     for (k, v) in kws
-        q = v isa DataFrame ? v :
-            v isa Vector{DataFrame} ? vcat(v...) :
-            v isa AbstractVector ? FunSQL.Append(args = FunSQL.SQLNode[v...]) :
-            convert(FunSQL.SQLNode, v)
+        q = v isa AbstractVector ? FunSQL.Append(args = FunSQL.SQLNode[v...]) : convert(FunSQL.SQLNode, v)
         dict[k] = q
     end
     NamedConceptSetsSpecification(dict)
@@ -80,200 +77,28 @@ Base.get(sets::NamedConceptSets, key::Symbol, default) =
 FunSQL.Chain(sets::NamedConceptSets, key::Symbol) =
     sets[key]
 
-struct Vocabulary
-    title::String
-    res::SQLResult
-end
-
-function Base.show(io::IO, voc::Vocabulary)
-    print(io, "Vocabulary(")
-    show(io, voc.title)
-    print(io, ")")
-end
-
-(voc::Vocabulary)(args...) =
-    find_concept(args..., voc)
-
-find_concept(code, name, voc) =
-    find_concept(string(code), name, voc)
-
-function find_concept(code::String, name, voc)
-    df = ensure_result!(voc.res)
-    ks = findall(==(code), df.concept_code)
-    isempty(ks) && throw(DomainError(code, "no concepts with the given code in $(voc.title)"))
-    length(ks) > 1 && throw(DomainError(code, "more than one concept with the given code in $(voc.title)"))
-    k = ks[1]
-    df = df[k:k, :]
-    if name isa String && occursin("...", name)
-        name = pattern_to_regexp(name)
-    end
-    any(concept_name_matches(name), df.concept_name) || throw(DomainError(name, "concept name does not match the code in $(voc.title)"))
-    df
-end
-
-function find_concept(name, voc)
-    df = ensure_result!(voc.res)
-    ks = findall(concept_name_matches(name), df.concept_name)
-    isempty(ks) && throw(DomainError(name, "no concepts with the given name in $(voc.title)"))
-    length(ks) > 1 && throw(DomainError(name, "more than one concept with the given name in $(voc.title)"))
-    k = ks[1]
-    df[k:k, :]
-end
-
-function concept_name_matches(concept_name::String, pattern::String)
-    Unicode.isequal_normalized(pattern, concept_name, casefold = true, stripmark = true)
-end
-
-function concept_name_matches(concept_name::String, pattern::Regex)
-    occursin(pattern, concept_name)
-end
-
-function concept_name_matches(pattern::String)
-    if occursin("...", pattern)
-        pattern = replace(pattern, r"[\\^$.[|()?*+{]" => s"\\\0")
-        pattern = replace(pattern, "..." => s".+")
-        pattern = replace(pattern, r"\A" => s"\\A", r"\z" => s"\\z")
-        return concept_name_matches(Regex(pattern, "i"))
-    end
-    return Base.Fix2(concept_name_matches, pattern)
-end
-
-function concept_name_matches(pattern::Regex)
-    Base.Fix2(concept_name_matches, pattern)
-end
-
 @funsql begin
 
-ABMS_concept() =
-    concept().filter(vocabulary_id == "ABMS" && is_null(invalid_reason))
+LOINC(code, name) =
+    concept($(ConceptPredicate(vocabulary_id = "LOINC", concept_code = code, concept_name = name)))
 
-ATC_concept() =
-    concept().filter(vocabulary_id == "ATC" && is_null(invalid_reason))
+RxNorm(code, name) =
+    concept($(ConceptPredicate(vocabulary_id = "RxNorm", concept_code = code, concept_name = name)))
 
-CMS_Place_of_Service_concept() =
-    concept().filter(vocabulary_id == "CMS Place of Service" && is_null(invalid_reason))
+SNOMED(code, name) =
+    concept($(ConceptPredicate(vocabulary_id = "SNOMED", concept_code = code, concept_name = name)))
 
-CPT4_concept() =
-    concept().filter(vocabulary_id == "CPT4" && is_null(invalid_reason))
+Type_Concept(name) =
+    concept($(ConceptPredicate(vocabulary_id = "Type Concept")))
 
-Condition_Status_concept() =
-    concept().filter(vocabulary_id == "Condition Status" && is_null(invalid_reason))
+Dose_Form_Group(name) =
+    concept($(ConceptPredicate(domain_id = "Drug", vocabulary_id = "RxNorm", concept_class_id = "Dose Form Group", concept_name = name)))
 
-HES_Specialty_concept() =
-    concept().filter(vocabulary_id == "HES Specialty" && is_null(invalid_reason))
+type_isa(name) =
+    concept_matches(Type_Concept($name), on = type_concept_id)
 
-HemOnc_concept() =
-    concept().filter(vocabulary_id == "HemOnc" && is_null(invalid_reason))
-
-ICDO3_concept() =
-    concept().filter(vocabulary_id == "ICDO3" && is_null(invalid_reason))
-
-ICD10CM_concept() =
-    concept().filter(vocabulary_id == "ICD10CM" && is_null(invalid_reason))
-
-ICD10PCS_concept() =
-    concept().filter(vocabulary_id == "ICD10PCS" && is_null(invalid_reason))
-
-ICD9CM_concept() =
-    concept().filter(vocabulary_id == "ICD9CM" && is_null(invalid_reason))
-
-ICD9Proc_concept() =
-    concept().filter(vocabulary_id == "ICD9Proc" && is_null(invalid_reason))
-
-LOINC_concept() =
-    concept().filter(vocabulary_id == "LOINC" && is_null(invalid_reason))
-
-Medicare_Specialty_concept() =
-    concept().filter(vocabulary_id == "Medicare Specialty" && is_null(invalid_reason))
-
-NDFRT_concept() =
-    concept().filter(vocabulary_id == "NDFRT" && is_null(invalid_reason))
-
-NUCC_concept() =
-    concept().filter(vocabulary_id == "NUCC" && is_null(invalid_reason))
-
-None_concept() =
-    concept().filter(vocabulary_id == "None" && is_null(invalid_reason))
-
-OMOP_Extension_concept() =
-    concept().filter(vocabulary_id == "OMOP Extension" && is_null(invalid_reason))
-
-Procedure_Type_concept() =
-    concept().filter(vocabulary_id == "Procedure Type" && is_null(invalid_reason))
-
-Provider_concept() =
-    concept().filter(vocabulary_id == "Provider" && is_null(invalid_reason))
-
-Race_concept() =
-    concept().filter(vocabulary_id == "Race" && is_null(invalid_reason))
-
-RxNorm_Extension_concept() =
-    concept().filter(vocabulary_id == "RxNorm Extension" && is_null(invalid_reason))
-
-RxNorm_concept() =
-    concept().filter(vocabulary_id == "RxNorm" && is_null(invalid_reason))
-
-SNOMED_concept() =
-    concept().filter(vocabulary_id == "SNOMED" && is_null(invalid_reason))
-
-Type_Concept_concept() =
-    concept().filter(vocabulary_id == "Type Concept" && is_null(invalid_reason))
-
-UCUM_concept() =
-    concept().filter(vocabulary_id == "UCUM" && is_null(invalid_reason))
-
-Visit_concept() =
-    concept().filter(vocabulary_id == "Visit" && is_null(invalid_reason))
-
-Dose_Form_Group_concept() = begin
-    concept()
-    filter(
-        domain_id == "Drug" &&
-        vocabulary_id == "RxNorm" &&
-        concept_class_id == "Dose Form Group" &&
-        is_not_null(standard_concept) &&
-        is_null(invalid_reason))
-end
-
-Component_Class_concept() = begin
-    concept()
-    filter(
-        domain_id == "Drug" &&
-        vocabulary_id == "HemOnc" &&
-        concept_class_id == "Component Class" &&
-        is_not_null(standard_concept) &&
-        is_null(invalid_reason))
-
-end
-
-Ingredient_concept() = begin
-    concept()
-    filter(
-        domain_id == "Drug" &&
-        in(vocabulary_id, "RxNorm", "RxNorm Extension") &&
-        concept_class_id == "Ingredient" &&
-        is_not_null(standard_concept) &&
-        is_null(invalid_reason))
-end
-
-Route_concept() = begin
-    concept()
-    filter(
-        domain_id == "Route" &&
-        vocabulary_id == "SNOMED" &&
-        concept_class_id == "Qualifier Value" &&
-        is_not_null(standard_concept) &&
-        is_null(invalid_reason))
-end
-
-Specialty_concept() = begin
-    concept()
-    filter(
-        domain_id == "Provider" &&
-        in(vocabulary_id, "Provider", "NUCC", "HES Specialty", "Medicare Specialty", "ABMS") &&
-        is_not_null(standard_concept) &&
-        is_null(invalid_reason))
-end
+dose_form_group_isa(name) =
+    concept_matches(Dose_Form_Group($name))
 
 end
 

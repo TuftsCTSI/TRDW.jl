@@ -23,7 +23,7 @@ import Base.show
 include("connect.jl")
 include("result.jl")
 include("general.jl")
-include("define.jl")
+include("nodes.jl")
 include("inventory.jl")
 include("spark.jl")
 include("helpers.jl")
