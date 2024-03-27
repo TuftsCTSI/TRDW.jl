@@ -93,8 +93,7 @@ This function correlates by `person_id` upon the joined table, optionally filter
 function funsql_filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     return @funsql(begin
-        left_join($name => $base, $name.person_id == person_id)
-        filter($(something(predicate, true)))
+        left_join($name => $base, $name.person_id == person_id && $predicate)
         filter(isnull($name.person_id))
         undefine($name)
     end)
