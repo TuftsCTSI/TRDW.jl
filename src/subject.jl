@@ -133,7 +133,7 @@ function merge_subject_table!(db, case, q::FunSQL.SQLNode; truncate=false, datat
         WHERE subject_id NOT IN (SELECT subject_id FROM ($load_sql))
     """
     DBInterface.execute(db, query)
-    c = DBInterface.execute(db, "SELECT COUNT(*) FROM $subject_sql")
+    c = DBInterface.execute(db, "SELECT COUNT(*) FROM $subject_sql WHERE removed IS NULL")
     n = DataFrame(c)[1,1]
     message = "has $n persons; updated at $(now())"
     DBInterface.execute(db, "COMMENT ON TABLE $subject_sql IS '$message'")
