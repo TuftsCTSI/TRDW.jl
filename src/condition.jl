@@ -189,7 +189,9 @@ function funsql_pick_ICD10CM(specification)
                 @funsql(startswith(concept_code, $chunk)))
         elseif occursin("-", chunk)
             (lhs, rhs) = split(chunk, "-")
-            @assert length(lhs) == length(rhs)
+            if length(lhs) != length(rhs)
+                @error("not same length $lhs - $rhs")
+            end
             chunk = ""
             for n in 1:length(lhs)
                 needle = lhs[1:n]
@@ -202,6 +204,9 @@ function funsql_pick_ICD10CM(specification)
                     startswith(concept_code, $chunk),
                     length(concept_code) == length($lhs))))
         else
+            if occursin("–", chunk)
+                @error("mdash found in $chunk")
+            end
             push!(predicate, @funsql(concept_code == $chunk))
         end
     end
