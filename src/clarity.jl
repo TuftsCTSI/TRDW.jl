@@ -12,12 +12,12 @@ funsql_define_zc_lookup(name; zc_table=nothing) = begin
     else
         alias = name
     end
-    temp = gensym()
     zc_table = something(zc_table, Symbol("zc_$name"))
     _c = Symbol("$(name)_c")
     @funsql(begin
-        left_join($temp => from($zc_table), $_c == $temp.$_c)
-        define($alias => $temp.name)
+        left_join($zc_table => from($zc_table), $_c == $zc_table.$_c)
+        define($alias => $zc_table.name)
+        undefine($zc_table)
     end)
 end
 

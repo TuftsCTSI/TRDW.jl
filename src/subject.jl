@@ -48,7 +48,7 @@ function subject_query(case::String)
 end
 
 function define_subject_id(case; assert=true)
-    name = gensym()
+    name = :_subject_id
     query = subject_query(case)
     query = @funsql begin
         left_join($name => $query, $name.person_id == person_id)
@@ -72,7 +72,7 @@ funsql_to_subject_id(case; assert=true) =
    funsql_if_not_defined(:subject_id, to_subject_id(case;  assert=assert))
 
 funsql_fact_to_subject_id(case, domain_concept_id, fact_id) = begin
-     name = gensym()
+     name = :_fact_to_subject_id
      query = subject_query(case)
      @funsql begin
          left_join($name => $query, $name.person_id == $fact_id)

@@ -82,29 +82,31 @@ define_finding_site(name=finding_site_concept_id, concept_id=concept_id) = begin
 end
 
 crosswalk_from_icd9cm_to_icd10cm() =
-    $(let frame = gensym();
+    $(let frame = :_icd9cm_to_icd10cm;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
                 filter(relationship_id == "ICD9CM - ICD10CM gem")
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
 prefer_source_icdcm() =
-    $(let frame = gensym();
+    $(let frame = :_source_icdcm;
         @funsql(begin
             left_join($frame => begin
                 from(concept)
                 filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
             end, omop.condition_source_concept.concept_id == $frame.concept_id)
             define(concept_id => coalesce($frame.concept_id, concept_id))
+            undefine($frame)
         end)
     end)
 
 truncate_icd10cm_to_3char() =
-    $(let frame = gensym();
+    $(let frame = :_icd10cm_to_3char;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -115,11 +117,13 @@ truncate_icd10cm_to_3char() =
                 end, concept_id_2 == icd10cm_3_char.concept_id)
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
 truncate_snomed_without_finding_site() =
-    $(let frame = gensym(), partname = gensym();
+    $(let frame = :_snomed_without_finding_site,
+          partname = :_snomed_without_finding_site_partition;
         @funsql(begin
             left_join($frame => begin
                 from(concept_ancestor)
@@ -136,11 +140,12 @@ truncate_snomed_without_finding_site() =
             filter($frame.min_levels_of_separation ==
                    $partname.min($frame.min_levels_of_separation))
             define(concept_id => $frame.ancestor_concept_id)
+            undefine($frame, $partname)
         end)
     end)
 
 backwalk_snomed_to_icd10cm() =
-    $(let frame = gensym();
+    $(let frame = :_snomed_to_icd10cm;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -151,6 +156,7 @@ backwalk_snomed_to_icd10cm() =
                 end, concept_id_2 == icd10cm.concept_id)
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
@@ -161,7 +167,8 @@ to_3char_icd10cm() = begin
 end
 
 group_clinical_finding(carry...) =
-    $(let frame = gensym(), partname = gensym();
+    $(let frame = :_group_clinical_finding,
+          partname = :_group_clinical_finding_partition;
         @funsql(begin
             as($frame)
             join(concept_ancestor => from(concept_ancestor),
@@ -174,6 +181,7 @@ group_clinical_finding(carry...) =
                    $partname.min(concept_ancestor.min_levels_of_separation))
             define($([@funsql($n => $frame.$n) for n in carry]...))
             group([concept_id, $carry...]...)
+            undefine($frame, $partname)
         end)
     end)
 

@@ -158,7 +158,7 @@ Convert a WIISE patient identifier to a WIISE Viewer link.
 
 function funsql_define_soarian_patient(pair::Pair; filter = true)
     (name, mrn) = pair
-    sm = gensym()
+    sm = :_define_soarian_patient
     @funsql begin
         left_join($sm => soarian_map(), $mrn == $sm.mrn && $filter)
         define($name => $sm.person_id)
@@ -168,9 +168,9 @@ end
 
 function funsql_define_epic_patient(pair::Pair; filter = true)
     (name, mrn) = pair
-    ep = gensym()
-    gp = gensym()
-    p = gensym()
+    ep = :_epic_patient
+    gp = :_global_patient
+    p = :_person
     @funsql begin
         left_join($ep => epic_patient(), $ep.pat_mrn_id == $mrn && $filter)
         left_join($gp => global_patient(), $gp.system_epic_mrn == $mrn && $filter)

@@ -22,13 +22,13 @@ concept(p) = concept().filter($p)
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 
 select_concept(name, include...; order=[]) = begin
-    $(let frame = gensym(),
+    $(let frame = :_select_concept,
           columns = [:concept_id, :domain_id, :concept_class_id, :vocabulary_id,
                      :concept_code, :concept_name],
           concept_id = contains(string(name), "concept_id") ? name :
                          Symbol("$(name)_concept_id"),
-          # handle (name => expr) in Select because FunSQL doesn't do so...
-          order = [gensym() => x for x in order],
+          # let `order` be any expression
+          order = [Symbol("_$(x[1])") => x[2] for x in enumerate(order)],
           define = [[p for p in order if p isa Pair]..., [p for p in include if p isa Pair]...],
           include = [x isa Pair ? x[1] : x for x in include],
           order = [x isa Pair ? x[1] : x for x in order],
@@ -40,6 +40,7 @@ select_concept(name, include...; order=[]) = begin
             join(concept(), $frame.$concept_id == concept_id)
             order($order...)
             select($include...)
+            undefine($frame)
         end)
     end)
 end
@@ -151,34 +152,38 @@ end
 concept_siblings() = concept_parents().concept_children()
 
 filter_out_ancestors() = begin
-    $(let name = gensym(); @funsql(begin
-        deduplicate(concept_id)
-        left_join(
-            $name => from(concept_ancestor),
-            concept_id == $name.descendant_concept_id)
-        partition($name.ancestor_concept_id)
-        filter(count() <= 1)
-        filter($name.min_levels_of_separation == 0)
+    $(let name = :_filter_out_ancestors;
+        @funsql(begin
+            deduplicate(concept_id)
+            left_join(
+                $name => from(concept_ancestor),
+                concept_id == $name.descendant_concept_id)
+            partition($name.ancestor_concept_id)
+            filter(count() <= 1)
+            filter($name.min_levels_of_separation == 0)
+            undefine($name)
         end)
     end)
 end
 
 filter_out_descendants() = begin
-    $(let name = gensym(); @funsql(begin
-        deduplicate(concept_id)
-        left_join(
-            $name => from(concept_ancestor),
-            concept_id == $name.ancestor_concept_id)
-        partition($name.descendant_concept_id)
-        filter(count() <= 1)
-        filter($name.min_levels_of_separation == 0)
+    $(let name = :_filter_out_descendants;
+        @funsql(begin
+            deduplicate(concept_id)
+            left_join(
+                $name => from(concept_ancestor),
+                concept_id == $name.ancestor_concept_id)
+            partition($name.descendant_concept_id)
+            filter(count() <= 1)
+            filter($name.min_levels_of_separation == 0)
+            undefine($name)
         end)
     end)
     deduplicate(concept_id)
 end
 
 truncate_to_concept_class(concept_class_id, relationship_id="Is a") =
-    $(let frame = gensym();
+    $(let frame = :_truncate_to_concept_class;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -189,6 +194,7 @@ truncate_to_concept_class(concept_class_id, relationship_id="Is a") =
                 end, concept_id_2 == kind.concept_id)
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
