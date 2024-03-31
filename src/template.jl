@@ -1,3 +1,5 @@
+const DISCOVERY_IRB = "11642"
+
 const wide_notebook_style = html"""
 <style>
 /*    @media screen and (min-width: calc(700px + 25px + 283px + 34px + 25px)) */
@@ -12,7 +14,9 @@ const wide_notebook_style = html"""
 WideStyle() =
     wide_notebook_style
 
-NotebookFooter(;case=nothing, sfid=nothing) = @htl("""
+is_discovery(irb) = isnothing(irb) || string(irb) == DISCOVERY_IRB
+
+NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
   <div>
     <table style="width: 100%">
     <tr><td style="width: 72; vertical-align: top">
@@ -23,32 +27,33 @@ NotebookFooter(;case=nothing, sfid=nothing) = @htl("""
         Generated at $(Dates.now())
       </small>
     </td><td style="width: 28%; vertical-align: top; text-align: right;">
-    $(isnothing(case) ? "" : @htl("""Service Request#
-      $(isnothing(sfid) ? @htl("""<span>$case</span>""") : @htl("""
-        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Case/$sfid/view">$case</a>
+    $(isnothing(CASE) ? "" : @htl("""Service Request#
+      $(isnothing(SFID) ? @htl("""<span>$CASE</span>""") : @htl("""
+        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Case/$SFID/view">$CASE</a>
         """))
       <br />"""))
-    </td></tr></table>
+    $(is_discovery(IRB) ? "" : @htl("<p>IRB Study# $(IRB)"))
   </div>
 """)
 
-NotebookHeader(title=nothing, subtitle=nothing; case=nothing, sfid=nothing, irb=nothing) = @htl("""
+NotebookHeader(TITLE=nothing, STUDY=nothing; CASE=nothing, SFID=nothing,
+               IRB=DISCOVERY_IRB, IRB_START_DATE=nothing, IRB_END_DATE=nothing) = @htl("""
    <div style="overflow: auto; width: 100%; vertical-align: top;">
      <h1 style="display: inline-block; width: 88%; text-align: left; vertical-align: top;">
-       $(title)
-       $(isnothing(subtitle) ? "" :
-         @htl("""<p style="font-style: italic; font-size: 21px;">$subtitle</p>"""))
+       $(TITLE)
+       $(isnothing(STUDY) ? "" :
+         @htl("""<p style="font-style: italic; font-size: 21px;">$STUDY</p>"""))
      </h1>
      <div style="display: inline-block; width: 11%; text-align: right;
                  height: 100%; vertical-align: middle;">
-       $(isnothing(case) ? "" : @htl("""Service Request#
-          $(isnothing(sfid) ? @htl("""<span>$case</span>""") : @htl("""
+       $(isnothing(CASE) ? "" : @htl("""Service Request#
+          $(isnothing(SFID) ? @htl("""<span>$CASE</span>""") : @htl("""
             <a style="text-decoration: underline dotted;"
-               href="https://tuftsctsi.my.site.com/s/case/$sfid/">$case</a>
+               href="https://tuftsctsi.my.site.com/s/case/$SFID ">$CASE</a>
         """))"""))
     </div>
    </div>
-   $(if isnothing(irb) || irb == 11642
+   $(if is_discovery(IRB)
         @htl("""
             <p>
                 This cohort discovery is provided under IRB Protocol #11642,
@@ -56,6 +61,10 @@ NotebookHeader(title=nothing, subtitle=nothing; case=nothing, sfid=nothing, irb=
                 permitting <i>"aggregate, obfuscated patient counts"</i>.
                 Counts below ten are indicated with the ≤ symbol.
             </p>
+        """)
+     else
+        @htl("""
+            <p>IRB Study # $(IRB) ($IRB_START_DATE to $IRB_END_DATE)</p>
         """)
      end)
 """)
