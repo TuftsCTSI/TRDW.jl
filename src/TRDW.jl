@@ -15,6 +15,7 @@ using OrderedCollections: OrderedDict
 using Unicode
 using LightXML
 using ODBC
+using PlutoUI
 
 import Tables
 import DBInterface.execute

@@ -1,19 +1,5 @@
 const DISCOVERY_IRB = "11642"
 
-const wide_notebook_style = html"""
-<style>
-/*    @media screen and (min-width: calc(700px + 25px + 283px + 34px + 25px)) */
-        main {
-            margin: 0 auto;
-            max-width: 2000px;
-            padding-right: 50px;
-        }
-</style>
-"""
-
-WideStyle() =
-    wide_notebook_style
-
 is_discovery(irb) = isnothing(irb) || string(irb) == DISCOVERY_IRB
 
 NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
@@ -36,13 +22,19 @@ NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
   </div>
 """)
 
-NotebookHeader(TITLE=nothing, STUDY=nothing; CASE=nothing, SFID=nothing,
+NotebookHeader(TITLE=nothing; STUDY=nothing, CASE=nothing, SFID=nothing,
                IRB=DISCOVERY_IRB, IRB_START_DATE=nothing, IRB_END_DATE=nothing) = @htl("""
+   <!-- wide notebooks -->
+   <style>
+           main {
+               margin: 0 auto;
+               max-width: 2000px;
+               padding-right: 50px;
+           }
+   </style>
    <div style="overflow: auto; width: 100%; vertical-align: top;">
      <h1 style="display: inline-block; width: 88%; text-align: left; vertical-align: top;">
        $(TITLE)
-       $(isnothing(STUDY) ? "" :
-         @htl("""<p style="font-style: italic; font-size: 21px;">$STUDY</p>"""))
      </h1>
      <div style="display: inline-block; width: 11%; text-align: right;
                  height: 100%; vertical-align: middle;">
@@ -51,8 +43,10 @@ NotebookHeader(TITLE=nothing, STUDY=nothing; CASE=nothing, SFID=nothing,
             <a style="text-decoration: underline dotted;"
                href="https://tuftsctsi.my.site.com/s/case/$SFID ">$CASE</a>
         """))"""))
-    </div>
+     </div>
    </div>
+   $(isnothing(STUDY) ? "" :
+     @htl("""<p style="font-style: italic; font-size: 21px;">$STUDY</p>"""))
    $(if is_discovery(IRB)
         @htl("""
             <p>
@@ -67,4 +61,5 @@ NotebookHeader(TITLE=nothing, STUDY=nothing; CASE=nothing, SFID=nothing,
             <p>IRB Study # $(IRB) ($IRB_START_DATE to $IRB_END_DATE)</p>
         """)
      end)
+   $(PlutoUI.TableOfContents())
 """)
