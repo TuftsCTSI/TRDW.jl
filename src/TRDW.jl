@@ -16,6 +16,9 @@ using Unicode
 using LightXML
 using ODBC
 using PlutoUI
+using Scratch
+using Arrow
+using SHA
 
 import Tables
 import DBInterface.execute

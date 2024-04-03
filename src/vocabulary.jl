@@ -80,48 +80,72 @@ FunSQL.Chain(sets::NamedConceptSets, key::Symbol) =
 @funsql begin
 
 LOINC(code, name) =
-    concept($(ConceptPredicate(vocabulary_id = "LOINC", concept_code = code, concept_name = name)))
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "LOINC" && concept_code == $code && concept_name == $name,
+            $(:(LOINC($code, $name)))))
 
 RxNorm(code, name) =
-    concept($(ConceptPredicate(vocabulary_id = "RxNorm", concept_code = code, concept_name = name)))
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "RxNorm" && concept_code == $code && concept_name == $name,
+            $(:(RxNorm($code, $name)))))
 
 SNOMED(code, name) =
-    concept($(ConceptPredicate(vocabulary_id = "SNOMED", concept_code = code, concept_name = name)))
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "SNOMED" && concept_code == $code && concept_name == $name,
+            $(:(SNOMED($code, $name)))))
 
 Type_Concept(name) =
-    concept($(ConceptPredicate(vocabulary_id = "Type Concept")))
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "Type Concept" && concept_name == $name,
+            $(:(Type_Concept($name)))))
 
 Dose_Form_Group(name) =
-    concept($(ConceptPredicate(domain_id = "Drug", vocabulary_id = "RxNorm", concept_class_id = "Dose Form Group", concept_name = name)))
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "RxNorm" && domain_id == "Drug" && concept_class_id == "Dose Form Group" && concept_name == $name,
+            $(:(Dose_Form_Group($name)))))
 
-type_isa(name) =
-    concept_matches(Type_Concept($name), on = type_concept_id)
+isa(cs; with_descendants = true) =
+    isa(concept_id, $cs, with_descendants = $with_descendants)
 
-dose_form_group_isa(name) =
-    concept_matches(Dose_Form_Group($name))
+type_isa(cs; with_descendants = true) =
+    isa(type_concept_id, $cs, with_descendants = $with_descendants)
+
+type_isa(name::AbstractString; with_descendants = true) =
+    type_isa(Type_Concept($name), with_descendants = $with_descendants)
+
+dose_form_group_isa(cs; with_descendants = true) =
+    isa($cs, with_descendants = $with_descendants)
+
+dose_form_group_isa(name::AbstractString; with_descendants = true) =
+    dose_form_group_isa(Dose_Form_Group($name), with_descendants = $with_descendants)
 
 end
 
-funsql_concept_matches(cs::Tuple{Any}, on = :concept_id, with_descendants = true) =
-    funsql_concept_matches(cs[1], on = on, with_descendants = with_descendants)
-
-funsql_concept_matches(cs::Vector; on = :concept_id, with_descendants = true) =
-    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on, with_descendants = with_descendants)
-
-function funsql_concept_matches(cs; on = :concept_id, with_descendants = true)
-    cs = convert(FunSQL.SQLNode, cs)
+function funsql_isa(concept_id, concept_set; with_descendants = true)
+    concept_set = convert(FunSQL.SQLNode, concept_set)
     if with_descendants
-        cs = @funsql begin
-            $cs
+        concept_set = @funsql begin
+            $concept_set
             join(from(concept_ancestor), concept_id == ancestor_concept_id)
             define(concept_id => descendant_concept_id)
         end
     end
-    if on isa Symbol && !endswith(string(on), "concept_id")
-        on = Symbol("$(on)_concept_id")
-    end
-    return @funsql $on in $cs.select(concept_id)
+    return @funsql $concept_id in $concept_set.select(concept_id)
 end
+
+funsql_concept_matches(cs; on = :concept_id, with_descendants = true) =
+    funsql_isa(on, cs, with_descendants = with_descendants)
+
+funsql_concept_matches(cs::Tuple{Any}; on = :concept_id, with_descendants = true) =
+    funsql_concept_matches(cs[1], on = on, with_descendants = with_descendants)
+
+funsql_concept_matches(cs::Vector; on = :concept_id, with_descendants = true) =
+    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on, with_descendants = with_descendants)
 
 #=
 function funsql_category_isa(type, cs::Union{Tuple, AbstractVector}, concept_id = :concept_id)

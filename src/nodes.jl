@@ -603,65 +603,78 @@ _concept_attribute(n::Integer) =
 _concept_attribute(val) =
     val
 
-mutable struct ConceptPredicateNode <: FunSQL.AbstractSQLNode
-    concept_name::Union{Vector{String}, Regex, Nothing}
-    domain_id::Union{Vector{String}, Regex, Nothing}
-    vocabulary_id::Union{Vector{String}, Regex, Nothing}
-    concept_class_id::Union{Vector{String}, Regex, Nothing}
-    standard_concept::Union{Vector{String}, Regex, Nothing}
-    concept_code::Union{Vector{String}, Regex, Nothing}
+mutable struct AssertValidConceptNode <: FunSQL.AbstractSQLNode
+    condition::FunSQL.SQLNode
+    ex::Expr
 
-    ConceptPredicateNode(;
-        concept_name = nothing,
-        domain_id = nothing,
-        vocabulary_id = nothing,
-        concept_class_id = nothing,
-        standard_concept = nothing,
-        concept_code = nothing) =
-        new(
-            _concept_attribute(concept_name),
-            _concept_attribute(domain_id),
-            _concept_attribute(vocabulary_id),
-            _concept_attribute(concept_class_id),
-            _concept_attribute(standard_concept),
-            _concept_attribute(concept_code))
+    AssertValidConceptNode(; condition, ex) =
+        new(condition, ex)
 end
 
-ConceptPredicate(args...; kws...) =
-    ConceptPredicateNode(args...; kws...) |> FunSQL.SQLNode
+AssertValidConceptNode(condition, ex) =
+    AssertValidConceptNode(condition = condition, ex = ex)
 
-function FunSQL.PrettyPrinting.quoteof(n::ConceptPredicateNode, ctx)
-    ex = Expr(:call, nameof(ConceptPredicate))
-    if n.concept_name !== nothing
-        push!(ex.args, Expr(:kw, :concept_name, n.concept_name))
-    end
-    if n.domain_id !== nothing
-        push!(ex.args, Expr(:kw, :domain_id, n.domain_id))
-    end
-    if n.vocabulary_id !== nothing
-        push!(ex.args, Expr(:kw, :vocabulary_id, n.vocabulary_id))
-    end
-    if n.concept_class_id !== nothing
-        push!(ex.args, Expr(:kw, :concept_class_id, n.concept_class_id))
-    end
-    if n.standard_concept !== nothing
-        push!(ex.args, Expr(:kw, :standard_concept, n.standard_concept))
-    end
-    if n.concept_code !== nothing
-        push!(ex.args, Expr(:kw, :concept_code, n.concept_code))
-    end
-    ex
+AssertValidConcept(args...; kws...) =
+    AssertValidConceptNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_assert_valid_concept = AssertValidConcept
+
+function FunSQL.PrettyPrinting.quoteof(n::AssertValidConceptNode, ctx)
+    Expr(:call, nameof(AssertValidConcept), FunSQL.quoteof(n.condition, ctx), Expr(:quote, n.ex))
 end
 
-_concept_predicate(val::Vector{String}, attr::Symbol) =
-    FunSQL.Fun.in(attr, val...)
+function FunSQL.resolve_scalar(n::AssertValidConceptNode, ctx)
+    if !(:concept in keys(ctx.cte_types)) && (:concept in keys(ctx.tables))
+        concept_id = resolve_concept_id(n)
+        if concept_id !== nothing
+            return FunSQL.resolve_scalar(FunSQL.Fun."="(FunSQL.Get.concept_id, FunSQL.Lit(concept_id)), ctx)
+        end
+    end
+    FunSQL.resolve_scalar(n.condition, ctx)
+end
 
-_concept_predicate(val::Regex, attr::Symbol) =
-    FunSQL.Fun.rlike(attr, val.pattern)
+function create_concept_cache(db)
+    t = get(db.catalog.tables, :concept, nothing)
+    t !== nothing || return
+    key = join(string.([t.qualifiers..., t.name]), '.')
+    t_id = FunSQL.render(db, FunSQL.ID(t.qualifiers, t.name))
+    table_detail = Tables.columntable(DBInterface.execute(db, "DESCRIBE DETAIL $t_id"))
+    table_mtime = trunc(Int, datetime2unix(table_detail.lastModified[1]))
+    scratchname = "$key.$table_mtime"
+    return (db = db, dir = @get_scratch!(scratchname))
+end
 
-_concept_predicate(::Nothing, ::Symbol) =
-    FunSQL.Lit(true)
+with_concept_cache(f, concept_cache) =
+    Base.task_local_storage(f, :concept_cache, concept_cache)
 
-function FunSQL.resolve_scalar(n::ConceptPredicateNode, ctx)
-    FunSQL.Fun.and(args = FunSQL.SQLNode[_concept_predicate(getfield(n, attr), attr) for attr in fieldnames(typeof(n))])
+function resolve_concept_id(n::AssertValidConceptNode)
+    tls = task_local_storage()
+    concept_cache = get(tls, :concept_cache, nothing)
+    concept_cache !== nothing || return
+    q = @funsql concept($(n.condition)).order(concept_id).limit(3)
+    sql = FunSQL.render(concept_cache.db, q)
+    key = bytes2hex(sha256(sql))
+    filename = joinpath(concept_cache.dir, key * ".arrow")
+    if isfile(filename)
+        df = DataFrame(Arrow.Table(filename))
+    else
+        df = DataFrame(DBInterface.execute(concept_cache.db, sql))
+        tmpname = tempname(concept_cache.dir)
+        Arrow.write(tmpname, df)
+        mv(tmpname, filename, force = true)
+    end
+    concept_ids = df.concept_id
+    invalid_reasons = df.invalid_reason
+    if isempty(concept_ids)
+        throw(DomainError(n.ex, "concept not found"))
+    elseif length(concept_ids) > 1
+        choices = join(string.(concept_ids[1:2]), ", ")
+        if length(concept_ids) > 2
+            choices *= ", …"
+        end
+        throw(DomainError(n.ex, "concept is ambiguous ($choices)"))
+    elseif invalid_reasons[1] !== missing
+        throw(DomainError(n.ex, "concept is invalid ($(invalid_reasons[1]))"))
+    end
+    return concept_ids[1]
 end

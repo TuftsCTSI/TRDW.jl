@@ -113,20 +113,19 @@ macro connect(args...)
         const $(esc(:db)) = TRDW.connect($(Any[esc(arg) for arg in args]...))
         export $(esc(:db))
 
+        const $(esc(:concept_cache)) = TRDW.create_concept_cache($(esc(:db)))
+        export $(esc(:concept_cache))
+
         macro $(esc(:query))(q)
             ex = TRDW.FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext($(esc(:__module__)), $(esc(:__source__))))
             if ex isa Expr && ex.head in (:block, :(=), :const, :global, :local)
                 return ex
             end
             return quote
-                TRDW.run($(esc(:db)), $ex)
+                TRDW.with_concept_cache(() -> TRDW.run($(esc(:db)), $ex), $(esc(:concept_cache)))
             end
         end
         export $(esc(Symbol("@query")))
-
-        if :concept in keys($(esc(:db)).catalog.tables)
-
-        end
 
         nothing
     end
