@@ -103,6 +103,12 @@ Type_Concept(name) =
             vocabulary_id == "Type Concept" && concept_name == $name,
             $(:(Type_Concept($name)))))
 
+Visit(name) =
+    concept(
+        assert_valid_concept(
+            domain_id == "Visit" && concept_name == $name && standard_concept == "S",
+            $(:(Visit($name)))))
+
 Dose_Form_Group(name) =
     concept(
         assert_valid_concept(

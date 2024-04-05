@@ -40,7 +40,6 @@ select_concept(name, include...; order=[]) = begin
             join(concept(), $frame.$concept_id == concept_id)
             order($order...)
             select($include...)
-            undefine($frame)
         end)
     end)
 end
