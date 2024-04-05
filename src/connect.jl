@@ -110,13 +110,6 @@ end
 
 macro connect(args...)
     return quote
-        if TRDW.is_discovery($(esc(:IRB)))
-            if length($args) == 1 && $(esc(args[1])) == "ctsi.trdw_green"
-                nothing
-            else
-                error("Discovery notebook doesn't use exactly ctsi.trdw_green")
-            end
-        end
         const $(esc(:db)) = TRDW.connect($(Any[esc(arg) for arg in args]...))
         export $(esc(:db))
 
