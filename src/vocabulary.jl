@@ -141,6 +141,49 @@ dose_form_group_isa(name::AbstractString; with_descendants = true) =
 
 end
 
+function funsql_ICD10CM(specification)
+    specification = strip(replace(uppercase(specification), r"[\s,]+" => " "))
+    predicate = []
+    negations = []
+    for chunk in split(specification, " ")
+        if startswith(chunk, "-")
+            push!(negations,
+                @funsql(startswith(concept_code, $chunk)))
+        elseif occursin("-", chunk)
+            (lhs, rhs) = split(chunk, "-")
+            if length(lhs) != length(rhs)
+                @error("not same length $lhs - $rhs")
+            end
+            chunk = ""
+            for n in 1:length(lhs)
+                needle = lhs[1:n]
+                if startswith(rhs, needle)
+                    chunk = needle
+                end
+            end
+            push!(predicate, @funsql(
+                and(between(concept_code, $lhs, $rhs),
+                    startswith(concept_code, $chunk),
+                    length(concept_code) == length($lhs))))
+        else
+            if occursin("–", chunk)
+                @error("mdash found in $chunk")
+            end
+            push!(predicate, @funsql(concept_code == $chunk))
+        end
+    end
+    predicate = @funsql(or(args=$predicate))
+    if length(negations) > 0
+        negations = @funsql(or(args=$negations))
+        predicate = @funsql(and($predicate, not($negations)))
+    end
+    @funsql begin
+        concept()
+        filter(vocabulary_id=="ICD10CM")
+        filter($predicate)
+    end
+end
+
 function funsql_isa(concept_id, concept_set; with_descendants = true)
     concept_set = convert(FunSQL.SQLNode, concept_set)
     if with_descendants
