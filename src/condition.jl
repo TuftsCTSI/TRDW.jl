@@ -73,25 +73,13 @@ is_primary_discharge_diagnosis() =
 status_isa(args...) =
     category_isa($Condition_Status, $args, omop.condition_status_concept_id)
 
-define_finding_site(name=finding_site_concept_id, concept_id=concept_id) = begin
+define_finding_site(concept_id=concept_id; name=finding_site_concept_id, concept=true) = begin
     left_join($name => begin
         from(concept_relationship)
         filter(relationship_id == "Has finding site")
     end, $name.concept_id_1 == $concept_id)
     define($name => $name.concept_id_2)
 end
-
-crosswalk_from_icd9cm_to_icd10cm() =
-    $(let frame = :_icd9cm_to_icd10cm;
-        @funsql(begin
-            left_join($frame => begin
-                from(concept_relationship)
-                filter(relationship_id == "ICD9CM - ICD10CM gem")
-            end, concept_id == $frame.concept_id_1)
-            define(concept_id => coalesce($frame.concept_id_2, concept_id))
-            undefine($frame)
-        end)
-    end)
 
 prefer_source_icdcm() =
     $(let frame = :_source_icdcm;
@@ -101,6 +89,18 @@ prefer_source_icdcm() =
                 filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
             end, omop.condition_source_concept.concept_id == $frame.concept_id)
             define(concept_id => coalesce($frame.concept_id, concept_id))
+            undefine($frame)
+        end)
+    end)
+
+crosswalk_from_icd9cm_to_icd10cm() =
+    $(let frame = :_icd9cm_to_icd10cm;
+        @funsql(begin
+            left_join($frame => begin
+                from(concept_relationship)
+                filter(relationship_id == "ICD9CM - ICD10CM gem")
+            end, concept_id == $frame.concept_id_1)
+            define(concept_id => coalesce($frame.concept_id_2, concept_id))
             undefine($frame)
         end)
     end)
@@ -120,6 +120,12 @@ truncate_icd10cm_to_3char() =
             undefine($frame)
         end)
     end)
+
+to_3char_icd10cm() = begin
+    prefer_source_icdcm()
+    crosswalk_from_icd9cm_to_icd10cm()
+	truncate_icd10cm_to_3char()
+end
 
 truncate_snomed_without_finding_site() =
     $(let frame = :_snomed_without_finding_site,
@@ -143,28 +149,6 @@ truncate_snomed_without_finding_site() =
             undefine($frame, $partname)
         end)
     end)
-
-backwalk_snomed_to_icd10cm() =
-    $(let frame = :_snomed_to_icd10cm;
-        @funsql(begin
-            left_join($frame => begin
-                from(concept_relationship)
-                filter(relationship_id == "Mapped from")
-                join(icd10cm => begin
-                    from(concept)
-                    filter(vocabulary_id=="ICD10CM")
-                end, concept_id_2 == icd10cm.concept_id)
-            end, concept_id == $frame.concept_id_1)
-            define(concept_id => coalesce($frame.concept_id_2, concept_id))
-            undefine($frame)
-        end)
-    end)
-
-to_3char_icd10cm() = begin
-    prefer_source_icdcm()
-    crosswalk_from_icd9cm_to_icd10cm()
-	truncate_icd10cm_to_3char()
-end
 
 group_clinical_finding(carry...) =
     $(let frame = :_group_clinical_finding,

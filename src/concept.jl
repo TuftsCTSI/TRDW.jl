@@ -46,28 +46,6 @@ end
 
 select_concept() = select_concept(concept_id)
 
-find_concept(table, concept_id, names...) = begin
-    as(base)
-    join(begin
-        $table
-        join(c => concept(), c.concept_id == $concept_id)
-        filter(icontains(c.concept_name, $names...))
-    end, person_id == base.person_id)
-    group($concept_id)
-    select_concept($concept_id, n_event => count(), n_person => count_distinct(person_id))
-    order(n_person.desc(nulls=last))
-end
-
-repr_concept(name=nothing) = begin
-    define(concept_id => $(name == nothing ? :concept_id :
-                           contains(string(name), "concept_id") ? name :
-                           Symbol("$(name)_concept_id")))
-    as(base)
-    join(concept(), concept_id == base.concept_id)
-    select(concept_id, detail => concat(
-           replace(vocabulary_id, " ","_"), "(", concept_code, ", \"", concept_name,"\")"))
-end
-
 count_concept(name, names...; roundup=true) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :
                            Symbol("$(name)_concept_id")))
