@@ -5,7 +5,9 @@ end
 function funsql_concept_sets(; kws...)
     dict = OrderedDict{Symbol, FunSQL.SQLNode}()
     for (k, v) in kws
-        q = v isa AbstractVector ? FunSQL.Append(args = FunSQL.SQLNode[v...]) : convert(FunSQL.SQLNode, v)
+        q = v isa AbstractVector ?
+            FunSQL.Append(args = FunSQL.SQLNode[v...]) :
+            convert(FunSQL.SQLNode, v)
         dict[k] = q
     end
     NamedConceptSetsSpecification(dict)
@@ -97,6 +99,12 @@ SNOMED(code, name) =
             vocabulary_id == "SNOMED" && concept_code == $code && concept_name == $name,
             $(:(SNOMED($code, $name)))))
 
+ICD10CM(code, name) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "ICD10CM" && concept_code == $code && concept_name == $name,
+            $(:(ICD10CM($code, $name)))))
+
 Type_Concept(name) =
     concept(
         assert_valid_concept(
@@ -112,7 +120,8 @@ Visit(name) =
 Dose_Form_Group(name) =
     concept(
         assert_valid_concept(
-            vocabulary_id == "RxNorm" && domain_id == "Drug" && concept_class_id == "Dose Form Group" && concept_name == $name,
+            vocabulary_id == "RxNorm" && domain_id == "Drug" &&
+            concept_class_id == "Dose Form Group" && concept_name == $name,
             $(:(Dose_Form_Group($name)))))
 
 isa(cs; with_descendants = true) =

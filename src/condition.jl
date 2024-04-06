@@ -187,7 +187,7 @@ group_clinical_finding(carry...) =
 
 end
 
-function funsql_pick_ICD10CM(specification)
+function funsql_ICD10CM(specification)
     specification = strip(replace(uppercase(specification), r"[\s,]+" => " "))
     predicate = []
     negations = []
@@ -218,17 +218,9 @@ function funsql_pick_ICD10CM(specification)
             push!(predicate, @funsql(concept_code == $chunk))
         end
     end
-    if length(predicate) == 1
-        predicate = predicate[1]
-    else
-        predicate = @funsql(or($predicate...))
-    end
+    predicate = @funsql(or(args=$predicate))
     if length(negations) > 0
-        if length(negations) == 1
-            negations = negations[1]
-        else
-            negations = @funsql(or($negations...))
-        end
+        negations = @funsql(or(args=$negations))
         predicate = @funsql(and($predicate, not($negations)))
     end
     @funsql begin
