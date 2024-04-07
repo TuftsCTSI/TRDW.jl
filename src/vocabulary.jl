@@ -25,12 +25,16 @@ struct NamedConceptSets
     dict::OrderedDict{Symbol, SQLResult}
 end
 
+Base.pairs(ncs::NamedConceptSets) = pairs(ncs.dict)
+
 Base.convert(::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
     if isempty(sets.dict)
         @funsql concept().filter(false)
     else
         FunSQL.Append(args = FunSQL.SQLNode[values(sets.dict)...])
     end
+
+FunSQL.Chain(ncs::NamedConceptSets, name::Symbol) = ncs.dict[name]
 
 function Base.show(io::IO, m::MIME"text/html", sets::NamedConceptSets)
     print(io, """
@@ -93,10 +97,11 @@ RxNorm(code, name) =
             vocabulary_id == "RxNorm" && concept_code == $code && concept_name == $name,
             $(:(RxNorm($code, $name)))))
 
-SNOMED(code, name) =
+SNOMED(code, name=nothing) =
     concept(
         assert_valid_concept(
-            vocabulary_id == "SNOMED" && concept_code == $code && concept_name == $name,
+            vocabulary_id == "SNOMED" && concept_code == $code &&
+            $(isnothing(name) ? true : @funsql(concept_name == $name)),
             $(:(SNOMED($code, $name)))))
 
 ICD10CM(code, name) =
@@ -123,9 +128,6 @@ Dose_Form_Group(name) =
             vocabulary_id == "RxNorm" && domain_id == "Drug" &&
             concept_class_id == "Dose Form Group" && concept_name == $name,
             $(:(Dose_Form_Group($name)))))
-
-isa(cs; with_descendants = true) =
-    isa(concept_id, $cs, with_descendants = $with_descendants)
 
 type_isa(cs; with_descendants = true) =
     isa(type_concept_id, $cs, with_descendants = $with_descendants)
@@ -184,18 +186,46 @@ function funsql_ICD10CM(specification)
     end
 end
 
-function funsql_isa(concept_id, concept_set; with_descendants = true)
+function funsql_isa(concept_id, concept_set)
     concept_set = convert(FunSQL.SQLNode, concept_set)
-    if with_descendants
+    concept_set = @funsql($concept_set.concept_descendants())
+    return @funsql $concept_id in $concept_set.select(concept_id)
+end
+
+function funsql_isa_icd(concept_id, concept_set; with_icd9to10gem=false)
+    concept_set = convert(FunSQL.SQLNode, concept_set)
+    concept_set = @funsql($concept_set.concept_icd_descendants())
+    if with_icd9to10gem
         concept_set = @funsql begin
-            $concept_set
-            join(from(concept_ancestor), concept_id == ancestor_concept_id)
-            define(concept_id => descendant_concept_id)
-        end
+            append(
+                $concept_set,
+                $concept_set.concept_relatives("ICD10CM - ICD9CM rev gem"))
+       end
     end
     return @funsql $concept_id in $concept_set.select(concept_id)
 end
 
+@funsql isa(concept_set; with_icd9to10gem=false) = begin
+     isa(concept_id, $concept_set) ||
+     if_defined_scalar(icd_concept,
+        isa_icd(icd_concept.concept_id, $concept_set;
+                with_icd9to10gem=$with_icd9to10gem),
+        true)
+end
+
+function funsql_define_isa(ncs::NamedConceptSets; with_icd9to10gem=false)
+    query = @funsql(define())
+    for (name, cset) in pairs(ncs)
+        name = Symbol("isa_$name")
+        query = @funsql begin
+            $query
+            define($name => isa($cset; with_icd9to10gem = $with_icd9to10gem))
+        end
+    end
+    return query
+end
+
+# TODO: remove backward compatibility
 funsql_concept_matches(cs; on = :concept_id, with_descendants = true) =
     funsql_isa(on, cs, with_descendants = with_descendants)
 
@@ -203,97 +233,5 @@ funsql_concept_matches(cs::Tuple{Any}; on = :concept_id, with_descendants = true
     funsql_concept_matches(cs[1], on = on, with_descendants = with_descendants)
 
 funsql_concept_matches(cs::Vector; on = :concept_id, with_descendants = true) =
-    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on, with_descendants = with_descendants)
-
-#=
-function funsql_category_isa(type, cs::Union{Tuple, AbstractVector}, concept_id = :concept_id)
-    cs = [c.concept_id for c in TRDW.lookup_by_name(type, cs)]
-    @funsql in($concept_id, begin
-        from(concept_ancestor)
-        filter(in(ancestor_concept_id, $cs...))
-        select(descendant_concept_id)
-    end)
-end
-
-function funsql_span(cs...; join=true, icdgem=true)
-    buckets = Dict{Vocabulary, Vector{Concept}}()
-    for c in unnest_concept_set(cs)
-        push!(get!(buckets, c.vocabulary, Concept[]), c)
-    end
-    qs = FunSQL.SQLNode[]
-    join = join ? @funsql(as(base).join(concept(), concept_id == base.concept_id)) : @funsql(define())
-    for (v, cs) in pairs(buckets)
-        ids = [c.concept_id for c in cs]
-        push!(qs, @funsql begin
-            from(concept_ancestor)
-            filter(in(ancestor_concept_id, $ids...))
-            select(concept_id => descendant_concept_id)
-            $join
-        end)
-        if v.vocabulary_id in ("ICD9CM", "ICD10CM", "ICD9Proc", "ICD10PCS", "ICD03")
-            cs = ["$(c.concept_code)%" for c in cs]
-            tests = build_or([@funsql(like(concept_code, $m)) for m in cs])
-            push!(qs, @funsql begin
-                concept()
-                filter(vocabulary_id == $(v.vocabulary_id))
-                filter($tests)
-            end)
-            # TODO: ICD9Proc - ICD10PCS gem
-            if v.vocabulary_id == "ICD10CM" && icdgem
-                push!(qs, @funsql begin
-                    $(qs[end])
-                    join(cr => begin
-                        from(concept_relationship)
-                        filter(relationship_id == "ICD9CM - ICD10CM gem")
-                    end, cr.concept_id_2 == concept_id)
-                    select(concept_id => cr.concept_id_1)
-                    $join
-                end)
-            end
-        end
-    end
-    length(qs) == 0 ? @funsql(concept().filter(false)) :
-    length(qs) == 1 ? qs[1] :
-    @funsql(append($qs...).deduplicate(concept_id))
-end
-
-function concept_matches(match...; match_on=[], span=true)
-    match = unnest_concept_set(match)
-    if match_on isa FunSQL.SQLNode
-        match_on = [match_on]
-    elseif match_on isa Symbol
-        if contains(string(match_on), "concept_id")
-            match_on = [match_on]
-        else
-            match_on = [Symbol("$(match_on)_concept_id")]
-        end
-    else
-        if isnothing(match_on) || length(match_on) == 0
-            match_on = Any[@funsql(concept_id)]
-            if any([contains(c.vocabulary.vocabulary_id, "ICD") for c in match])
-                push!(match_on, @funsql(ext.icd_concept_id))
-            end
-        end
-        @assert match_on isa Vector
-    end
-    match = span ? funsql_span(match) : match
-    parts = [ @funsql(in($col, $match.select(concept_id))) for col in match_on]
-    build_or(parts)
-end
-
-concept_matches(name::Symbol, match...) =
-    concept_matches(match...; match_on=name)
-
-const funsql_concept_matches = concept_matches
-
-function funsql_concept_in(concept_id::Symbol, ids)
-    if ids isa ConceptMatchExpr
-        ids = unnest_concept_ids(ids)
-    end
-    @funsql(filter(in($concept_id, $ids...)))
-end
-
-funsql_concept_in(q) =
-    funsql_concept_in(:concept_id, q)
-
-=#
+    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on,
+                           with_descendants = with_descendants)

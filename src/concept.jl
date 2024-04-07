@@ -67,7 +67,16 @@ concept_descendants() = begin
         base.concept_id == concept_ancestor.ancestor_concept_id)
     join(
         concept(),
-        concept_ancestor.descendant_concept_id == concept_id)
+        concept_ancestor.descendant_concept_id == concept_id,
+        optional = true)
+    define(concept_id => concept_ancestor.descendant_concept_id)
+end
+
+concept_icd_descendants() = begin
+    as(base)
+    join(concept().filter(in(vocabulary_id, "ICD9CM", "ICD10CM")),
+         base.vocabulary_id == vocabulary_id &&
+         startswith(concept_code, base.concept_code))
 end
 
 concept_ancestors() = begin
@@ -77,7 +86,9 @@ concept_ancestors() = begin
         base.concept_id == concept_ancestor.descendant_concept_id)
     join(
         concept(),
-        concept_ancestor.ancestor_concept_id == concept_id)
+        concept_ancestor.ancestor_concept_id == concept_id,
+        optional = true)
+    define(concept_id => concept_ancestor.ancestor_concept_id)
 end
 
 exists_concept_relatives(relationship_id) = exists(begin
@@ -95,7 +106,9 @@ concept_relatives(relationship_id) = begin
         base.concept_id == concept_relationship.concept_id_1)
     join(
         concept(),
-        concept_relationship.concept_id_2 == concept_id)
+        concept_relationship.concept_id_2 == concept_id,
+        optional = true)
+    define(concept_id => concept_relationship.concept_id_2)
 end
 
 concept_relatives(relationship_id, n_or_r) = begin
@@ -123,7 +136,9 @@ concept_parents() = begin
         base.concept_id == concept_relationship.concept_id_2)
     join(
         concept(),
-        concept_relationship.concept_id_1 == concept_id)
+        concept_relationship.concept_id_1 == concept_id,
+        optional = true)
+    define(concept_id => concept_relationship.concept_id_1)
 end
 
 concept_siblings() = concept_parents().concept_children()

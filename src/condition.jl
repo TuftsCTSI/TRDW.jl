@@ -6,6 +6,7 @@ condition() = begin
         condition_source_concept => from(concept),
         condition_source_concept_id == condition_source_concept.concept_id,
         optional = true)
+    define(is_preepic => condition_occurrence_id > 1000000000)
     as(omop)
     define(
         # event columns
@@ -47,21 +48,10 @@ condition() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-   cross_join(
-        ext => begin
-            # computed variables
-            select(
-                icd_concept_id =>
-                   case(in(:source_vocabulary_id, "ICD9CM", "ICD10CM"), :source_concept_id),
-                icd_concept_code =>
-                   case(in(:source_vocabulary_id, "ICD9CM", "ICD10CM"), :source_concept_code),
-                is_preepic => :ID > 1000000000)
-            bind(
-                :ID => omop.condition_occurrence_id,
-                :source_vocabulary_id => omop.condition_source_concept.vocabulary_id,
-                :source_concept_code => omop.condition_source_concept.concept_code,
-                :source_concept_id => omop.condition_source_concept.concept_id)
-        end)
+    left_join(
+        icd_concept => concept().filter(in(vocabulary_id, "ICD9CM", "ICD10CM")),
+        icd_concept.concept_id == omop.condition_source_concept_id,
+        optional = true)
 end
 
 condition(match...) =
@@ -105,26 +95,28 @@ crosswalk_from_icd9cm_to_icd10cm() =
         end)
     end)
 
-truncate_icd10cm_to_3char() =
-    $(let frame = :_icd10cm_to_3char;
+truncate_icd_to_3char() =
+    $(let frame = :_icd_to_3char;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
                 filter(relationship_id == "Is a")
-                join(icd10cm_3_char => begin
+                join(icd_3_char => begin
                     from(concept)
-                    filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
-                end, concept_id_2 == icd10cm_3_char.concept_id)
+                    filter(3 == length(concept_code))
+                end, concept_id_2 == icd_3_char.concept_id)
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
             undefine($frame)
         end)
     end)
 
-to_3char_icd10cm() = begin
+to_3char_icd10cm(; with_icd9to10gem=false) = begin
     prefer_source_icdcm()
-    crosswalk_from_icd9cm_to_icd10cm()
-	truncate_icd10cm_to_3char()
+    $(with_icd9to10gem ?
+      @funsql(crosswalk_from_icd9cm_to_icd10cm()) :
+      @funsql(define()))
+	truncate_icd_to_3char()
 end
 
 truncate_snomed_without_finding_site() =
