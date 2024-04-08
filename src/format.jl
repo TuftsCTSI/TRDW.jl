@@ -1,8 +1,9 @@
 struct SQLFormat
     limit::Union{Int, Nothing}
+    group_by::Union{Symbol, Nothing}
 
-    SQLFormat(; limit = 1000) =
-        new(limit)
+    SQLFormat(; limit = 1000, group_by = nothing) =
+        new(limit, group_by)
 end
 
 function _format(df, fmt)
@@ -10,34 +11,80 @@ function _format(df, fmt)
     @htl """
     <div id="$id">
     <table>
-    <thead>
     $(_format_thead(df, fmt))
-    </thead>
-    <tbody>
     $(_format_tbody(df, fmt))
-    </tbody>
     </table>
     </div>
-    <style>
     $(_format_style(id, df, fmt))
-    </style>
     """
 end
 
 function _format_thead(df, fmt)
     names = propertynames(df)
+    if fmt.group_by !== nothing
+        fmt.group_by in names || throw(DomainError(fmt.group_by, "missing grouping column"))
+        filter!(!=(fmt.group_by), names)
+    end
     @htl """
+    <thead>
     <tr><th></th>$([@htl """<th scope="col">$name</th>""" for name in names])</tr>
+    </thead>
     """
 end
 
 function _format_tbody(df, fmt)
     (h, w) = size(df)
     if h == 0
+        if fmt.group_by === nothing
+            w += 1
+        end
         return @htl """
-        <tr><td colspan="$(w + 1)" class="trdw-empty"><div>⌀<small>(This table has no rows)</small></div></td></tr>
+        <tbody>
+        <tr><td colspan="$w" class="trdw-empty"><div>⌀<small>(This table has no rows)</small></div></td></tr>
+        </tbody>
         """
     end
+    if fmt.group_by !== nothing
+        gdf = groupby(df, fmt.group_by, sort = false)
+        df = df[!, Not(fmt.group_by)]
+        limit = fmt.limit
+        if limit === nothing || h <= limit + 5
+            n = length(gdf)
+        else
+            n = 1
+            l = size(gdf[1], 1)
+            while n < length(gdf)
+                l += size(gdf[n + 1], 1)
+                l <= limit || break
+                n += 1
+            end
+        end
+        return @htl """
+        $([_format_group(gdf[k], fmt) for k = 1:n])
+        $(n < length(gdf) ? @htl("""<tbody>$(_format_row(df, 0, fmt))</tbody>""") : "")
+        """
+    end
+    @htl """
+    <tbody>
+    $(_format_rows(df, fmt))
+    </tbody>
+    """
+end
+
+function _format_group(df, fmt)
+    group = df[1, fmt.group_by]
+    df = df[!, Not(fmt.group_by)]
+    w = size(df, 2)
+    @htl """
+    <tbody>
+    <tr><th scope="colgroup" colspan="$(w + 1)" class="trdw-group"><div>$group</div></th></tr>
+    $(_format_rows(df, fmt))
+    </tbody>
+    """
+end
+
+function _format_rows(df, fmt)
+    (h, w) = size(df)
     limit = fmt.limit
     if limit === nothing || h <= limit + 5
         indexes = collect(1:h)
@@ -45,7 +92,7 @@ function _format_tbody(df, fmt)
         indexes = collect(1:limit)
         push!(indexes, 0, h)
     end
-    return @htl """$([_format_row(df, i, fmt) for i in indexes])"""
+    @htl """$([_format_row(df, i, fmt) for i in indexes])"""
 end
 
 function _format_row(df, i, fmt)
@@ -74,9 +121,12 @@ end
 
 function _format_style(id, df, fmt)
     return @htl """
+    <style>
     #$id { max-height: 502px; overflow: auto; }
     #$id > table { width: max-content; }
     #$id > table > thead > tr > th { vertical-align; baseline; }
+    #$id > table > tbody > tr:first-child > th { border-top: 1px solid var(--table-border-color); }
+    #$id > table > tbody > tr:first-child > td { border-top: 1px solid var(--table-border-color); }
     #$id > table > tbody > tr > th { vertical-align: baseline; }
     #$id > table > tbody > tr > td { max-width: 300px; vertical-align: baseline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #$id > table > tbody > tr > td.trdw-number { text-align: right; }
@@ -86,6 +136,9 @@ function _format_style(id, df, fmt)
     #$id > table > thead > tr > th { position: sticky; top: -1px; background: var(--main-bg-color); background-clip: padding-box; z-index: 1; }
     #$id > table > thead > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; z-index: 2; }
     #$id > table > tbody > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; }
+    #$id > table > tbody > tr > th.trdw-group { top: 24px; text-align: left; z-index: 2; }
+    #$id > table > tbody > tr > th.trdw-group > div { display: inline-block; position: sticky; left: 0; }
+    </style>
     """
 end
 
