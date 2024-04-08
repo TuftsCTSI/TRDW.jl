@@ -112,6 +112,12 @@ ICD10CM(code, name) =
             vocabulary_id == "ICD10CM" && concept_code == $code && concept_name == $name,
             $(:(ICD10CM($code, $name)))))
 
+OMOP_Extension(name) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "OMOP Extension" && concept_name == $name,
+            $(:(OMOP_Extension($name)))))
+
 Type_Concept(name) =
     concept(
         assert_valid_concept(
