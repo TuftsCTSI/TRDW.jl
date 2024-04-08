@@ -1,14 +1,21 @@
 struct SQLResult
     db::FunSQL.SQLConnection{ODBC.Connection}
     sql::String
+    fmt::SQLFormat
     ref::Ref{DataFrame}
 
-    SQLResult(db, sql) =
-        new(db, sql, Ref{DataFrame}())
+    SQLResult(db, sql, fmt) =
+        new(db, sql, fmt, Ref{DataFrame}())
 
-    SQLResult(db, sql, data) =
+    SQLResult(db, sql, fmt, data) =
         new(db, sql, Ref{DataFrame}(data))
 end
+
+Base.show(io::IO, r::SQLResult) =
+    print(io, "SQLResult()")
+
+Base.show(io::IO, mime::MIME"text/html", r::SQLResult) =
+    Base.show(io, mime, _format(ensure_result!(r), r.fmt))
 
 Base.convert(::Type{FunSQL.AbstractSQLNode}, df::DataFrame) =
     FunSQL.From(df)
@@ -20,17 +27,17 @@ run(db, q) =
     run(db, convert(FunSQL.SQLNode, q))
 
 function run(db, sql::AbstractString)
-    SQLResult(db, sql)
+    SQLResult(db, sql, SQLFormat())
 end
 
 function run(db, q::FunSQL.SQLNode)
     sql = FunSQL.render(db, q)
-    SQLResult(db, sql)
+    SQLResult(db, sql, SQLFormat())
 end
 
 function run(db, df::DataFrame)
     sql = "" # FunSQL.render(db, FunSQL.From(df))
-    SQLResult(db, sql, df)
+    SQLResult(db, sql, SQLFormat(), df)
 end
 
 function run(db, r::SQLResult)

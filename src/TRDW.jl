@@ -25,6 +25,7 @@ import DBInterface.execute
 import Base.show
 
 include("connect.jl")
+include("format.jl")
 include("result.jl")
 include("general.jl")
 include("nodes.jl")

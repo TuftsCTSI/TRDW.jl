@@ -29,9 +29,11 @@ Unicode = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [weakdeps]
 JavaCall = "494afd89-becb-516b-aafa-70d2670c0337"
+PlutoRunner = "dc6b355a-2368-4481-ae6d-ae0351418d79"
 
 [extensions]
 JavaCallExt = "JavaCall"
+PlutoRunnerExt = "PlutoRunner"
 
 [compat]
 FunSQL = "0.13.0"
