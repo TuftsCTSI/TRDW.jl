@@ -142,22 +142,23 @@ truncate_snomed_without_finding_site() =
         end)
     end)
 
-group_clinical_finding(carry...) =
-    $(let frame = :_group_clinical_finding,
-          partname = :_group_clinical_finding_partition;
+truncate_clinical_finding_grouper() =
+    $(let frame = :_truncate_clinical_finding_grouper;
+          basis = [441840, 4274025, 4117930, 255919, 4180628, 4093991, 4028071, 376208,
+                   4011630, 37311678, 37311678, 37311677, 4247371, 43531058, 43531057,
+                   4042836, 4227253, 4024013, 44783587, 4041283, 4170962, 4132926]
         @funsql(begin
-            as($frame)
-            join(concept_ancestor => from(concept_ancestor),
-                concept_ancestor.descendant_concept_id == $frame.concept_id)
-            join(concept().filter(concept_class_id=="Clinical Finding"),
-                concept_id == concept_ancestor.ancestor_concept_id)
-            define($([@funsql($n => $frame.$n) for n in carry]...))
-            partition($frame.concept_id, name=$partname)
-            filter(concept_ancestor.min_levels_of_separation ==
-                   $partname.min(concept_ancestor.min_levels_of_separation))
-            define($([@funsql($n => $frame.$n) for n in carry]...))
-            group([concept_id, $carry...]...)
-            undefine($frame, $partname)
+            left_join($frame => begin
+                concept($basis...)
+                concept_children()
+                filter(standard_concept=="S")
+                filter(!in(concept_id, $basis...))
+                join(ca => from(concept_ancestor),
+                     ca.ancestor_concept_id == concept_id)
+                group(concept_id, ca.descendant_concept_id)
+            end, concept_id == $frame.descendant_concept_id)
+            define(concept_id => coalesce($frame.concept_id, concept_id))
+            undefine($frame)
         end)
     end)
 
