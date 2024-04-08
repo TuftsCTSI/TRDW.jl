@@ -25,8 +25,20 @@ struct NamedConceptSets
     dict::OrderedDict{Symbol, SQLResult}
 end
 
-Base.pairs(ncs::NamedConceptSets) = pairs(ncs.dict)
-Base.keys(ncs::NamedConceptSets) = keys(ncs.dict)
+Base.pairs(ncs::NamedConceptSets) =
+    pairs(ncs.dict)
+
+Base.keys(ncs::NamedConceptSets) =
+    keys(ncs.dict)
+
+Base.getindex(sets::NamedConceptSets, key::Symbol) =
+    sets.dict[key]
+
+Base.get(sets::NamedConceptSets, key::Symbol, default) =
+    get(sets.dict, key, default)
+
+FunSQL.Chain(sets::NamedConceptSets, key::Symbol) =
+    sets[key]
 
 Base.convert(::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
     if isempty(sets.dict)
@@ -34,8 +46,6 @@ Base.convert(::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
     else
         FunSQL.Append(args = FunSQL.SQLNode[values(sets.dict)...])
     end
-
-FunSQL.Chain(ncs::NamedConceptSets, name::Symbol) = ncs.dict[name]
 
 function Base.show(io::IO, m::MIME"text/html", sets::NamedConceptSets)
     print(io, """
@@ -74,15 +84,6 @@ function Base.show(io::IO, m::MIME"text/html", sets::NamedConceptSets)
     end
     print(io, "</table></div>")
 end
-
-Base.getindex(sets::NamedConceptSets, key::Symbol) =
-    sets.dict[key]
-
-Base.get(sets::NamedConceptSets, key::Symbol, default) =
-    get(sets.dict, key, default)
-
-FunSQL.Chain(sets::NamedConceptSets, key::Symbol) =
-    sets[key]
 
 @funsql begin
 
