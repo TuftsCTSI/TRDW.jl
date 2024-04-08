@@ -118,7 +118,8 @@ macro connect(args...)
 
         macro $(esc(:query))(q)
             ex = TRDW.FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext($(esc(:__module__)), $(esc(:__source__))))
-            if ex isa Expr && ex.head in (:block, :(=), :const, :global, :local)
+            if ex isa Expr && ex.head in (:(=), :const, :global, :local) ||
+               ex isa Expr && ex.head === :block && any(ex′ isa Expr && ex′.head in (:(=), :const, :global, :local) for ex′ in ex.args)
                 return ex
             end
             return quote
