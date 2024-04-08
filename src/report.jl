@@ -83,7 +83,7 @@ function group_by_concept(name=nothing; roundup=true,
     if event_threshold > 0
         base = base |> @funsql(filter(n_event>=$event_threshold))
     end
-    include_order = [@funsql($col.desc(nulls=last)) for col in include]
+    include_order = [@funsql($col.asc(nulls=last)) for col in include]
     base = base |> @funsql(begin
         join(c => from(concept), c.concept_id == concept_id)
         order($include_order..., n_person.desc(nulls=last), c.concept_code)
