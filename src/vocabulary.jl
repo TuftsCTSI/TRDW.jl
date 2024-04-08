@@ -47,42 +47,14 @@ Base.convert(::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
         FunSQL.Append(args = FunSQL.SQLNode[values(sets.dict)...])
     end
 
-function Base.show(io::IO, m::MIME"text/html", sets::NamedConceptSets)
-    print(io, """
-    <div style="overflow:scroll;max-height:500px;">
-    <table><tr><th><i>variable</i></th>
-    <th>concept_id</th>
-    <th>vocabulary_id</th>
-    <th>concept_code</th>
-    <th>concept_name</th></tr>
-    """)
-    for (k, r) in sets.dict
-        df = ensure_result!(r)
-        len = size(df, 1)
-        foreach(
-            1:len,
-            df.concept_id,
-            df.vocabulary_id,
-            df.concept_code,
-            df.concept_name) do n, concept_id, vocabulary_id, concept_code, concept_name
-                show(io, m,
-                @htl("""
-                  <tr>
-                      $(n==1 ? @htl("""
-                              <td rowspan=$len
-                                  style=$(len > 1 ?
-                                          @htl("vertical-align: top") : "")>
-                              <i>$k</i></td>
-                          """) : "")
-                      <td>$concept_id</td>
-                      <td>$vocabulary_id</td>
-                      <td>$concept_code</td>
-                      <td>$concept_name</td>
-                  </tr>
-                """))
-        end
+function Base.show(io::IO, mime::MIME"text/html", sets::NamedConceptSets)
+    df = DataFrame()
+    for (var, r) in sets.dict
+        df′ = DataFrame(r)
+        df′[:, :variable] .= string(var)
+        df = vcat(df, df′[:, [:variable, :concept_id, :vocabulary_id, :concept_code, :concept_name]])
     end
-    print(io, "</table></div>")
+    Base.show(io, mime, _format(df, SQLFormat(limit = nothing, group_by = :variable)))
 end
 
 @funsql begin
