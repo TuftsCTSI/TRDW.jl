@@ -26,6 +26,7 @@ struct NamedConceptSets
 end
 
 Base.pairs(ncs::NamedConceptSets) = pairs(ncs.dict)
+Base.keys(ncs::NamedConceptSets) = keys(ncs.dict)
 
 Base.convert(::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
     if isempty(sets.dict)
@@ -223,6 +224,25 @@ function funsql_define_isa(ncs::NamedConceptSets; with_icd9to10gem=false)
         end
     end
     return query
+end
+
+function funsql_concept_sets_breakout(pair::Pair{Symbol, NamedConceptSets}; with_icd9to10gem=false)
+    (colname, ncs) = pair
+    if length(ncs.dict) < 1
+        return @funsql(define($colname => missing))
+    end
+    df = DataFrame(:label => collect([string(k) for k in keys(ncs.dict)]))
+    frame = :_concept_sets_breakout
+    args = [@funsql($frame.label)]
+    for (name, cset) in pairs(ncs)
+        push!(args, @funsql($(string(name))))
+        push!(args, @funsql(isa($cset; with_icd9to10gem = $with_icd9to10gem)))
+    end
+    push!(args, @funsql(false))
+    @funsql begin
+        left_join($frame => from($df), decode($args...))
+        define($colname => $frame.label)
+    end
 end
 
 # TODO: remove backward compatibility
