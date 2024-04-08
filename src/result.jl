@@ -26,18 +26,18 @@ Base.convert(::Type{FunSQL.AbstractSQLNode}, r::SQLResult) =
 run(db, q) =
     run(db, convert(FunSQL.SQLNode, q))
 
-function run(db, sql::AbstractString)
-    SQLResult(db, sql, SQLFormat())
+function run(db, sql::AbstractString; fmt = SQLFormat())
+    SQLResult(db, sql, fmt)
 end
 
-function run(db, q::FunSQL.SQLNode)
+function run(db, q::FunSQL.SQLNode; fmt = SQLFormat())
     sql = FunSQL.render(db, q)
-    SQLResult(db, sql, SQLFormat())
+    SQLResult(db, sql, fmt)
 end
 
-function run(db, df::DataFrame)
+function run(db, df::DataFrame; fmt = SQLFormat())
     sql = "" # FunSQL.render(db, FunSQL.From(df))
-    SQLResult(db, sql, SQLFormat(), df)
+    SQLResult(db, sql, fmt, df)
 end
 
 function run(db, r::SQLResult)

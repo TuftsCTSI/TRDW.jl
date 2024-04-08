@@ -88,3 +88,22 @@ function _format_style(id, df, fmt)
     #$id > table > tbody > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; }
     """
 end
+
+struct FormatNode
+    over::FunSQL.SQLNode
+    fmt::SQLFormat
+
+    FormatNode(over, fmt) =
+        new(over, fmt)
+end
+
+FormatNode(; kws...) =
+    FormatNode(FunSQL.Define(), SQLFormat(; kws...))
+
+const funsql_format = FormatNode
+
+FunSQL.Chain(n, n′::FormatNode) =
+    FormatNode(FunSQL.Chain(n, n′.over), n′.fmt)
+
+run(db, n::FormatNode) =
+    run(db, n.over; fmt = n.fmt)
