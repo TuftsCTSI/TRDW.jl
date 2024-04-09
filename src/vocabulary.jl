@@ -109,17 +109,17 @@ Dose_Form_Group(name) =
             concept_class_id == "Dose Form Group" && concept_name == $name,
             $(:(Dose_Form_Group($name)))))
 
-type_isa(cs; with_descendants = true) =
-    isa(type_concept_id, $cs, with_descendants = $with_descendants)
+type_isa(cs) =
+    isa(type_concept_id, $cs)
 
-type_isa(name::AbstractString; with_descendants = true) =
-    type_isa(Type_Concept($name), with_descendants = $with_descendants)
+type_isa(name::AbstractString) =
+    type_isa(Type_Concept($name))
 
-dose_form_group_isa(cs; with_descendants = true) =
-    isa($cs, with_descendants = $with_descendants)
+dose_form_group_isa(cs) =
+    isa($cs)
 
-dose_form_group_isa(name::AbstractString; with_descendants = true) =
-    dose_form_group_isa(Dose_Form_Group($name), with_descendants = $with_descendants)
+dose_form_group_isa(name::AbstractString) =
+    dose_form_group_isa(Dose_Form_Group($name))
 
 end
 
