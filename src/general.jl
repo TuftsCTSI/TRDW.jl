@@ -704,7 +704,8 @@ macro funsql_export(expr)
     end
 end
 
-function write_and_display(basename, dataframe::DataFrame; empty_cols=[])
+function write_and_display(basename, data; empty_cols=[])
+    dataframe = DataFrame(data)
     for col in empty_cols
         insertcols!(dataframe, names(dataframe)[1], col => "")
     end
@@ -712,17 +713,13 @@ function write_and_display(basename, dataframe::DataFrame; empty_cols=[])
     n_rows = size(dataframe)[1]
     CSV.write(filename, dataframe)
     @htl("""
-        <hr />
-        <div>$(dataframe)</div>
+        <div>$(data)</div>
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
         <p><hr /></p>
     """)
 end
 
 write_and_display(name, ::Nothing; empty_cols=[]) = nothing
-
-write_and_display(name, r::SQLResult) =
-    write_and_display(name, ensure_result!(r))
 
 function write_cleanup(name)
     isfile("$(name).csv") ? rm("$(name).csv") : nothing
