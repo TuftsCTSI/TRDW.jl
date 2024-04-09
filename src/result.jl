@@ -8,7 +8,7 @@ struct SQLResult
         new(db, sql, fmt, Ref{DataFrame}())
 
     SQLResult(db, sql, fmt, data) =
-        new(db, sql, Ref{DataFrame}(data))
+        new(db, sql, fmt, Ref{DataFrame}(data))
 end
 
 Base.show(io::IO, r::SQLResult) =
