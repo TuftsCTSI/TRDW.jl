@@ -559,7 +559,7 @@ function FunSQL.resolve(n::CustomResolveNode, ctx)
     if f === nothing
         throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
     end
-    FunSQL.resolve(f(n, ctx), ctx)
+    FunSQL.resolve(convert(FunSQL.SQLNode, f(n, ctx)), ctx)
 end
 
 function FunSQL.resolve_scalar(n::CustomResolveNode, ctx)
@@ -567,7 +567,7 @@ function FunSQL.resolve_scalar(n::CustomResolveNode, ctx)
     if f === nothing
         throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
     end
-    FunSQL.resolve_scalar(f(n, ctx), ctx)
+    FunSQL.resolve_scalar(convert(FunSQL.SQLNode, f(n, ctx)), ctx)
 end
 
 funsql_if_not_defined(field_name, q) =
