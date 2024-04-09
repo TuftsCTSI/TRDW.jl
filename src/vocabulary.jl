@@ -225,12 +225,11 @@ function funsql_concept_sets_breakout(pair::Pair{Symbol, NamedConceptSets}; with
 end
 
 # TODO: remove backward compatibility
-funsql_concept_matches(cs; on = :concept_id, with_descendants = true) =
-    funsql_isa(on, cs, with_descendants = with_descendants)
+funsql_concept_matches(cs; on = :concept_id) =
+    funsql_isa(on, cs)
 
-funsql_concept_matches(cs::Tuple{Any}; on = :concept_id, with_descendants = true) =
-    funsql_concept_matches(cs[1], on = on, with_descendants = with_descendants)
+funsql_concept_matches(cs::Tuple{Any}; on = :concept_id) =
+    funsql_concept_matches(cs[1], on = on)
 
-funsql_concept_matches(cs::Vector; on = :concept_id, with_descendants = true) =
-    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on,
-                           with_descendants = with_descendants)
+funsql_concept_matches(cs::Vector; on = :concept_id) =
+    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on)
