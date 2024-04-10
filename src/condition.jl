@@ -119,46 +119,26 @@ to_3char_icd10cm(; with_icd9to10gem=false) = begin
 	truncate_icd_to_3char()
 end
 
-truncate_snomed_without_finding_site() =
-    $(let frame = :_snomed_without_finding_site,
-          partname = :_snomed_without_finding_site_partition;
+snomed_top_ancestors(concept_id=concept_id;
+                     exclude::AbstractVector = [SNOMED("404684003", "Clinical finding")]) =
+    $(let frame = :_to_snomed_top_ancestors,
+          partname = :_snomed_top_ancestors_partition;
         @funsql(begin
             left_join($frame => begin
                 from(concept_ancestor)
-                left_join(f => begin
-                    from(concept_relationship)
-                    filter(relationship_id == "Has finding site")
-                    group(concept_id_1)
-                end, f.concept_id_1 == ancestor_concept_id)
-                join(c => from(concept).filter(vocabulary_id == "SNOMED"),
-                     c.concept_id == ancestor_concept_id)
-                filter(isnull(f.concept_id_1))
+                filter(!isa_strict(ancestor_concept_id, $exclude))
+                join(c => begin
+                    from(concept)
+                    filter(vocabulary_id == "SNOMED" &&
+                           standard_concept == "S")
+                end, c.concept_id == ancestor_concept_id)
             end, concept_id == $frame.descendant_concept_id)
             partition(concept_id, name=$partname)
-            filter($frame.min_levels_of_separation ==
-                   $partname.min($frame.min_levels_of_separation))
-            define(concept_id => $frame.ancestor_concept_id)
+            filter(isnull($frame.ancestor_concept_id) ||
+                   $frame.max_levels_of_separation ==
+                   $partname.max($frame.max_levels_of_separation))
+            define(concept_id => coalesce($frame.ancestor_concept_id, concept_id))
             undefine($frame, $partname)
-        end)
-    end)
-
-truncate_clinical_finding_grouper() =
-    $(let frame = :_truncate_clinical_finding_grouper;
-          basis = [441840, 4274025, 4117930, 255919, 4180628, 4093991, 4028071, 376208,
-                   4011630, 37311678, 37311678, 37311677, 4247371, 43531058, 43531057,
-                   4042836, 4227253, 4024013, 44783587, 4041283, 4170962, 4132926]
-        @funsql(begin
-            left_join($frame => begin
-                concept($basis...)
-                concept_children()
-                filter(standard_concept=="S")
-                filter(!in(concept_id, $basis...))
-                join(ca => from(concept_ancestor),
-                     ca.ancestor_concept_id == concept_id)
-                group(concept_id, ca.descendant_concept_id)
-            end, concept_id == $frame.descendant_concept_id)
-            define(concept_id => coalesce($frame.concept_id, concept_id))
-            undefine($frame)
         end)
     end)
 

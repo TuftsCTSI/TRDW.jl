@@ -69,6 +69,7 @@ concept_descendants() = begin
         concept(),
         concept_ancestor.descendant_concept_id == concept_id,
         optional = true)
+    define(concept_ancestor.min_levels_of_separation, concept_ancestor.max_levels_of_separation)
     define(concept_id => concept_ancestor.descendant_concept_id)
 end
 
@@ -88,15 +89,9 @@ concept_ancestors() = begin
         concept(),
         concept_ancestor.ancestor_concept_id == concept_id,
         optional = true)
+    define(concept_ancestor.min_levels_of_separation, concept_ancestor.max_levels_of_separation)
     define(concept_id => concept_ancestor.ancestor_concept_id)
 end
-
-exists_concept_relatives(relationship_id) = exists(begin
-        from(concept_relationship)
-        filter(relationship_id == $relationship_id)
-        filter(concept_id_1 == :concept_id)
-        bind(concept_id => concept_id)
-    end)
 
 concept_relatives(relationship_id) = begin
     as(base)
@@ -109,6 +104,23 @@ concept_relatives(relationship_id) = begin
         concept_relationship.concept_id_2 == concept_id,
         optional = true)
     define(concept_id => concept_relationship.concept_id_2)
+end
+
+define_concept_relatives(relationship_id) = begin
+    left_join(concept_relatives => begin
+        from(concept_relationship)
+        filter(relationship_id == $relationship_id)
+        group(concept_id => concept_id_1)
+        define(collect => collect_to_string(concept_id_2))
+    end, concept_id == concept_relatives.concept_id)
+    define($relationship_id => concept_relatives.collect)
+end
+
+define_concept_relatives(relationship_id, another_id, more...) = begin
+    define_concept_relatives($relationship_id)
+    $(length(more) > 0 ?
+      @funsql(define_concept_relatives($another_id, $(more[1]), $(more[2:end])...)) :
+      @funsql(define_concept_relatives($another_id)))
 end
 
 concept_relatives(relationship_id, n_or_r) = begin
@@ -212,14 +224,7 @@ concept_cover(category::FunSQL.SQLNode; exclude=[]) = begin
     filter_out_descendants()
 end
 
-snomed_cover_via_icd10(;exclude=[]) =
-    concept_cover(begin
-        concept()
-        filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
-        concept_relatives("Maps to")
-    end; exclude=$exclude)
-
-snomed_cover_via_cpt4(;exclude=[]) =
+snomed_cover_via_cpt4(; exclude=[]) =
     concept_cover(begin
         concept()
         filter(concept_class_id == "CPT4 Hierarchy")
