@@ -113,3 +113,30 @@ const funsql_group_by_concept = group_by_concept
             define_csets_roundups($match)
         end) : @funsql(define()))
 end
+
+function funsql_unpivot(; args::Vector{FunSQL.SQLNode}, name::Symbol = :class, left::Bool = true)
+    labels = FunSQL.label.(args)
+    case_args = FunSQL.SQLNode[]
+    for (i, label) in enumerate(labels)
+        push!(case_args, @funsql(_unpivot.index == $i), @funsql($(args[i])))
+    end
+    @funsql begin
+        join(
+            _unpivot => from($(; index = 1:length(labels), value = string.(labels))),
+            case(args = $case_args),
+            left = $left)
+        define_front($name => _unpivot.value)
+        order(_unpivot.index.asc(nulls = last))
+    end
+end
+
+funsql_unpivot(args...; name = :class, left = true) =
+    funsql_unpivot(args = FunSQL.SQLNode[args...], name = name, left = left)
+
+function funsql_unpivot(ncs::NamedConceptSets; name = :class, left = true)
+    args = FunSQL.SQLNode[]
+    for (k, r) in ncs.dict
+        push!(args, k => funsql_isa(r))
+    end
+    funsql_unpivot(args = args, name = name, left = left)
+end
