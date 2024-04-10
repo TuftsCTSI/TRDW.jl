@@ -199,7 +199,7 @@ funsql_isa_icd(concept_id, concept_set::AbstractVector; with_icd9gem=false) =
      if_defined_scalar(icd_concept,
         isa_icd(icd_concept.concept_id, $concept_set;
                 with_icd9gem=$with_icd9gem),
-        true)
+        false)
 end
 
 function funsql_define_isa(ncs::NamedConceptSets; with_icd9gem=false)
