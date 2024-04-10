@@ -22,7 +22,7 @@ NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
   </div>
 """)
 
-NotebookHeader(TITLE=nothing; STUDY=nothing, CASE=nothing, SFID=nothing,
+NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
                IRB=DISCOVERY_IRB, IRB_START_DATE=nothing, IRB_END_DATE=nothing) = @htl("""
    <!-- wide notebooks -->
    <style>
@@ -45,8 +45,8 @@ NotebookHeader(TITLE=nothing; STUDY=nothing, CASE=nothing, SFID=nothing,
         """))"""))
      </div>
    </div>
-   $(isnothing(STUDY) ? "" :
-     @htl("""<p style="font-style: italic; font-size: 21px;">$STUDY</p>"""))
+   $(isnothing(NOTE) ? "" :
+     @htl("""<p style="font-style: italic; font-size: 21px;">$NOTE</p>"""))
    $(if is_discovery(IRB)
         @htl("""
             <p>
