@@ -178,10 +178,10 @@ end
 funsql_isa(concept_id, concept_set::AbstractVector) =
     @funsql isa($concept_id, append(args=$concept_set))
 
-function funsql_isa_icd(concept_id, concept_set; with_icd9to10gem=false)
+function funsql_isa_icd(concept_id, concept_set; with_icd9gem=false)
     concept_set = convert(FunSQL.SQLNode, concept_set)
     concept_set = @funsql($concept_set.concept_icd_descendants())
-    if with_icd9to10gem
+    if with_icd9gem
         concept_set = @funsql begin
             append(
                 $concept_set,
@@ -191,30 +191,30 @@ function funsql_isa_icd(concept_id, concept_set; with_icd9to10gem=false)
     return @funsql $concept_id in $concept_set.select(concept_id)
 end
 
-funsql_isa_icd(concept_id, concept_set::AbstractVector; with_icd9to10gem=false) =
-   @funsql isa_icd($concept_id, append(args=$concept_set); with_icd9to10gem=$with_icd9to10gem)
+funsql_isa_icd(concept_id, concept_set::AbstractVector; with_icd9gem=false) =
+   @funsql isa_icd($concept_id, append(args=$concept_set); with_icd9gem=$with_icd9gem)
 
-@funsql isa(concept_set; with_icd9to10gem=false) = begin
+@funsql isa(concept_set; with_icd9gem=false) = begin
      isa(concept_id, $concept_set) ||
      if_defined_scalar(icd_concept,
         isa_icd(icd_concept.concept_id, $concept_set;
-                with_icd9to10gem=$with_icd9to10gem),
+                with_icd9gem=$with_icd9gem),
         true)
 end
 
-function funsql_define_isa(ncs::NamedConceptSets; with_icd9to10gem=false)
+function funsql_define_isa(ncs::NamedConceptSets; with_icd9gem=false)
     query = @funsql(define())
     for (name, cset) in pairs(ncs)
         name = Symbol("isa_$name")
         query = @funsql begin
             $query
-            define($name => isa($cset; with_icd9to10gem = $with_icd9to10gem))
+            define($name => isa($cset; with_icd9gem = $with_icd9gem))
         end
     end
     return query
 end
 
-function funsql_concept_sets_breakout(pair::Pair{Symbol, NamedConceptSets}; with_icd9to10gem=false)
+function funsql_concept_sets_breakout(pair::Pair{Symbol, NamedConceptSets}; with_icd9gem=false)
     (colname, ncs) = pair
     if length(ncs.dict) < 1
         return @funsql(define($colname => missing))
@@ -224,7 +224,7 @@ function funsql_concept_sets_breakout(pair::Pair{Symbol, NamedConceptSets}; with
     args = [@funsql($frame.label)]
     for (name, cset) in pairs(ncs)
         push!(args, @funsql($(string(name))))
-        push!(args, @funsql(isa($cset; with_icd9to10gem = $with_icd9to10gem)))
+        push!(args, @funsql(isa($cset; with_icd9gem = $with_icd9gem)))
     end
     push!(args, @funsql(false))
     @funsql begin
