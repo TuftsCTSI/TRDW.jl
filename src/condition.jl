@@ -111,9 +111,9 @@ truncate_icd_to_3char() =
         end)
     end)
 
-to_3char_icd10cm(; with_icd9to10gem=false) = begin
+to_3char_icdcm(; with_icd9gem=false) = begin
     prefer_source_icdcm()
-    $(with_icd9to10gem ?
+    $(with_icd9gem ?
       @funsql(crosswalk_from_icd9cm_to_icd10cm()) :
       @funsql(define()))
 	truncate_icd_to_3char()
