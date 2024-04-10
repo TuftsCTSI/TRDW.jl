@@ -1,9 +1,10 @@
 struct SQLFormat
     limit::Union{Int, Nothing}
     group_by::Union{Symbol, Nothing}
+    group_limit::Union{Int, Nothing}
 
-    SQLFormat(; limit = 1000, group_by = nothing) =
-        new(limit, group_by)
+    SQLFormat(; limit = 1000, group_by = nothing, group_limit = nothing) =
+        new(limit, group_by, group_limit)
 end
 
 function _format(df, fmt)
@@ -53,8 +54,11 @@ function _format_tbody(df, fmt)
         else
             n = 1
             l = size(gdf[1], 1)
+            l = min(l, something(fmt.group_limit, l))
             while n < length(gdf)
-                l += size(gdf[n + 1], 1)
+                l′ = size(gdf[n + 1], 1)
+                l′ = min(l′, something(fmt.group_limit, l′))
+                l += l′
                 l <= limit || break
                 n += 1
             end
@@ -86,6 +90,9 @@ end
 function _format_rows(df, fmt)
     (h, w) = size(df)
     limit = fmt.limit
+    if fmt.group_by !== nothing && fmt.group_limit !== nothing
+        limit = fmt.group_limit
+    end
     if limit === nothing || h <= limit + 5
         indexes = collect(1:h)
     else
