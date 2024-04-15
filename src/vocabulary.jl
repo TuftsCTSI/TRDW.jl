@@ -96,6 +96,12 @@ Type_Concept(name) =
             vocabulary_id == "Type Concept" && concept_name == $name,
             $(:(Type_Concept($name)))))
 
+Route(name) =
+    concept(
+        assert_valid_concept(
+            domain_id == "Route" && concept_name == $name && standard_concept == "S",
+            $(:(Route($name)))))
+
 Visit(name) =
     concept(
         assert_valid_concept(
@@ -114,6 +120,12 @@ type_isa(cs) =
 
 type_isa(name::AbstractString) =
     type_isa(Type_Concept($name))
+
+route_isa(cs) =
+    isa(route_concept_id, $cs)
+
+route_isa(name::AbstractString) =
+    route_isa(Route($name))
 
 dose_form_group_isa(cs) =
     isa($cs)
