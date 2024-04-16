@@ -115,6 +115,12 @@ Dose_Form_Group(name) =
             concept_class_id == "Dose Form Group" && concept_name == $name,
             $(:(Dose_Form_Group($name)))))
 
+ConditionStatus(name) =
+    concept(
+        assert_valid_concept(
+            domain_id == "Condition Status" && concept_name == $name && standard_concept == "S",
+            $(:(ConditionStatus($name)))))
+
 type_isa(cs) =
     isa(type_concept_id, $cs)
 
@@ -127,11 +133,23 @@ route_isa(cs) =
 route_isa(name::AbstractString) =
     route_isa(Route($name))
 
+visit_isa(cs) =
+    isa(if_defined_scalar(visit, visit.concept_id, concept_id), $cs)
+
+visit_isa(name::AbstractString) =
+    visit_isa($name)
+
 dose_form_group_isa(cs) =
     isa($cs)
 
 dose_form_group_isa(name::AbstractString) =
     dose_form_group_isa(Dose_Form_Group($name))
+
+condition_status_isa(cs) =
+    isa(status_concept_id, $cs)
+
+condition_status_isa(name::AbstractString) =
+    condition_status_isa(ConditionStatus($name))
 
 end
 
@@ -244,16 +262,6 @@ function funsql_concept_sets_breakout(pair::Pair{Symbol, NamedConceptSets}; with
         define($colname => $frame.label)
     end
 end
-
-# TODO: remove backward compatibility
-funsql_concept_matches(cs; on = :concept_id) =
-    funsql_isa(on, cs)
-
-funsql_concept_matches(cs::Tuple{Any}; on = :concept_id) =
-    funsql_concept_matches(cs[1], on = on)
-
-funsql_concept_matches(cs::Vector; on = :concept_id) =
-    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on)
 
 function print_concepts(df; prefix="        ")
     df = DataFrame(df)

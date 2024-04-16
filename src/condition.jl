@@ -54,16 +54,7 @@ condition() = begin
         optional = true)
 end
 
-condition(match...) =
-    condition().filter(concept_matches($match))
-
-is_primary_discharge_diagnosis() =
-    ifnull(omop.condition_status_concept_id == 32903, false)
-
-status_isa(args...) =
-    category_isa($Condition_Status, $args, omop.condition_status_concept_id)
-
-define_finding_site(concept_id=concept_id; name=finding_site_concept_id, concept=true) = begin
+define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     left_join($name => begin
         from(concept_relationship)
         filter(relationship_id == "Has finding site")
@@ -143,3 +134,6 @@ snomed_top_ancestors(concept_id=concept_id;
     end)
 
 end
+
+funsql_condition(cs; with_icd9gem=false) =
+    @funsql(condition().filter(isa($cs; with_icd9gem=$with_icd9gem)))
