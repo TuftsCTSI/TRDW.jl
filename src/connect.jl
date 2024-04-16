@@ -108,12 +108,7 @@ function _tables_from_column_list(rows)
     tables
 end
 
-macro connect(expr)
-    if @dissect(expr, Expr(:tuple, args...))
-        nothing
-    else
-        args = [expr]
-    end
+macro connect(args...)
     return quote
         const $(esc(:db)) = TRDW.connect($(Any[esc(arg) for arg in args]...))
         export $(esc(:db))
