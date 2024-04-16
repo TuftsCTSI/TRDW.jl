@@ -107,7 +107,7 @@ to_3char_icdcm(; with_icd9gem=false) = begin
     $(with_icd9gem ?
       @funsql(crosswalk_from_icd9cm_to_icd10cm()) :
       @funsql(define()))
-	truncate_icd_to_3char()
+    truncate_icd_to_3char()
 end
 
 snomed_top_ancestors(concept_id=concept_id;
@@ -132,6 +132,58 @@ snomed_top_ancestors(concept_id=concept_id;
             undefine($frame, $partname)
         end)
     end)
+
+to_snomed_intermediate_conditions() =
+    snomed_top_ancestors(exclude=[
+        SNOMED("404684003", "Clinical finding"),
+        SNOMED("64572001", "Disease"),
+        SNOMED("822988000", "Disorder of abdominopelvic segment of trunk"),
+        SNOMED("362965005", "Disorder of body system"),
+        SNOMED("118934005", "Disorder of head"),
+        SNOMED("19660004", "Disorder of soft tissue"),
+        SNOMED("128121009", "Disorder of trunk"),
+        SNOMED("609624008", "Finding of abdomen"),
+        SNOMED("822987005", "Finding of abdominopelvic segment of trunk"),
+        SNOMED("118254002", "Finding of head and neck region"),
+        SNOMED("699697007", "Finding of sensation by site"),
+        SNOMED("302292003", "Finding of trunk structure"),
+        SNOMED("609623002", "Finding of upper trunk"),
+        SNOMED("298705000", "Finding of region of thorax"),
+        SNOMED("609622007", "Disorder of thoracic segment of trunk"),
+        SNOMED("118222006", "General finding of observation of patient"),
+        SNOMED("248402002", "General finding of soft tissue"),
+        SNOMED("406122000", "Head finding"),
+        #SNOMED("102957003", "Neurological finding"),
+        SNOMED("22253000",  "Pain"),
+        SNOMED("276435006", "Pain / sensation finding"),
+        #SNOMED("279001004", "Pain finding at anatomical site"),
+        #SNOMED("106147001", "Sensory nervous system finding"),
+        SNOMED("406123005", "Viscus structure finding")])
+
+icd10cm_chapter_concept_sets() = concept_sets(
+    infectious_and_parasitic = ICD10CM("A00-B99"),
+    neoplasm = ICD10CM("C00-D49"),
+    blood_and_immune_disorder = ICD10CM("D50-D89"),
+    endocrine_and_metabolic = ICD10CM("E00-E90"),
+    mental_and_neurodevelopmental = ICD10CM("F01-F99"),
+    nervous_system = ICD10CM("G00-G99"),
+    eye_and_adnexa = ICD10CM("H00-H59"),
+    ear_and_mastoid = ICD10CM("H60-I95"),
+    circulatory_system = ICD10CM("I00-I99"),
+    respiratory_system = ICD10CM("J00-J99"),
+    digestive_system = ICD10CM("K00-K95"),
+    skin_and_subcutaneous = ICD10CM("L00-L99"),
+    musculoskeletal_and_connective = ICD10CM("M00-M99"),
+    genitourinary_system = ICD10CM("N00-N99"),
+    pregancy_birth_and_puerperium = ICD10CM("O00-O99"),
+    perinatal_condition = ICD10CM("P00-P96"),
+    congenital_abnormality = ICD10CM("Q00-Q99"),
+    clinical_and_laboratory = ICD10CM("R00-R99"),
+    external_consequence = ICD10CM("S00-T98"),
+    special_purpose = ICD10CM("U00-U99"),
+    external_morbidity = ICD10CM("V00-Y99"),
+    health_status_and_service = ICD10CM("Z00-Z99")
+)
 
 end
 
