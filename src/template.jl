@@ -23,7 +23,8 @@ NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
 """)
 
 NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
-               IRB=DISCOVERY_IRB, IRB_START_DATE=nothing, IRB_END_DATE=nothing) = @htl("""
+               IRB=DISCOVERY_IRB, IRB_START_DATE=nothing, IRB_END_DATE=nothing,
+               IRB_HEADER=nothing) = @htl("""
    <!-- wide notebooks -->
    <style>
            main {
@@ -58,7 +59,10 @@ NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
         """)
      else
         @htl("""
-            <p>IRB Study # $(IRB) ($IRB_START_DATE to $IRB_END_DATE)</p>
+            <p>IRB Study # $(IRB)
+            $(isnothing(IRB_HEADER) ? "" : @htl(""" — <i>"$IRB_HEADER"</i>"""))
+            $(isnothing(IRB_START_DATE) ? "" : @htl("($IRB_START_DATE to $IRB_END_DATE)"))
+            </p>
         """)
      end)
    $(PlutoUI.TableOfContents())
