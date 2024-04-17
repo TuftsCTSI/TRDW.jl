@@ -776,8 +776,9 @@ For this to work, include this boilerplate in your notebook:
     JavaCall.assertroottask_or_goodenv()
 ```
 """
-function write_and_encrypt(dataframe::DataFrame, basename, password)
+function write_and_encrypt(basename, data, password)
     @assert length(password) > 0
+    dataframe = DataFrame(data)
     n_rows = size(dataframe)[1]
     filename = "$basename.xlsx"
     TRDW.XLSX.write(filename, dataframe; password=string(password))
@@ -802,7 +803,7 @@ function write_and_encrypt(expr::Expr, db, case, show::Bool)
                 if_defined(person_id, undefine(person_id))
                 order(subject_id)
             end))
-            TRDW.write_and_encrypt($vname, $sname, $password)
+            TRDW.write_and_encrypt($sname, $vname, $password)
         end
     end
     :(TRDW.write_cleanup($sname))
