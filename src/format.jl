@@ -1,10 +1,24 @@
+struct Roundup{T<:Number}
+    val::T
+end
+
+Roundup(val) =
+    val
+
+Roundup(val::T) where {T<:Number} =
+    Roundup{T}(val)
+
+Base.show(io::IO, r::Roundup) =
+    0 <= r.val <= 10 ? print(io, "≤10") : show(io, r.val)
+
 struct SQLFormat
     limit::Union{Int, Nothing}
     group_by::Union{Symbol, Nothing}
     group_limit::Union{Int, Nothing}
+    roundup::Union{Vector{Symbol}, Nothing}
 
-    SQLFormat(; limit = 1000, group_by = nothing, group_limit = nothing) =
-        new(limit, group_by, group_limit)
+    SQLFormat(; limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing) =
+        new(limit, group_by, group_limit, roundup)
 end
 
 function _format(df, fmt)
@@ -44,6 +58,13 @@ function _format_tbody(df, fmt)
         <tr><td colspan="$w" class="trdw-empty"><div>⌀<small>(This table has no rows)</small></div></td></tr>
         </tbody>
         """
+    end
+    roundup = fmt.roundup
+    if roundup !== nothing
+        for n in propertynames(df)
+            n ∈ roundup || continue
+            df = transform(df, n => ByRow(Roundup) => n)
+        end
     end
     if fmt.group_by !== nothing
         gdf = groupby(df, fmt.group_by, sort = false)
@@ -119,7 +140,7 @@ const _format_number_context = :compact => true
 function _format_cell(val, fmt)
     if val === missing
         @htl """<td class="trdw-missing"></td>"""
-    elseif val isa Number
+    elseif val isa Union{Number, Roundup}
         @htl """<td class="trdw-number">$(sprint(print, val; context = _format_number_context))</td>"""
     else
         @htl """<td>$val</td>"""
