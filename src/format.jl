@@ -1,5 +1,8 @@
 struct Roundup{T<:Number}
     val::T
+
+    Roundup{T}(val) where {T<:Number} =
+        new{T}(val)
 end
 
 Roundup(val) =
