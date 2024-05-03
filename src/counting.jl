@@ -1,5 +1,17 @@
 @funsql begin
 
+demographics(roundup=false) = begin
+    as(cohort)
+    over(
+        append(
+            from(cohort).cohort_count(roundup = $roundup).select(label => "Total", category => missing, n_person),
+            from(cohort).stratify_by_age(roundup = $roundup).select(label => "Age", category => age, n_person),
+            from(cohort).stratify_by_sex(roundup = $roundup).select(label => "Sex", category => sex_name, n_person),
+            from(cohort).stratify_by_race(roundup = $roundup).select(label => "Race", category => race_name, n_person),
+            from(cohort).stratify_by_ethnicity(roundup = $roundup).select(label => "Ethnicity", category => ethnicity_name, n_person)))
+    format(group_by = label)
+end
+
 count_n_person(; roundup=true) = begin
     define(n_person => count_distinct(person_id))
     order(n_person.desc(nulls=last))
