@@ -12,6 +12,19 @@ collapse_intervals(start_date=:datetime, end_date=:datetime_end;
            datetime_end => max($end_date))
 end
 
+define_era(datetime, datetime_end) = begin
+    partition(person_id, order_by = [$datetime, occurrence_id],
+              frame = (mode = rows, start = -Inf, finish = -1),
+              name = _preceding)
+    define(_is_start_of_era => _preceding.max($datetime_end) >= datetime ? 0 : 1)
+    partition(person_id, order_by = [$datetime, _is_start_of_era.desc(), occurrence_id],
+              frame = (mode = rows, start = -Inf, finish = 0),
+              name = _preceding_or_current)
+    define_after(era => _preceding_or_current.sum(_is_start_of_era),
+                 name = occurrence_id)
+    undefine(_preceding, _is_start_of_era, _preceding_or_current)
+end
+
 like_acronym(s, pat) =
     $(' ' in pat ? @funsql(ilike($s, $("%$(pat)%"))) :
         @funsql(rlike($s, $("(^|[^A-Za-z])$(pat)(\$|[^A-Za-z])"))))
