@@ -1,15 +1,22 @@
 @funsql begin
 
-collapse_intervals(start_date=:datetime, end_date=:datetime_end;
-                   gap=0, group_by=[person_id]) = begin
-    partition($group_by..., order_by = [$start_date],
-        frame = (mode = rows, start = -Inf, finish = -1))
-    define(new => datediff_day(max($end_date), $start_date) <= $gap ? 0 : 1 )
-    partition($group_by..., order_by = [$start_date, -new], frame = (mode = rows))
-    define(era => sum(new))
-    group($group_by..., era)
-    define(datetime => min($start_date),
-           datetime_end => max($end_date))
+define_era(datetime, datetime_end) = begin
+    partition(person_id, order_by = [$datetime, occurrence_id],
+              frame = (mode = rows, start = -Inf, finish = -1),
+              name = _preceding)
+    define(_is_start_of_era => _preceding.max($datetime_end) >= datetime ? 0 : 1)
+    partition(person_id, order_by = [$datetime, _is_start_of_era.desc(), occurrence_id],
+              frame = (mode = rows, start = -Inf, finish = 0),
+              name = _preceding_or_current)
+    define_after(era => _preceding_or_current.sum(_is_start_of_era),
+                 name = occurrence_id)
+    undefine(_preceding, _is_start_of_era, _preceding_or_current)
+end
+
+group_by_era(datetime=datetime, datetime_end=datetime_end) = begin
+    define_era($datetime, $datetime_end)
+    group(person_id, era)
+    define(datetime => min(datetime), datetime_end => max(datetime_end))
 end
 
 like_acronym(s, pat) =
@@ -43,10 +50,11 @@ bounded_iterate(q, r::UnitRange{<:Integer}) = begin
     over(append(args = $[@funsql(from(base).bounded_iterate($q, $n)) for n in r]))
 end
 
-antijoin(q, lhs, rhs=nothing) =
-    $(let name = gensym(), rhs = something(rhs, lhs);
-          @funsql(left_join($name => $q, $lhs == $rhs).filter(isnull($name.$rhs)))
-    end)
+antijoin(q, lhs, rhs=lhs) = begin
+     left_join(_antijoin => $q, $lhs == _antijoin.$rhs)
+     filter(isnull(_antijoin.$rhs))
+     undefine(_antijoin)
+end
 
 restrict_by(q) = restrict_by(person_id, $q)
 
@@ -73,18 +81,19 @@ This function correlates by `person_id` upon the joined table, optionally filter
 """
 function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
-    partname = gensym()
+    partname = :_filter_with
     return @funsql(begin
         partition(order_by = [person_id], name = $partname)
         join($name => $base, $name.person_id == person_id && $predicate)
         partition($partname.row_number(); order_by = [person_id], name = $partname)
         filter($partname.row_number() <= 1)
+        undefine($partname)
         undefine($name)
     end)
 end
 
-funsql_filter_with(node::FunSQL.SQLNode, predicate=true) =
-    funsql_filter_with(gensym() => node, predicate)
+funsql_filter_with(node::FunSQL.SQLNode) =
+    funsql_filter_with(:_filter_with_node => node)
 
 """ filter_without(pair, filter)
 
@@ -99,8 +108,8 @@ function funsql_filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=tru
     end)
 end
 
-funsql_filter_without(node::FunSQL.SQLNode, predicate=true) =
-    funsql_filter_without(gensym() => node, predicate)
+funsql_filter_without(node::FunSQL.SQLNode) =
+    funsql_filter_without(:_filter_without_node => node)
 
 """ group_with(pair, filter)
 
@@ -130,7 +139,7 @@ end
 
 function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; order_by)
     (name, base) = pair
-    partname = gensym()
+    partname = :_attach_first
     return @funsql begin
         partition(order_by = [person_id], name = $partname)
         left_join($name => $base, $name.person_id == person_id && $predicate)
@@ -192,48 +201,16 @@ function funsql_assert_one_row(; carry=[])
 end
 
 function funsql_take_first(keys...; order_by=[], name=nothing)
-    partname = something(name, gensym())
-    udefine = isnothing(name) ? @funsql(undefine($partname)) : @funsql(define())
-    @funsql begin
-        partition($(keys...), order_by = [$([keys..., order_by...]...)], name = $partname)
-        filter($partname.row_number() <= 1)
-        $udefine
-    end
+     partname = something(name, :_take_first)
+     udefine = isnothing(name) ? @funsql(undefine($partname)) : @funsql(define())
+     @funsql begin
+         partition($(keys...), order_by = [$([keys..., order_by...]...)], name = $partname)
+         filter($partname.row_number() <= 1)
+         $udefine
+     end
 end
 
 funsql_take_earliest_occurrence(;name=nothing) =
     @funsql(take_first(person_id; order_by=[datetime.asc()], name=$name))
 funsql_take_latest_occurrence(;name=nothing) =
     @funsql(take_first(person_id; order_by=[datetime.desc()], name=$name))
-
-function funsql_rollup(items...; define=[])
-    base = gensym()
-    gset = []
-    defn = []
-    args = []
-    tail = []
-    sort = []
-    for el in items
-        if el isa Symbol
-            push!(gset, el)
-        elseif el isa Pair
-            push!(defn, el)
-            push!(gset, el[1])
-        elseif el isa FunSQL.SQLNode && getfield(el, :core) isa FunSQL.AggregateNode
-            name = getfield(getfield(el, :core), :name)
-            push!(defn, @funsql($name => $el))
-            push!(gset, name)
-        else
-            @error(something(dump(el), "unable to group by $el"))
-        end
-        push!(sort, @funsql($(gset[end]).asc(nulls=last)))
-    end
-    while length(gset) > 0
-        node = @funsql(from($base).group($gset..., $tail...))
-        push!(args, node)
-        item = pop!(gset)
-        push!(tail, @funsql $item => missing)
-    end
-    push!(args, @funsql(from($base).group($tail...)))
-    return @funsql(define($defn...).as($base).over(append(args=$args)).define($define...).order($sort...))
-end

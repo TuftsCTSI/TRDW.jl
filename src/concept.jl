@@ -17,18 +17,18 @@ end
 concept(concept_id::Integer...) =
     concept().filter(in(concept_id, $concept_id...))
 
-concept(q) = concept().filter(in(concept_id, $q.select(concept_id)))
+concept(p) = concept().filter($p)
 
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 
 select_concept(name, include...; order=[]) = begin
-    $(let frame = gensym(),
+    $(let frame = :_select_concept,
           columns = [:concept_id, :domain_id, :concept_class_id, :vocabulary_id,
                      :concept_code, :concept_name],
           concept_id = contains(string(name), "concept_id") ? name :
                          Symbol("$(name)_concept_id"),
-          # handle (name => expr) in Select because FunSQL doesn't do so...
-          order = [gensym() => x for x in order],
+          # let `order` be any expression
+          order = [Symbol("_$(x[1])") => x[2] for x in enumerate(order)],
           define = [[p for p in order if p isa Pair]..., [p for p in include if p isa Pair]...],
           include = [x isa Pair ? x[1] : x for x in include],
           order = [x isa Pair ? x[1] : x for x in order],
@@ -45,28 +45,6 @@ select_concept(name, include...; order=[]) = begin
 end
 
 select_concept() = select_concept(concept_id)
-
-find_concept(table, concept_id, names...) = begin
-    as(base)
-    join(begin
-        $table
-        join(c => concept(), c.concept_id == $concept_id)
-        filter(icontains(c.concept_name, $names...))
-    end, person_id == base.person_id)
-    group($concept_id)
-    select_concept($concept_id, n_event => count(), n_person => count_distinct(person_id))
-    order(n_person.desc(nulls=last))
-end
-
-repr_concept(name=nothing) = begin
-    define(concept_id => $(name == nothing ? :concept_id :
-                           contains(string(name), "concept_id") ? name :
-                           Symbol("$(name)_concept_id")))
-    as(base)
-    join(concept(), concept_id == base.concept_id)
-    select(concept_id, detail => concat(
-           replace(vocabulary_id, " ","_"), "(", concept_code, ", \"", concept_name,"\")"))
-end
 
 count_concept(name, names...; roundup=true) = begin
     define(concept_id => $(contains(string(name), "concept_id") ? name :
@@ -89,7 +67,17 @@ concept_descendants() = begin
         base.concept_id == concept_ancestor.ancestor_concept_id)
     join(
         concept(),
-        concept_ancestor.descendant_concept_id == concept_id)
+        concept_ancestor.descendant_concept_id == concept_id,
+        optional = true)
+    define(concept_ancestor.min_levels_of_separation, concept_ancestor.max_levels_of_separation)
+    define(concept_id => concept_ancestor.descendant_concept_id)
+end
+
+concept_icd_descendants() = begin
+    as(base)
+    join(concept().filter(in(vocabulary_id, "ICD9CM", "ICD10CM")),
+         base.vocabulary_id == vocabulary_id &&
+         startswith(concept_code, base.concept_code))
 end
 
 concept_ancestors() = begin
@@ -99,15 +87,11 @@ concept_ancestors() = begin
         base.concept_id == concept_ancestor.descendant_concept_id)
     join(
         concept(),
-        concept_ancestor.ancestor_concept_id == concept_id)
+        concept_ancestor.ancestor_concept_id == concept_id,
+        optional = true)
+    define(concept_ancestor.min_levels_of_separation, concept_ancestor.max_levels_of_separation)
+    define(concept_id => concept_ancestor.ancestor_concept_id)
 end
-
-exists_concept_relatives(relationship_id) = exists(begin
-        from(concept_relationship)
-        filter(relationship_id == $relationship_id)
-        filter(concept_id_1 == :concept_id)
-        bind(concept_id => concept_id)
-    end)
 
 concept_relatives(relationship_id) = begin
     as(base)
@@ -117,7 +101,26 @@ concept_relatives(relationship_id) = begin
         base.concept_id == concept_relationship.concept_id_1)
     join(
         concept(),
-        concept_relationship.concept_id_2 == concept_id)
+        concept_relationship.concept_id_2 == concept_id,
+        optional = true)
+    define(concept_id => concept_relationship.concept_id_2)
+end
+
+define_concept_relatives(relationship_id) = begin
+    left_join(concept_relatives => begin
+        from(concept_relationship)
+        filter(relationship_id == $relationship_id)
+        group(concept_id => concept_id_1)
+        define(collect => collect_to_string(concept_id_2))
+    end, concept_id == concept_relatives.concept_id)
+    define($relationship_id => concept_relatives.collect)
+end
+
+define_concept_relatives(relationship_id, another_id, more...) = begin
+    define_concept_relatives($relationship_id)
+    $(length(more) > 0 ?
+      @funsql(define_concept_relatives($another_id, $(more[1]), $(more[2:end])...)) :
+      @funsql(define_concept_relatives($another_id)))
 end
 
 concept_relatives(relationship_id, n_or_r) = begin
@@ -145,40 +148,46 @@ concept_parents() = begin
         base.concept_id == concept_relationship.concept_id_2)
     join(
         concept(),
-        concept_relationship.concept_id_1 == concept_id)
+        concept_relationship.concept_id_1 == concept_id,
+        optional = true)
+    define(concept_id => concept_relationship.concept_id_1)
 end
 
 concept_siblings() = concept_parents().concept_children()
 
 filter_out_ancestors() = begin
-    $(let name = gensym(); @funsql(begin
-        deduplicate(concept_id)
-        left_join(
-            $name => from(concept_ancestor),
-            concept_id == $name.descendant_concept_id)
-        partition($name.ancestor_concept_id)
-        filter(count() <= 1)
-        filter($name.min_levels_of_separation == 0)
+    $(let name = :_filter_out_ancestors;
+        @funsql(begin
+            deduplicate(concept_id)
+            left_join(
+                $name => from(concept_ancestor),
+                concept_id == $name.descendant_concept_id)
+            partition($name.ancestor_concept_id)
+            filter(count() <= 1)
+            filter($name.min_levels_of_separation == 0)
+            undefine($name)
         end)
     end)
 end
 
 filter_out_descendants() = begin
-    $(let name = gensym(); @funsql(begin
-        deduplicate(concept_id)
-        left_join(
-            $name => from(concept_ancestor),
-            concept_id == $name.ancestor_concept_id)
-        partition($name.descendant_concept_id)
-        filter(count() <= 1)
-        filter($name.min_levels_of_separation == 0)
+    $(let name = :_filter_out_descendants;
+        @funsql(begin
+            deduplicate(concept_id)
+            left_join(
+                $name => from(concept_ancestor),
+                concept_id == $name.ancestor_concept_id)
+            partition($name.descendant_concept_id)
+            filter(count() <= 1)
+            filter($name.min_levels_of_separation == 0)
+            undefine($name)
         end)
     end)
     deduplicate(concept_id)
 end
 
 truncate_to_concept_class(concept_class_id, relationship_id="Is a") =
-    $(let frame = gensym();
+    $(let frame = :_truncate_to_concept_class;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -189,6 +198,7 @@ truncate_to_concept_class(concept_class_id, relationship_id="Is a") =
                 end, concept_id_2 == kind.concept_id)
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
@@ -214,14 +224,7 @@ concept_cover(category::FunSQL.SQLNode; exclude=[]) = begin
     filter_out_descendants()
 end
 
-snomed_cover_via_icd10(;exclude=[]) =
-    concept_cover(begin
-        concept()
-        filter(in(concept_class_id, "3-char billing code", "3-char nonbill code"))
-        concept_relatives("Maps to")
-    end; exclude=$exclude)
-
-snomed_cover_via_cpt4(;exclude=[]) =
+snomed_cover_via_cpt4(; exclude=[]) =
     concept_cover(begin
         concept()
         filter(concept_class_id == "CPT4 Hierarchy")

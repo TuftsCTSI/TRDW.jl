@@ -2,6 +2,7 @@
 
 visit() = begin
     from(visit_occurrence)
+    define(is_preepic => visit_occurrence_id > 1000000000)
     as(omop)
     define(
         # event columns
@@ -48,25 +49,9 @@ visit() = begin
         discharged_to_concept => concept(),
         omop.discharged_to_concept_id == discharged_to_concept.concept_id,
         optional = true)
-    cross_join(
-        ext => begin
-            # computed variables
-            select(
-                is_preepic => :ID > 1000000000)
-            bind(
-                :ID => omop.visit_occurrence_id)
-        end)
 end
 
-visit(match...) =
-    visit().filter(concept_matches($match))
-
-visit_isa(args...) =
-    category_isa($Visit, $args, if_defined_scalar(visit, visit.omop.visit_concept_id,
-                                                         omop.visit_concept_id))
-
-visit_matches(args...) =
-    if_defined_scalar(visit, concept_matches($args...; match_on=visit.omop.visit_concept_id),
-                             concept_matches($args...; match_on=omop.visit_concept_id))
+visit(cs) =
+    visit().filter(isa($cs))
 
 end

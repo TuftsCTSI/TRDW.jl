@@ -48,7 +48,6 @@ function funsql_define_birth_date(;name=:birth_date)
     @funsql begin
         join($person => from(person), $person.person_id == person_id)
         define($name => date($person.birth_datetime))
-        undefine($person)
     end
 end
 
@@ -57,7 +56,6 @@ function funsql_define_birth_year(;name=:birth_year)
     @funsql begin
         join($person => from(person), $person.person_id == person_id)
         define($name => $person.year_of_birth)
-        undefine($person)
     end
 end
 

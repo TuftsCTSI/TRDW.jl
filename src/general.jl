@@ -1,271 +1,3 @@
-build_dsn(; kws...) =
-    join(["$key=$val" for (key, val) in pairs(kws)], ';')
-
-function connect_to_databricks(; catalog = nothing, schema = nothing)
-    DATABRICKS_SERVER_HOSTNAME = ENV["DATABRICKS_SERVER_HOSTNAME"]
-    DATABRICKS_HTTP_PATH = ENV["DATABRICKS_HTTP_PATH"]
-    DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
-    DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
-
-    catalog = something(catalog, DATABRICKS_CATALOG)
-    schema = get(ENV, "TRDW_SCHEMA", schema)
-
-    DATABRICKS_DSN = build_dsn(
-        Driver = "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
-        Host = DATABRICKS_SERVER_HOSTNAME,
-        Port = 443,
-        SSL = 1,
-        ThriftTransport = 2,
-        HTTPPath = DATABRICKS_HTTP_PATH,
-        UseNativeQuery = 1,
-        AuthMech = 3,
-        Catalog = catalog,
-        Schema = schema,
-        UID = "token",
-        PWD = DATABRICKS_ACCESS_TOKEN)
-
-    DBInterface.connect(ODBC.Connection, DATABRICKS_DSN)
-end
-
-isessentiallyuppercase(s) =
-    all(ch -> isuppercase(ch) || isdigit(ch) || ch == '_', s)
-
-function connect_with_funsql(specs...; catalog = nothing, exclude = nothing)
-    DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
-    catalog = something(catalog, DATABRICKS_CATALOG)
-
-    conn = connect_to_databricks(catalog = catalog)
-    table_map = Dict{Symbol, FunSQL.SQLTable}()
-    for spec in specs
-        prefix, (catalogname, schemaname) = _unpack_spec(spec, catalog)
-        raw_cols = ODBC.columns(conn,
-                                catalogname = catalogname,
-                                schemaname = schemaname)
-        cols = [(lowercase(row.TABLE_CAT),
-                 lowercase(row.TABLE_SCHEM),
-                 lowercase(row.TABLE_NAME),
-                 isessentiallyuppercase(row.COLUMN_NAME) ? lowercase(row.COLUMN_NAME) : row.COLUMN_NAME)
-                for row in Tables.rows(raw_cols)]
-        tables = _tables_from_column_list(cols)
-        for table in tables
-            exclude === nothing || !exclude(table) || continue
-            name = Symbol("$prefix$(table.name)")
-            table_map[name] = table
-        end
-    end
-    cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark))
-
-    FunSQL.SQLConnection(conn, catalog = cat)
-end
-
-_unpack_spec(schema::Union{Symbol, AbstractString, NTuple{2, Union{Symbol, AbstractString}}}, default_catalog) =
-    "", _split_schema(schema, default_catalog)
-
-_unpack_spec(pair::Pair, default_catalog) =
-    string(first(pair)), _split_schema(last(pair), default_catalog)
-
-function _split_schema(schema::AbstractString, default_catalog)
-    parts = split(schema, '.', limit = 2)
-    length(parts) == 1 ?
-      (default_catalog, string(parts[1])) : (string(parts[1]), string(parts[2]))
-end
-
-_split_schema(schema::NTuple{2, Union{Symbol, AbstractString}}, default_catalog) =
-    string(schema[1]), string(schema[2])
-
-function _tables_from_column_list(rows)
-    tables = FunSQL.SQLTable[]
-    qualifiers = Symbol[]
-    catalog = schema = name = nothing
-    columns = Symbol[]
-    for (cat, s, n, c) in rows
-        cat = Symbol(cat)
-        s = Symbol(s)
-        n = Symbol(n)
-        c = Symbol(c)
-        if cat === catalog && s === schema && n === name
-            push!(columns, c)
-        else
-            if !isempty(columns)
-                t = FunSQL.SQLTable(qualifiers = qualifiers, name = name, columns = columns)
-                push!(tables, t)
-            end
-            if cat !== catalog || s !== schema
-                qualifiers = [cat, s]
-            end
-            catalog = cat
-            schema = s
-            name = n
-            columns = [c]
-        end
-    end
-    if !isempty(columns)
-        t = FunSQL.SQLTable(qualifiers = qualifiers, name = name, columns = columns)
-        push!(tables, t)
-    end
-    tables
-end
-
-function cursor_to_dataframe(db, cr; annotate_keys=false)
-    df = DataFrame(cr)
-    # Remove `Missing` from column types where possible.
-    disallowmissing!(df, error = false)
-    # Render columns that are named `html` or `*_html` as HTML.
-    htmlize!(df)
-    # Enrich `concept_id` and other key columns.
-    if annotate_keys
-        annotate_keys!(db, df)
-    end
-    df
-end
-
-function htmlize!(df)
-    for col in names(df)
-        if col == "html" || endswith(col, "_html")
-            df[!, col] = htmlize.(df[!, col])
-        end
-    end
-end
-
-htmlize(str::AbstractString) =
-    HTML(str)
-
-htmlize(val) =
-    val
-
-struct Annotated{T}
-    value::T
-    text::String
-end
-
-Base.show(io::IO, k::Annotated) =
-    isempty(k.text) ? print(io, k.value) : print(io, k.value, ' ', '[', k.text, ']')
-
-const g_annotation_cache = Dict{Tuple{Symbol, Int32}, String}()
-
-const annotate_keys_columns = [
-    :care_site_id => :care_site,
-    :concept_id => :concept,
-    :location_id => :location,
-    :person_id => :person,
-    :provider_id => :provider,
-]
-
-annotate_keys_query(::Val{:care_site}, ids) = @funsql begin
-    from(care_site)
-    filter(in(care_site_id, $(ids...)))
-    select(care_site_id, care_site_name)
-end
-
-annotate_keys_query(::Val{:concept}, ids) = @funsql begin
-    from(concept)
-    filter(in(concept_id, $(ids...)))
-    select(
-        concept_id,
-        if concept_id == 0
-            ""
-        elseif in(vocabulary_id, "ICD9CM", "ICD10CM")
-            concat(concept_code, " ", concept_name)
-        else
-            concept_name
-        end)
-end
-
-annotate_keys_query(::Val{:location}, ids) = @funsql begin
-    from(location)
-    filter(in(location_id, $(ids...)))
-    select(
-        location_id,
-        concat(city, ", ", state))
-end
-
-annotate_keys_query(::Val{:person}, ids) = @funsql begin
-    from(person)
-    filter(in(person_id, $(ids...)))
-    select(
-        person_id,
-        concat(
-            gender_concept_id == 8507 ? "M" : gender_concept_id == 8532 ? "F" : "",
-            year_of_birth))
-end
-
-annotate_keys_query(::Val{:provider}, ids) = @funsql begin
-    from(provider)
-    filter(specialty_concept_id != 0)
-    filter(in(provider_id, $(ids...)))
-    join(
-        specialty_concept => from(concept),
-        specialty_concept_id == specialty_concept.concept_id)
-    select(
-        provider_id,
-        specialty_concept.concept_name)
-end
-
-function annotate_keys!(db, df)
-    for (column_name, table_name) in annotate_keys_columns
-        in(table_name, keys(db.catalog.tables)) || continue
-        cols = [col for col in names(df) if col == "$column_name" || endswith(col, "_$column_name")]
-        !isempty(cols) || continue
-        new_keys = _collect_new_keys(table_name, df[!, cols])
-        if length(new_keys) > 10000
-            @warn "Too many new $column_name, will annotate a subset of them" length(new_keys)
-            new_keys = new_keys[1:10000]
-        end
-        if !isempty(new_keys)
-            new_keys_df = DataFrame(DBInterface.execute(db, annotate_keys_query(Val(table_name), new_keys)))
-            update_annotation_cache(table_name, new_keys_df[!, 1], new_keys_df[!, 2])
-        end
-        for col in cols
-            df[!, col] = annotate_key(table_name, df[!, col])
-        end
-    end
-end
-
-function _collect_new_keys(table_name, df)
-    new_keys = Set{Int32}()
-    for col in eachcol(df)
-        _push_new_keys!(new_keys, table_name, col)
-    end
-    return collect(new_keys)
-end
-
-function _push_new_keys!(new_keys, table_name, vals)
-    for val in vals
-        val !== missing || continue
-        !in((table_name, val), keys(g_annotation_cache)) || continue
-        push!(new_keys, val)
-    end
-end
-
-function update_annotation_cache(table_name, keys, strs)
-    for (key, str) in zip(keys, strs)
-        str !== missing || continue
-        g_annotation_cache[(table_name, key)] = str
-    end
-end
-
-annotate_key(table_name, vals::Vector{Union{Missing, T}}) where {T} =
-    Union{Missing, Annotated{T}}[annotate_key(table_name, val) for val in vals]
-
-annotate_key(table_name, vals::Vector{Missing}) =
-    vals
-
-annotate_key(table_name, vals::Vector{T}) where {T} =
-    Annotated{T}[annotate_key(table_name, val) for val in vals]
-
-annotate_key(table_name, ::Missing) =
-    missing
-
-annotate_key(table_name, val::T) where {T} =
-    Annotated{T}(val, get(g_annotation_cache, (table_name, val), ""))
-
-run(db, q; annotate_keys=false) =
-    cursor_to_dataframe(db, DBInterface.execute(db, q); annotate_keys=annotate_keys)
-
-macro run_funsql(db, q)
-    :(run($db, @funsql($q)); annotate_keys=$annotate_keys)
-end
-
 env_catalog() = Symbol(get(ENV, "DATABRICKS_CATALOG", "ctsi"))
 
 sqlname(db, schema::Symbol) =
@@ -972,7 +704,8 @@ macro funsql_export(expr)
     end
 end
 
-function write_and_display(basename, dataframe::DataFrame; empty_cols=[])
+function write_and_display(basename, data; empty_cols=[])
+    dataframe = DataFrame(data)
     for col in empty_cols
         insertcols!(dataframe, names(dataframe)[1], col => "")
     end
@@ -980,8 +713,7 @@ function write_and_display(basename, dataframe::DataFrame; empty_cols=[])
     n_rows = size(dataframe)[1]
     CSV.write(filename, dataframe)
     @htl("""
-        <hr />
-        <div>$(dataframe)</div>
+        <div>$(data)</div>
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
         <p><hr /></p>
     """)
@@ -1044,8 +776,9 @@ For this to work, include this boilerplate in your notebook:
     JavaCall.assertroottask_or_goodenv()
 ```
 """
-function write_and_encrypt(dataframe::DataFrame, basename, password)
+function write_and_encrypt(basename, data, password)
     @assert length(password) > 0
+    dataframe = DataFrame(data)
     n_rows = size(dataframe)[1]
     filename = "$basename.xlsx"
     TRDW.XLSX.write(filename, dataframe; password=string(password))
@@ -1070,7 +803,7 @@ function write_and_encrypt(expr::Expr, db, case, show::Bool)
                 if_defined(person_id, undefine(person_id))
                 order(subject_id)
             end))
-            TRDW.write_and_encrypt($vname, $sname, $password)
+            TRDW.write_and_encrypt($sname, $vname, $password)
         end
     end
     :(TRDW.write_cleanup($sname))

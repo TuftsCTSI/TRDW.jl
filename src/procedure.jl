@@ -67,7 +67,7 @@ procedure(match...) =
     procedure().filter(concept_matches($match))
 
 truncate_icd9proc_to_3dig() =
-    $(let frame = gensym();
+    $(let frame = :_icd9proc_to_3dig;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -78,11 +78,12 @@ truncate_icd9proc_to_3dig() =
                 end, concept_id_2 == icd10cm_3_char.concept_id)
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
 truncate_to_icd10pcs_3dig() =
-    $(let frame = gensym();
+    $(let frame = :_to_icd10pcs_3dig;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -103,11 +104,12 @@ truncate_to_icd10pcs_3dig() =
                 define(concept_id_2 => ca.ancestor_concept_id)
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
 truncate_to_cpt4_hierarchy() =
-    $(let frame = gensym();
+    $(let frame = :_to_cpt4_hierarchy;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
@@ -118,17 +120,19 @@ truncate_to_cpt4_hierarchy() =
                 end, concept_id_2 == cpt4hier.concept_id)
             end, concept_id == $frame.concept_id_1)
             define(cconcept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 
 crosswalk_cpt4_to_snomed() =
-    $(let frame = gensym();
+    $(let frame = :_cpt4_to_snomed;
         @funsql(begin
             left_join($frame => begin
                 from(concept_relationship)
                 filter(relationship_id=="CPT4 - SNOMED eq")
             end, concept_id == $frame.concept_id_1)
             define(concept_id => coalesce($frame.concept_id_2, concept_id))
+            undefine($frame)
         end)
     end)
 

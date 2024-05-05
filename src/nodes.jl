@@ -1,3 +1,5 @@
+# Custom FunSQL nodes
+
 mutable struct DefineFrontNode <: FunSQL.TabularNode
     over::Union{FunSQL.SQLNode, Nothing}
     args::Vector{FunSQL.SQLNode}
@@ -557,7 +559,7 @@ function FunSQL.resolve(n::CustomResolveNode, ctx)
     if f === nothing
         throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
     end
-    FunSQL.resolve(f(n, ctx), ctx)
+    FunSQL.resolve(convert(FunSQL.SQLNode, f(n, ctx)), ctx)
 end
 
 function FunSQL.resolve_scalar(n::CustomResolveNode, ctx)
@@ -565,7 +567,7 @@ function FunSQL.resolve_scalar(n::CustomResolveNode, ctx)
     if f === nothing
         throw(FunSQL.IllFormedError(path = FunSQL.get_path(ctx)))
     end
-    FunSQL.resolve_scalar(f(n, ctx), ctx)
+    FunSQL.resolve_scalar(convert(FunSQL.SQLNode, f(n, ctx)), ctx)
 end
 
 funsql_if_not_defined(field_name, q) =
@@ -590,4 +592,89 @@ funsql_if_defined_scalar(field_name, q, else_q) = begin
         in(field_name, keys(t.fields)) ? q : else_q
     end
     CustomResolve(resolve_scalar = custom_resolve, terminal = true)
+end
+
+_concept_attribute(s::String) =
+    [s]
+
+_concept_attribute(n::Integer) =
+    [string(n)]
+
+_concept_attribute(val) =
+    val
+
+mutable struct AssertValidConceptNode <: FunSQL.AbstractSQLNode
+    condition::FunSQL.SQLNode
+    ex::Expr
+
+    AssertValidConceptNode(; condition, ex) =
+        new(condition, ex)
+end
+
+AssertValidConceptNode(condition, ex) =
+    AssertValidConceptNode(condition = condition, ex = ex)
+
+AssertValidConcept(args...; kws...) =
+    AssertValidConceptNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_assert_valid_concept = AssertValidConcept
+
+function FunSQL.PrettyPrinting.quoteof(n::AssertValidConceptNode, ctx)
+    Expr(:call, nameof(AssertValidConcept), FunSQL.quoteof(n.condition, ctx), Expr(:quote, n.ex))
+end
+
+function FunSQL.resolve_scalar(n::AssertValidConceptNode, ctx)
+    if !(:concept in keys(ctx.cte_types)) && (:concept in keys(ctx.tables))
+        concept_id = resolve_concept_id(n)
+        if concept_id !== nothing
+            return FunSQL.resolve_scalar(FunSQL.Fun."="(FunSQL.Get.concept_id, FunSQL.Lit(concept_id)), ctx)
+        end
+    end
+    FunSQL.resolve_scalar(n.condition, ctx)
+end
+
+function create_concept_cache(db)
+    t = get(db.catalog.tables, :concept, nothing)
+    t !== nothing || return
+    key = join(string.([t.qualifiers..., t.name]), '.')
+    t_id = FunSQL.render(db, FunSQL.ID(t.qualifiers, t.name))
+    table_detail = Tables.columntable(DBInterface.execute(db, "DESCRIBE DETAIL $t_id"))
+    table_mtime = trunc(Int, datetime2unix(table_detail.lastModified[1]))
+    scratchname = "$key.$table_mtime"
+    return (db = db, dir = @get_scratch!(scratchname))
+end
+
+with_concept_cache(f, concept_cache) =
+    Base.task_local_storage(f, :concept_cache, concept_cache)
+
+function resolve_concept_id(n::AssertValidConceptNode)
+    tls = task_local_storage()
+    concept_cache = get(tls, :concept_cache, nothing)
+    concept_cache !== nothing || return
+    q = @funsql concept($(n.condition)).order(concept_id).limit(3)
+    sql = FunSQL.render(concept_cache.db, q)
+    key = bytes2hex(sha256(sql))
+    filename = joinpath(concept_cache.dir, key * ".arrow")
+    if isfile(filename)
+        df = DataFrame(Arrow.Table(filename))
+    else
+        df = DataFrame(DBInterface.execute(concept_cache.db, sql))
+        tmpname = tempname(concept_cache.dir)
+        Arrow.write(tmpname, df)
+        mv(tmpname, filename, force = true)
+    end
+    concept_ids = df.concept_id
+    invalid_reasons = df.invalid_reason
+    if isempty(concept_ids)
+        throw(DomainError(n.ex, "concept not found"))
+    elseif length(concept_ids) > 1
+        choices = join(string.(concept_ids[1:2]), ", ")
+        if length(concept_ids) > 2
+            choices *= ", …"
+        end
+        throw(DomainError(n.ex, "concept is ambiguous ($choices)"))
+    elseif invalid_reasons[1] !== missing
+        throw(DomainError(n.ex, "concept is invalid ($(invalid_reasons[1]))"))
+    end
+    return concept_ids[1]
 end

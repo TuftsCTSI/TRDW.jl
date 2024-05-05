@@ -1,18 +1,8 @@
-const wide_notebook_style = html"""
-<style>
-/*    @media screen and (min-width: calc(700px + 25px + 283px + 34px + 25px)) */
-        main {
-            margin: 0 auto;
-            max-width: 2000px;
-            padding-right: 50px;
-        }
-</style>
-"""
+const DISCOVERY_IRB = "11642"
 
-WideStyle() =
-    wide_notebook_style
+is_discovery(irb) = isnothing(irb) || string(irb) == DISCOVERY_IRB
 
-NotebookFooter(;case=nothing, sfid=nothing, pims=nothing) = @htl("""
+NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
   <div>
     <table style="width: 100%">
     <tr><td style="width: 72; vertical-align: top">
@@ -23,26 +13,57 @@ NotebookFooter(;case=nothing, sfid=nothing, pims=nothing) = @htl("""
         Generated at $(Dates.now())
       </small>
     </td><td style="width: 28%; vertical-align: top; text-align: right;">
-    $(isnothing(case) ? "" : @htl("""Service Request#
-      $(isnothing(sfid) ? @htl("""<span>$case</span>""") : @htl("""
-        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Case/$sfid/view">$case</a>
+    $(isnothing(CASE) ? "" : @htl("""Service Request#
+      $(isnothing(SFID) ? @htl("""<span>$CASE</span>""") : @htl("""
+        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Case/$SFID/view">$CASE</a>
         """))
       <br />"""))
-    $(isnothing(pims) ? "" : @htl("""PIMS #
-        <a href="https://pims.tuftsctsi.org/issues/$(pims)">$(pims)</a>"""))
-    </td></tr></table>
+    $(is_discovery(IRB) ? "" : @htl("<p>IRB Study# $(IRB)"))
   </div>
 """)
 
-NotebookHeader(title=nothing, subtitle=nothing; case=nothing, sfid=nothing) = @htl("""
-   <h1>$(title)
-   </h1>
-  $(isnothing(case) ? "" : @htl("""
-    <div style="text-align: center;">Service Request#
-    $(isnothing(sfid) ? @htl("""<span>$case</span>""") : @htl("""
-      <a href="https://tuftsctsi.my.site.com/s/case/$sfid/">$case</a>
-      """))
-    </div>"""))
-   $(isnothing(subtitle) ? "" :
-     @htl("""<p style="text-align: left; font-style: italic; font-size: 24px;">$subtitle</p>"""))
+NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
+               IRB=DISCOVERY_IRB, IRB_START_DATE=nothing, IRB_END_DATE=nothing,
+               IRB_HEADER=nothing) = @htl("""
+   <!-- wide notebooks -->
+   <style>
+           main {
+               margin: 0 auto;
+               max-width: 2000px;
+               padding-right: 50px;
+           }
+   </style>
+   <div style="overflow: auto; width: 100%; vertical-align: top;">
+     <h1 style="display: inline-block; width: 88%; text-align: left; vertical-align: top;">
+       $(TITLE)
+     </h1>
+     <div style="display: inline-block; width: 11%; text-align: right;
+                 height: 100%; vertical-align: middle;">
+       $(isnothing(CASE) ? "" : @htl("""Service Request#
+          $(isnothing(SFID) ? @htl("""<span>$CASE</span>""") : @htl("""
+            <a style="text-decoration: underline dotted;"
+               href="https://tuftsctsi.my.site.com/s/case/$SFID ">$CASE</a>
+        """))"""))
+     </div>
+   </div>
+   $(isnothing(NOTE) ? "" :
+     @htl("""<p style="font-style: italic; font-size: 21px;">$NOTE</p>"""))
+   $(if is_discovery(IRB)
+        @htl("""
+            <p>
+                This cohort discovery is provided under IRB Protocol #11642,
+                <i>"Accelerating Clinical Trials - Multi-institutional cohort discovery"</i>,
+                permitting <i>"aggregate, obfuscated patient counts"</i>.
+                Counts below ten are indicated with the ≤ symbol.
+            </p>
+        """)
+     else
+        @htl("""
+            <p>IRB Study # $(IRB)
+            $(isnothing(IRB_HEADER) ? "" : @htl(""" — <i>"$IRB_HEADER"</i>"""))
+            $(isnothing(IRB_START_DATE) ? "" : @htl("($IRB_START_DATE to $IRB_END_DATE)"))
+            </p>
+        """)
+     end)
+   $(PlutoUI.TableOfContents())
 """)

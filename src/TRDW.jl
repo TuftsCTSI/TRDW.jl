@@ -1,31 +1,40 @@
 module TRDW
 
-export @run_funsql, @concepts, @valuesets, OHDSI
+export @connect, Chain, Fun, Var, @concepts, @valuesets, OHDSI
 
 using CSV
 using DBInterface
 using DataFrames
 using Dates
 using FunSQL
-using FunSQL: @dissect
+using FunSQL: @dissect, Chain, Fun, Var
 using HTTP
 using HypertextLiteral
 using JSON
+using OrderedCollections: OrderedDict
+using Unicode
 using LightXML
 using ODBC
+using PlutoUI
+using Scratch
+using Arrow
+using SHA
 
 import Tables
 import DBInterface.execute
 import Base.show
 
+include("connect.jl")
+include("format.jl")
+include("result.jl")
 include("general.jl")
-include("define.jl")
+include("nodes.jl")
 include("inventory.jl")
 include("spark.jl")
 include("helpers.jl")
 include("export.jl")
 include("vocabulary.jl")
-include("valueset.jl")
+#include("valueset.jl")
 include("subject.jl")
 include("filters.jl")
 include("linking.jl")

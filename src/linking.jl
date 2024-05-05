@@ -40,7 +40,7 @@ function join_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
                          match=nothing, exclude=nothing,
                          match_prefix= nothing, match_source=nothing,
                          carry=nothing)
-    base = gensym()
+    base = :_join_via_cohort
     match_prefix = something(match_prefix, date_prefix)
     start_date = contains(string(date_prefix), "_date") ? date_prefix :
         Symbol("$(date_prefix)_start_date")
@@ -60,6 +60,7 @@ function join_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
           @funsql filter(!concept_matches($exclude; match_prefix=$match_prefix,
                                           match_source=$match_source)))
         define($([@funsql($n => $base.$n) for n in something(carry,[])]...))
+        undefine($base)
     end)
 end
 
@@ -130,7 +131,7 @@ function join_via_person(query::FunSQL.SQLNode;
                          match=[], exclude=nothing,
                          match_prefix= nothing, match_source=nothing,
                          carry=[])
-    base = gensym()
+    base = :_join_via_person
     return @funsql(begin
         as($base)
         join($query, person_id == $base.person_id)
@@ -141,6 +142,7 @@ function join_via_person(query::FunSQL.SQLNode;
         $(isnothing(exclude) ? @funsql(define()) :
           @funsql filter(concept_matches($exclude; match_prefix=$match_prefix,
                                          match_source=$match_source)))
+        undefine($base)
     end)
 end
 
