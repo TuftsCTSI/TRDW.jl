@@ -53,6 +53,9 @@ condition() = begin
         icd_concept.concept_id == omop.condition_source_concept_id,
         optional = true)
 end
+  
+condition(cs; with_icd9gem=false) =
+    condition().filter(isa($cs; with_icd9gem=$with_icd9gem))
 
 define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     left_join($name => begin
@@ -186,6 +189,3 @@ icd10cm_chapter_concept_sets() = concept_sets(
 )
 
 end
-
-funsql_condition(cs; with_icd9gem=false) =
-    @funsql(condition().filter(isa($cs; with_icd9gem=$with_icd9gem)))
