@@ -90,6 +90,12 @@ OMOP_Extension(name) =
             vocabulary_id == "OMOP Extension" && concept_name == $name,
             $(:(OMOP_Extension($name)))))
 
+CPT4(code, name) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "CPT4" && concept_code == $code && concept_name == $name,
+            $(:(CPT4($code, $name)))))
+
 Type_Concept(name) =
     concept(
         assert_valid_concept(
