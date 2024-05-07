@@ -135,14 +135,14 @@ end
 
 
 smoking_behavior_concepts() = [
-        OMOP_Extension("OMOP5181846","Cigar smoker"),
-        OMOP_Extension("OMOP5181838","Cigarette smoker"),
-        OMOP_Extension("OMOP5181836","Electronic cigarette smoker"),
-        OMOP_Extension("OMOP5181847","Hookah smoker"),
-        OMOP_Extension("OMOP5181837","Passive smoker"),
-        OMOP_Extension("OMOP5181845","Pipe smoker")]
+        funsql_OMOP_Extension("OMOP5181846","Cigar smoker"),
+        funsql_OMOP_Extension("OMOP5181838","Cigarette smoker"),
+        funsql_OMOP_Extension("OMOP5181836","Electronic cigarette smoker"),
+        funsql_OMOP_Extension("OMOP5181847","Hookah smoker"),
+        funsql_OMOP_Extension("OMOP5181837","Passive smoker"),
+        funsql_OMOP_Extension("OMOP5181845","Pipe smoker")]
 
-never_smoker_concepts() = [OMOP_Extension("OMOP5181834", "Never used tobacco or its derivatives")]
+never_smoker_concepts() = [funsql_OMOP_Extension("OMOP5181834", "Never used tobacco or its derivatives")]
 
 @funsql smoking_behavior_concepts() = concept($(smoking_behavior_concepts())...)
 
