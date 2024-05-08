@@ -168,8 +168,8 @@ function funsql_define_never_smoker(filter=true; name=:never_smoker)
     @funsql begin
         group_with($name => begin
             observation()
-            define(was_smoker => matches_smoking_behavior())
-            define(never_smoker => matches_never_smoker())
+            define(was_smoker => matches_smoking_behavior() || in(value_as_string, "prev.", "current", "YES", "cigarettes"))
+            define(never_smoker => matches_never_smoker() || in(value_as_string, "never"))
         end, $filter)
         define($name => any($name.never_smoker) && !any($name.was_smoker))
         define($name => $name == "" ? missing : $name)
