@@ -147,10 +147,10 @@ never_smoker_concepts() = [funsql_OMOP_Extension("OMOP5181834", "Never used toba
 @funsql smoking_behavior_concepts() = concept($(smoking_behavior_concepts())...)
 
 @funsql matches_smoking_behavior() =
-    concept_matches($(smoking_behavior_concepts()); match_on=value_as)
+    concept_matches($(smoking_behavior_concepts()); on=value_as_concept_id)
 
 @funsql matches_never_smoker() =
-    concept_matches($(never_smoker_concepts()); match_on=value_as)
+    concept_matches($(never_smoker_concepts()); on=value_as_concept_id)
 
 function funsql_define_smoking(filter=true; name=:smoking)
     @funsql begin
