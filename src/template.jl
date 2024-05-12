@@ -1,8 +1,37 @@
+const CONFIG_FILE = "TRDW.json"
 const DISCOVERY_IRB = "11642"
+const CONFIGURATION = Dict{String, Any}()
 
 is_discovery(irb) = isnothing(irb) || string(irb) == DISCOVERY_IRB
 
-NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
+function configuration()
+    if length(CONFIGURATION) == 0 && isfile(CONFIG_FILE)
+        merge!(CONFIGURATION, JSON.parsefile(CONFIG_FILE))
+    end
+    return CONFIGURATION
+end
+
+function configuration(TITLE, NOTE, CASE, SFID, IRB)
+    config = configuration()
+    if "case" in keys(config)
+        case = config["case"]
+        SFID = isnothing(SFID) ? get(case, "slug", nothing) : SFID
+        CASE = isnothing(CASE) ? get(case, "id", nothing) : CASE
+        TITLE = isnothing(TITLE) ? get(case, "title", nothing) : TITLE
+    end
+    if "project" in keys(config)
+        project = config["project"]
+        IRB = isnothing(IRB) ? get(project, "irb", DISCOVERY_IRB) : IRB
+        NOTE = isnothing(NOTE) ? get(project, "title", nothing) : NOTE
+    end
+    return (TITLE, NOTE, CASE, SFID, IRB)
+end
+
+case_id() = configuration()["case"]["id"]
+
+function NotebookFooter(;CASE=nothing, SFID=nothing, IRB=nothing)
+  (TITLE, NOTE, CASE, SFID, IRB) = configuration(nothing, nothing, CASE, SFID, IRB)
+  @htl("""
   <div>
     <table style="width: 100%">
     <tr><td style="width: 72; vertical-align: top">
@@ -20,11 +49,13 @@ NotebookFooter(;CASE=nothing, SFID=nothing, IRB=DISCOVERY_IRB) = @htl("""
       <br />"""))
     $(is_discovery(IRB) ? "" : @htl("<p>IRB Study# $(IRB)"))
   </div>
-""")
+   """)
+end
 
-NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
-               IRB=DISCOVERY_IRB, IRB_START_DATE=nothing, IRB_END_DATE=nothing,
-               IRB_HEADER=nothing) = @htl("""
+function NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
+                        IRB=nothing, IRB_START_DATE=nothing, IRB_END_DATE=nothing)
+  (TITLE, NOTE, CASE, SFID, IRB) = configuration(TITLE, NOTE, CASE, SFID, IRB)
+  @htl("""
    <!-- wide notebooks -->
    <style>
            main {
@@ -60,10 +91,10 @@ NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
      else
         @htl("""
             <p>IRB Study # $(IRB)
-            $(isnothing(IRB_HEADER) ? "" : @htl(""" — <i>"$IRB_HEADER"</i>"""))
             $(isnothing(IRB_START_DATE) ? "" : @htl("($IRB_START_DATE to $IRB_END_DATE)"))
             </p>
         """)
      end)
    $(PlutoUI.TableOfContents())
-""")
+  """)
+end
