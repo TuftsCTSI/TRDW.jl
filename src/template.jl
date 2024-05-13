@@ -1,25 +1,19 @@
 const CONFIG_FILE = "TRDW.json"
 const DISCOVERY_IRB = "11642"
-const CONFIGURATION = Dict{String, Any}()
 
 is_discovery(irb) = isnothing(irb) || string(irb) == DISCOVERY_IRB
 
-function configuration()
-    if length(CONFIGURATION) == 0 && isfile(CONFIG_FILE)
-        merge!(CONFIGURATION, JSON.parsefile(CONFIG_FILE))
-    end
-    return CONFIGURATION
-end
+configuration() = isfile(CONFIG_FILE) ? JSON.parsefile(CONFIG_FILE) : Dict{String, Any}()
 
 function configuration(TITLE, NOTE, CASE, SFID, IRB)
     config = configuration()
-    if "case" in keys(config)
+    if haskey(config, "case")
         case = config["case"]
         SFID = isnothing(SFID) ? get(case, "slug", nothing) : SFID
         CASE = isnothing(CASE) ? get(case, "id", nothing) : CASE
         TITLE = isnothing(TITLE) ? get(case, "title", nothing) : TITLE
     end
-    if "project" in keys(config)
+    if haskey(config, "project")
         project = config["project"]
         IRB = isnothing(IRB) ? get(project, "irb", DISCOVERY_IRB) : IRB
         NOTE = isnothing(NOTE) ? get(project, "title", nothing) : NOTE
@@ -28,6 +22,17 @@ function configuration(TITLE, NOTE, CASE, SFID, IRB)
 end
 
 case_id() = configuration()["case"]["id"]
+
+function is_discovery()
+    config = configuration()
+    if haskey(config, "project")
+        project = config["project"]
+        if haskey(project, "irb")
+            return is_discovery(project["irb"])
+        end
+    end
+    return true
+end
 
 function NotebookFooter(;CASE=nothing, SFID=nothing, IRB=nothing)
   (TITLE, NOTE, CASE, SFID, IRB) = configuration(nothing, nothing, CASE, SFID, IRB)
@@ -87,6 +92,9 @@ function NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
                 permitting <i>"aggregate, obfuscated patient counts"</i>.
                 Counts below ten are indicated with the ≤ symbol.
             </p>
+            $(isnothing(IRB_START_DATE) ? "" : @htl("""
+                <span>Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
+            """))
         """)
      else
         @htl("""
