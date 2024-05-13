@@ -23,6 +23,8 @@ end
 
 case_id() = configuration()["case"]["id"]
 
+funsql_case_id = case_id
+
 function is_discovery()
     config = configuration()
     if haskey(config, "project")
