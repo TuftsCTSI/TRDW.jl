@@ -34,6 +34,8 @@ function is_discovery()
     return true
 end
 
+funsql_is_discovery = is_discovery
+
 function NotebookFooter(;CASE=nothing, SFID=nothing, IRB=nothing)
   (TITLE, NOTE, CASE, SFID, IRB) = configuration(nothing, nothing, CASE, SFID, IRB)
   @htl("""
