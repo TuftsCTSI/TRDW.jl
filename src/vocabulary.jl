@@ -57,44 +57,71 @@ function Base.show(io::IO, mime::MIME"text/html", sets::NamedConceptSets)
     Base.show(io, mime, _format(df, SQLFormat(limit = nothing, group_by = :variable)))
 end
 
+function handle_names_match(name)
+    if startswith(name, "...") || endswith(name, "...")
+		name = replace(name, "..." => "")
+	elseif occursin("...", name)
+		(n1, n2) = split(name, "...")
+		name = [string(n1), string(n2)]
+	end
+    return name
+end
+
+function funsql_LOINC(code, name)
+    name = handle_names_match(name)
+    funsql_concept(
+        funsql_assert_valid_concept(
+            @funsql(vocabulary_id == "LOINC" && concept_code == $code && 
+            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
+            :(LOINC($code, $name))))
+end
+        
+function funsql_RxNorm(code, name)
+    name = handle_names_match(name)
+    funsql_concept(
+        funsql_assert_valid_concept(
+            @funsql(vocabulary_id == "RxNorm" && concept_code == $code && 
+            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
+            :(RxNorm($code, $name))))
+end
+                
+function funsql_SNOMED(code, name=nothing)
+    name = handle_names_match(name)
+    funsql_concept(
+        funsql_assert_valid_concept(
+            @funsql(vocabulary_id == "SNOMED" && concept_code == $code &&
+            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
+            :(SNOMED($code, $name))))
+end
+            
+function funsql_ICD10CM(code, name)
+    name = handle_names_match(name)
+    funsql_concept(
+        funsql_assert_valid_concept(
+            @funsql(vocabulary_id == "ICD10CM" && concept_code == $code && 
+            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
+            :(ICD10CM($code, $name))))
+end
+
+function funsql_OMOP_Extension(code, name)
+    name = handle_names_match(name)
+    funsql_concept(
+        funsql_assert_valid_concept(
+            @funsql(vocabulary_id == "OMOP Extension" && concept_code == $code && 
+            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
+                :(OMOP_Extension($code, $name))))
+end
+        
+function funsql_CPT4(code, name)
+    name = handle_names_match(name)
+    funsql_concept(
+        funsql_assert_valid_concept(
+            @funsql(vocabulary_id == "CPT4" && concept_code == $code && 
+            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
+            :(CPT4($code, $name))))
+end
+                    
 @funsql begin
-
-LOINC(code, name) =
-    concept(
-        assert_valid_concept(
-            vocabulary_id == "LOINC" && concept_code == $code && concept_name == $name,
-            $(:(LOINC($code, $name)))))
-
-RxNorm(code, name) =
-    concept(
-        assert_valid_concept(
-            vocabulary_id == "RxNorm" && concept_code == $code && concept_name == $name,
-            $(:(RxNorm($code, $name)))))
-
-SNOMED(code, name=nothing) =
-    concept(
-        assert_valid_concept(
-            vocabulary_id == "SNOMED" && concept_code == $code &&
-            $(isnothing(name) ? true : @funsql(concept_name == $name)),
-            $(:(SNOMED($code, $name)))))
-
-ICD10CM(code, name) =
-    concept(
-        assert_valid_concept(
-            vocabulary_id == "ICD10CM" && concept_code == $code && concept_name == $name,
-            $(:(ICD10CM($code, $name)))))
-
-OMOP_Extension(code, name) =
-    concept(
-        assert_valid_concept(
-            vocabulary_id == "OMOP Extension" && concept_code == $code && concept_name == $name,
-            $(:(OMOP_Extension($name)))))
-
-CPT4(code, name) =
-    concept(
-        assert_valid_concept(
-            vocabulary_id == "CPT4" && concept_code == $code && concept_name == $name,
-            $(:(CPT4($code, $name)))))
 
 Type_Concept(name) =
     concept(
