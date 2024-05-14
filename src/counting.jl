@@ -1,6 +1,6 @@
 @funsql begin
 
-demographics(roundup=false) = begin
+demographics(roundup=true) = begin
     as(cohort)
     over(
         append(

@@ -135,6 +135,12 @@ Route(name) =
             domain_id == "Route" && concept_name == $name && standard_concept == "S",
             $(:(Route($name)))))
 
+Provider(name) =
+	concept(
+		assert_valid_concept(
+			domain_id == "Provider" && concept_name == $name && standard_concept == "S",
+			$(:(Provider($name)))))
+
 Visit(name) =
     concept(
         assert_valid_concept(
