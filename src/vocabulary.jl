@@ -67,7 +67,7 @@ function handle_names_match(name)
     return name
 end
 
-function funsql_LOINC(code, name)
+function funsql_LOINC(code, name=nothing)
     name = handle_names_match(name)
     funsql_concept(
         funsql_assert_valid_concept(
@@ -76,7 +76,7 @@ function funsql_LOINC(code, name)
             :(LOINC($code, $name))))
 end
         
-function funsql_RxNorm(code, name)
+function funsql_RxNorm(code, name=nothing)
     name = handle_names_match(name)
     funsql_concept(
         funsql_assert_valid_concept(
@@ -94,7 +94,7 @@ function funsql_SNOMED(code, name=nothing)
             :(SNOMED($code, $name))))
 end
             
-function funsql_ICD10CM(code, name)
+function funsql_ICD10CM(code, name=nothing)
     name = handle_names_match(name)
     funsql_concept(
         funsql_assert_valid_concept(
@@ -103,7 +103,7 @@ function funsql_ICD10CM(code, name)
             :(ICD10CM($code, $name))))
 end
 
-function funsql_OMOP_Extension(code, name)
+function funsql_OMOP_Extension(code, name=nothing)
     name = handle_names_match(name)
     funsql_concept(
         funsql_assert_valid_concept(
@@ -112,7 +112,7 @@ function funsql_OMOP_Extension(code, name)
                 :(OMOP_Extension($code, $name))))
 end
         
-function funsql_CPT4(code, name)
+function funsql_CPT4(code, name=nothing)
     name = handle_names_match(name)
     funsql_concept(
         funsql_assert_valid_concept(
