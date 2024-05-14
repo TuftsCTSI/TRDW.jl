@@ -131,24 +131,24 @@ Route(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             domain_id == "Route" &&
+            standard_concept == "S" &&
             is_concept_codename_match($code_or_name, $name),
-            standard_concept == "S",
             $(:(Route($code_or_name, $name)))))
 
 Provider(code_or_name, name=nothing) =
 	concept(
 		assert_valid_concept(
 			domain_id == "Provider" &&
+            standard_concept == "S" &&
             is_concept_codename_match($code_or_name, $name),
-            standard_concept == "S",
 			$(:(Provider($code_or_name, $name)))))
 
 Visit(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             domain_id == "Visit" &&
+            standard_concept == "S" &&
             is_concept_codename_match($code_or_name, $name),
-            standard_concept == "S",
             $(:(Visit($code_or_name, $name)))))
 
 Dose_Form_Group(code_or_name, name=nothing) =
@@ -164,8 +164,8 @@ ConditionStatus(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             domain_id == "Condition Status" &&
+            standard_concept == "S" &&
             is_concept_codename_match($code_or_name, $name),
-            standard_concept == "S",
             $(:(ConditionStatus($code_or_name, $name)))))
 
 type_isa(cs) =

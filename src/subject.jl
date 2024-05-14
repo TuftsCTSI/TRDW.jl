@@ -12,8 +12,7 @@ is_production_schema_prefix() =
     ("zz" == temp_schema_prefix())
 
 function user_schema(case::Union{String, Nothing} = nothing)
-    case = isnothing(case) ? case_id() : case
-    @assert length(case) == 8
+    case = get_case_id(case)
     return Symbol(temp_schema_prefix() * "_" * case)
 end
 
@@ -21,8 +20,7 @@ linkto_person(query) =
     @funsql($query.join(person=>person(), person_id == person.person_id, optional=true))
 
 function user_index(case::Union{String, Nothing} = nothing)
-    case = isnothing(case) ? case_id() : case
-    @assert length(case) == 8
+    case = get_case_id(case)
     table = FunSQL.SQLTable(qualifiers = [:ctsi, user_schema(case)], name = :index,
                             columns = [:person_id, :occurrence_id, :datetime, :datetime_end])
     return linkto_person(FunSQL.From(table))
@@ -39,8 +37,7 @@ function user_rebuild_index(db, case, query::FunSQL.SQLNode)
 end
 
 function subject_table(case::Union{String, Nothing} = nothing)
-    case = isnothing(case) ? case_id() : case
-    @assert length(case) == 8
+    case = get_case_id(case)
     FunSQL.SQLTable(qualifiers = [env_catalog(), :person_map], name = Symbol(case),
                     columns = [:person_id, :subject_id, :added, :removed])
 end

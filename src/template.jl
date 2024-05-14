@@ -21,9 +21,13 @@ function configuration(TITLE, NOTE, CASE, SFID, IRB)
     return (TITLE, NOTE, CASE, SFID, IRB)
 end
 
-case_id() = configuration()["case"]["id"]
+function get_case_id(case=nothing)
+   case = isnothing(case) ? configuration()["case"]["id"] : case
+   @assert length(case) == 8
+   return case
+end
 
-funsql_case_id = case_id
+funsql_get_case_id = get_case_id
 
 function is_discovery()
     config = configuration()
