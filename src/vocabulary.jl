@@ -57,107 +57,117 @@ function Base.show(io::IO, mime::MIME"text/html", sets::NamedConceptSets)
     Base.show(io, mime, _format(df, SQLFormat(limit = nothing, group_by = :variable)))
 end
 
-function handle_names_match(name)
-    if startswith(name, "...") || endswith(name, "...")
-		name = replace(name, "..." => "")
-	elseif occursin("...", name)
-		(n1, n2) = split(name, "...")
-		name = [string(n1), string(n2)]
-	end
-    return name
+function funsql_is_concept_name_match(match)
+    if isnothing(match)
+        return @funsql(true)
+    end
+    match = replace(match, "..." => "%")
+    return @funsql(ilike(concept_name, $match))
 end
 
-function funsql_LOINC(code, name=nothing)
-    name = handle_names_match(name)
-    funsql_concept(
-        funsql_assert_valid_concept(
-            @funsql(vocabulary_id == "LOINC" && concept_code == $code && 
-            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
-            :(LOINC($code, $name))))
-end
-        
-function funsql_RxNorm(code, name=nothing)
-    name = handle_names_match(name)
-    funsql_concept(
-        funsql_assert_valid_concept(
-            @funsql(vocabulary_id == "RxNorm" && concept_code == $code && 
-            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
-            :(RxNorm($code, $name))))
-end
-                
-function funsql_SNOMED(code, name=nothing)
-    name = handle_names_match(name)
-    funsql_concept(
-        funsql_assert_valid_concept(
-            @funsql(vocabulary_id == "SNOMED" && concept_code == $code &&
-            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
-            :(SNOMED($code, $name))))
-end
-            
-function funsql_ICD10CM(code, name)
-    name = handle_names_match(name)
-    funsql_concept(
-        funsql_assert_valid_concept(
-            @funsql(vocabulary_id == "ICD10CM" && concept_code == $code && 
-            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
-            :(ICD10CM($code, $name))))
-end
-
-function funsql_OMOP_Extension(code, name=nothing)
-    name = handle_names_match(name)
-    funsql_concept(
-        funsql_assert_valid_concept(
-            @funsql(vocabulary_id == "OMOP Extension" && concept_code == $code && 
-            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
-                :(OMOP_Extension($code, $name))))
-end
-        
-function funsql_CPT4(code, name=nothing)
-    name = handle_names_match(name)
-    funsql_concept(
-        funsql_assert_valid_concept(
-            @funsql(vocabulary_id == "CPT4" && concept_code == $code && 
-            $(isnothing(name) ? true : @funsql(icontains(concept_name, $name)))),
-            :(CPT4($code, $name))))
-end
-                    
 @funsql begin
+
+ICD10CM(code, name) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "ICD10CM" &&
+            concept_code == $code &&
+            is_concept_name_match($name),
+            $(:(ICD10CM($code, $name)))))
+
+RxNorm(code, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "RxNorm" &&
+            concept_code == $code &&
+            is_concept_name_match($name),
+            $(:(RxNorm($code, $name)))))
+
+RxNorm_Extension(code, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "RxNorm Extension" &&
+            concept_code == $code &&
+            is_concept_name_match($name),
+            $(:(RxNorm_Extension($code, $name)))))
+
+SNOMED(code, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "SNOMED" &&
+            concept_code == $code &&
+            is_concept_name_match($name),
+            $(:(SNOMED($code, $name)))))
+
+LOINC(code, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "LOINC" &&
+            concept_code == $code &&
+            is_concept_name_match($name),
+            $(:(LOINC($code, $name)))))
+
+CPT4(code, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "CPT4" &&
+            concept_code == $code &&
+            is_concept_name_match($name),
+            $(:(CPT4($code, $name)))))
+
+OMOP_Extension(name) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "OMOP Extension" &&
+            is_concept_name_match($name),
+            $(:(OMOP_Extension($name)))))
 
 Type_Concept(name) =
     concept(
         assert_valid_concept(
-            vocabulary_id == "Type Concept" && concept_name == $name,
+            vocabulary_id == "Type Concept" &&
+            is_concept_name_match($name),
             $(:(Type_Concept($name)))))
 
 Route(name) =
     concept(
         assert_valid_concept(
-            domain_id == "Route" && concept_name == $name && standard_concept == "S",
+            domain_id == "Route" &&
+            is_concept_name_match($name) &&
+            standard_concept == "S",
             $(:(Route($name)))))
 
 Provider(name) =
 	concept(
 		assert_valid_concept(
-			domain_id == "Provider" && concept_name == $name && standard_concept == "S",
+			domain_id == "Provider" &&
+            is_concept_name_match($name) &&
+            standard_concept == "S",
 			$(:(Provider($name)))))
 
 Visit(name) =
     concept(
         assert_valid_concept(
-            domain_id == "Visit" && concept_name == $name && standard_concept == "S",
+            domain_id == "Visit" &&
+            is_concept_name_match($name) &&
+            standard_concept == "S",
             $(:(Visit($name)))))
 
 Dose_Form_Group(name) =
     concept(
         assert_valid_concept(
-            vocabulary_id == "RxNorm" && domain_id == "Drug" &&
-            concept_class_id == "Dose Form Group" && concept_name == $name,
+            vocabulary_id == "RxNorm" &&
+            domain_id == "Drug" &&
+            concept_class_id == "Dose Form Group" &&
+            is_concept_name_match($name),
             $(:(Dose_Form_Group($name)))))
 
 ConditionStatus(name) =
     concept(
         assert_valid_concept(
-            domain_id == "Condition Status" && concept_name == $name && standard_concept == "S",
+            domain_id == "Condition Status" &&
+            is_concept_name_match($name) &&
+            standard_concept == "S",
             $(:(ConditionStatus($name)))))
 
 type_isa(cs) =
