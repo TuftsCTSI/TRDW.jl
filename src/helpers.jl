@@ -26,9 +26,14 @@ like_acronym(s, pat) =
 like_acronym(s, pats...) =
     or($([@funsql(like_acronym($s, $pat)) for pat in pats]...))
 
-icontains(s, pat::String) = ilike($s, $("%$(pat)%"))
-icontains(s, pats::Vector{String}) = and($([@funsql(icontains($s, $pat)) for pat in pats]...))
-icontains(s, pats...) = or($([@funsql(icontains($s, $pat)) for pat in pats]...))
+icontains(s, pat::AbstractString) =
+    icontains => ilike($s, $("%$(pat)%"))
+icontains(s, pats::Vector) =
+    icontains => and($([@funsql(icontains($s, $p)) for p in pats]...))
+icontains(s, pats::NTuple) =
+    icontains => and($([@funsql(icontains($s, $p)) for p in pats]...))
+icontains(s, pat, pats...) =
+    icontains => or($([@funsql(icontains($s, $p)) for p in [pat, pats...]]...))
 
 is_integer(s) = rlike($s, "^[0-9]+\$")
 roundup(n) =  $n < 10 ? "<10" : $n
