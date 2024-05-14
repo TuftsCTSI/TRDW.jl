@@ -94,7 +94,7 @@ function funsql_SNOMED(code, name=nothing)
             :(SNOMED($code, $name))))
 end
             
-function funsql_ICD10CM(code, name=nothing)
+function funsql_ICD10CM(code, name)
     name = handle_names_match(name)
     funsql_concept(
         funsql_assert_valid_concept(
