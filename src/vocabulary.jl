@@ -57,118 +57,116 @@ function Base.show(io::IO, mime::MIME"text/html", sets::NamedConceptSets)
     Base.show(io, mime, _format(df, SQLFormat(limit = nothing, group_by = :variable)))
 end
 
-function funsql_is_concept_name_match(match)
-    if isnothing(match)
-        return @funsql(true)
+function funsql_is_concept_codename_match(code_or_name, name)
+    if isnothing(name)
+        match = replace(code_or_name, "..." => "%")
+        return @funsql(concept_code == $code_or_name ||
+                       ilike(concept_name, $match))
+    else
+        match = replace(name, "..." => "%")
+        return @funsql(concept_code == $code_or_name &&
+                       ilike(concept_name, $match))
     end
-    match = replace(match, "..." => "%")
-    return @funsql(ilike(concept_name, $match))
 end
 
 @funsql begin
 
-ICD10CM(code, name) =
+ICD10CM(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "ICD10CM" &&
-            concept_code == $code &&
-            is_concept_name_match($name),
-            $(:(ICD10CM($code, $name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(ICD10CM($code_or_name, $name)))))
 
-RxNorm(code, name=nothing) =
+RxNorm(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "RxNorm" &&
-            concept_code == $code &&
-            is_concept_name_match($name),
-            $(:(RxNorm($code, $name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(RxNorm($code_or_name, $name)))))
 
-RxNorm_Extension(code, name=nothing) =
+RxNorm_Extension(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "RxNorm Extension" &&
-            concept_code == $code &&
-            is_concept_name_match($name),
-            $(:(RxNorm_Extension($code, $name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(RxNorm_Extension($code_or_name, $name)))))
 
-SNOMED(code, name=nothing) =
+SNOMED(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "SNOMED" &&
-            concept_code == $code &&
-            is_concept_name_match($name),
-            $(:(SNOMED($code, $name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(SNOMED($code_or_name, $name)))))
 
-LOINC(code, name=nothing) =
+LOINC(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "LOINC" &&
-            concept_code == $code &&
-            is_concept_name_match($name),
-            $(:(LOINC($code, $name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(LOINC($code_or_name, $name)))))
 
-CPT4(code, name=nothing) =
+CPT4(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "CPT4" &&
-            concept_code == $code &&
-            is_concept_name_match($name),
-            $(:(CPT4($code, $name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(CPT4($code_or_name, $name)))))
 
-OMOP_Extension(name) =
+OMOP_Extension(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "OMOP Extension" &&
-            is_concept_name_match($name),
-            $(:(OMOP_Extension($name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(OMOP_Extension($code_or_name, $name)))))
 
-Type_Concept(name) =
+Type_Concept(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "Type Concept" &&
-            is_concept_name_match($name),
-            $(:(Type_Concept($name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(Type_Concept($code_or_name, $name)))))
 
-Route(name) =
+Route(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             domain_id == "Route" &&
-            is_concept_name_match($name) &&
+            is_concept_codename_match($code_or_name, $name),
             standard_concept == "S",
-            $(:(Route($name)))))
+            $(:(Route($code_or_name, $name)))))
 
-Provider(name) =
+Provider(code_or_name, name=nothing) =
 	concept(
 		assert_valid_concept(
 			domain_id == "Provider" &&
-            is_concept_name_match($name) &&
+            is_concept_codename_match($code_or_name, $name),
             standard_concept == "S",
-			$(:(Provider($name)))))
+			$(:(Provider($code_or_name, $name)))))
 
-Visit(name) =
+Visit(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             domain_id == "Visit" &&
-            is_concept_name_match($name) &&
+            is_concept_codename_match($code_or_name, $name),
             standard_concept == "S",
-            $(:(Visit($name)))))
+            $(:(Visit($code_or_name, $name)))))
 
-Dose_Form_Group(name) =
+Dose_Form_Group(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             vocabulary_id == "RxNorm" &&
             domain_id == "Drug" &&
             concept_class_id == "Dose Form Group" &&
-            is_concept_name_match($name),
-            $(:(Dose_Form_Group($name)))))
+            is_concept_codename_match($code_or_name, $name),
+            $(:(Dose_Form_Group($code_or_name, $name)))))
 
-ConditionStatus(name) =
+ConditionStatus(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
             domain_id == "Condition Status" &&
-            is_concept_name_match($name) &&
+            is_concept_codename_match($code_or_name, $name),
             standard_concept == "S",
-            $(:(ConditionStatus($name)))))
+            $(:(ConditionStatus($code_or_name, $name)))))
 
 type_isa(cs) =
     isa(type_concept_id, $cs)
@@ -202,11 +200,11 @@ condition_status_isa(name::AbstractString) =
 
 end
 
-function funsql_ICD10CM(specification)
-    specification = strip(replace(uppercase(specification), r"[\s,]+" => " "))
+function funsql_ICD10CM(; spec)
+    spec = strip(replace(uppercase(spec), r"[\s,]+" => " "))
     predicate = []
     negations = []
-    for chunk in split(specification, " ")
+    for chunk in split(spec, " ")
         if startswith(chunk, "-")
             push!(negations,
                 @funsql(startswith(concept_code, $chunk)))
