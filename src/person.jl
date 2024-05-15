@@ -66,4 +66,13 @@ current_age(p) = (:current_age => datediff_year($p.birth_datetime, nvl($p.death_
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)
 
+define_pat_id() = begin
+    left_join(person_map => begin
+        from($(FunSQL.SQLTable(qualifiers = [:ctsi, :person_map],
+                            name = :person_map,
+                            columns = [:person_id, :person_source_value])))
+    end, person_id == person_map.person_id)
+    define(pat_id => person_map.person_source_value)
+end
+
 end
