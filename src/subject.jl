@@ -16,9 +16,6 @@ function user_schema(case::Union{String, Nothing} = nothing)
     return Symbol(temp_schema_prefix() * "_" * case)
 end
 
-linkto_person(query) =
-    @funsql($query.join(person=>person(), person_id == person.person_id, optional=true))
-
 function user_index(case::Union{String, Nothing} = nothing)
     case = get_case_id(case)
     table = FunSQL.SQLTable(qualifiers = [:ctsi, user_schema(case)], name = :index,
@@ -36,20 +33,25 @@ function user_rebuild_index(db, case, query::FunSQL.SQLNode)
     return user_index(case)
 end
 
-function subject_table(case::Union{String, Nothing} = nothing)
+function funsql_subject_table(case::Union{String, Nothing} = nothing)
     case = get_case_id(case)
     FunSQL.SQLTable(qualifiers = [env_catalog(), :person_map], name = Symbol(case),
                     columns = [:person_id, :subject_id, :added, :removed])
 end
 
-function subject_query(case::Union{String, Nothing} = nothing)
-    base = subject_table(case)
-    return linkto_person(@funsql(from($base).filter(isnull(removed)).undefine(added, removed)))
-end
+funsql_subject_query(case=nothing) =
+    @funsql begin
+        from(subject_table($case))
+        filter(isnull(removed))
+        undefine(added, removed)
+        left_join(person => person(),
+                  person_id == person.person_id,
+                  optional=true)
+    end
 
 function define_subject_id(case; assert=true)
     name = :_subject_id
-    query = subject_query(case)
+    query = funsql_subject_query(case)
     query = @funsql begin
         left_join($name => $query, $name.person_id == person_id)
     end
@@ -73,7 +75,7 @@ funsql_to_subject_id(case; assert=true) =
 
 funsql_fact_to_subject_id(case, domain_concept_id, fact_id) = begin
      name = :_fact_to_subject_id
-     query = subject_query(case)
+     query = funsql_subject_query(case)
      @funsql begin
          left_join($name => $query, $name.person_id == $fact_id)
          filter($domain_concept_id != 1147314 || isnotnull($name.person_id))
