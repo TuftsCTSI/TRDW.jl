@@ -184,7 +184,7 @@ visit_isa(cs) =
     isa(if_defined_scalar(visit, visit.concept_id, concept_id), $cs)
 
 visit_isa(name::AbstractString) =
-    visit_isa($name)
+    visit_isa(Visit($name))
 
 dose_form_group_isa(cs) =
     isa($cs)

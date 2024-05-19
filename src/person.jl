@@ -60,6 +60,8 @@ is_deceased() =
     (:is_deceased =>
      isnotnull(if_defined_scalar(person, person.omop.death.person_id, omop.death.person_id)))
 
+zipcode() = if_defined_scalar(location, location.zip, zip)
+
 current_age() = (:current_age => datediff_year(birth_datetime, nvl(death_datetime, now())))
 current_age(p) = (:current_age => datediff_year($p.birth_datetime, nvl($p.death_datetime, now())))
 

@@ -54,4 +54,7 @@ end
 visit(cs) =
     visit().filter(isa($cs))
 
+visit(cs::AbstractString) =
+    visit().filter(visit_isa($cs))
+
 end
