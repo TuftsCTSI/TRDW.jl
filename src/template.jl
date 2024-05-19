@@ -1,49 +1,8 @@
-const CONFIG_FILE = "TRDW.json"
-const DISCOVERY_IRB = "11642"
-
-is_discovery(irb) = isnothing(irb) || string(irb) == DISCOVERY_IRB
-
-configuration() = isfile(CONFIG_FILE) ? JSON.parsefile(CONFIG_FILE) : Dict{String, Any}()
-
-function configuration(TITLE, NOTE, CASE, SFID, IRB)
+function NotebookFooter()
     config = configuration()
-    if haskey(config, "case")
-        case = config["case"]
-        SFID = isnothing(SFID) ? get(case, "slug", nothing) : SFID
-        CASE = isnothing(CASE) ? get(case, "id", nothing) : CASE
-        TITLE = isnothing(TITLE) ? get(case, "title", nothing) : TITLE
-    end
-    if haskey(config, "project")
-        project = config["project"]
-        IRB = isnothing(IRB) ? get(project, "irb", DISCOVERY_IRB) : IRB
-        NOTE = isnothing(NOTE) ? get(project, "title", nothing) : NOTE
-    end
-    return (TITLE, NOTE, CASE, SFID, IRB)
-end
-
-function get_case_id(case=nothing)
-   case = isnothing(case) ? configuration()["case"]["id"] : case
-   @assert length(case) == 8
-   return case
-end
-
-funsql_get_case_id = get_case_id
-
-function is_discovery()
-    config = configuration()
-    if haskey(config, "project")
-        project = config["project"]
-        if haskey(project, "irb")
-            return is_discovery(project["irb"])
-        end
-    end
-    return true
-end
-
-funsql_is_discovery = is_discovery
-
-function NotebookFooter(;CASE=nothing, SFID=nothing, IRB=nothing)
-  (TITLE, NOTE, CASE, SFID, IRB) = configuration(nothing, nothing, CASE, SFID, IRB)
+    SFID = config[:case_slug]
+    CASE = config[:case_code]
+    IRB = config[:irb_code]
   @htl("""
   <div>
     <table style="width: 100%">
@@ -65,9 +24,15 @@ function NotebookFooter(;CASE=nothing, SFID=nothing, IRB=nothing)
    """)
 end
 
-function NotebookHeader(TITLE=nothing; NOTE=nothing, CASE=nothing, SFID=nothing,
-                        IRB=nothing, IRB_START_DATE=nothing, IRB_END_DATE=nothing)
-  (TITLE, NOTE, CASE, SFID, IRB) = configuration(TITLE, NOTE, CASE, SFID, IRB)
+function NotebookHeader(TITLE=nothing)
+    config = configuration()
+    SFID = config[:case_slug]
+    CASE = config[:case_code]
+    TITLE = something(TITLE, config[:case_title])
+    NOTE = config[:project_title]
+    IRB = config[:irb_code]
+    IRB_START_DATE = config[:irb_start_date]
+    IRB_END_DATE = config[:irb_end_date]
   @htl("""
    <!-- wide notebooks -->
    <style>

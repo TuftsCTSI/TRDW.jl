@@ -24,6 +24,7 @@ import Tables
 import DBInterface.execute
 import Base.show
 
+include("config.jl")
 include("connect.jl")
 include("format.jl")
 include("result.jl")
