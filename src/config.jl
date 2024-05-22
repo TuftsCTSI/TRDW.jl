@@ -32,7 +32,9 @@ function configuration(; kwargs...)
         retval[to] = get(source, from, nothing)
     end
     for (k,v) in kwargs
-        retval[k] = v
+        if !isnothing(v)
+            retval[k] = v
+        end
     end
     retval[:irb_code] = something(retval[:irb_code], DISCOVERY_IRB)
     project_code = retval[:project_code]
