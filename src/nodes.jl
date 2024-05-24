@@ -624,8 +624,8 @@ function FunSQL.PrettyPrinting.quoteof(n::AssertValidConceptNode, ctx)
 end
 
 function FunSQL.resolve_scalar(n::AssertValidConceptNode, ctx)
-    if !(:concept in keys(ctx.cte_types)) && (:concept in keys(ctx.tables))
-        concept_id = resolve_concept_id(n)
+    if !(:concept in keys(ctx.cte_types)) && (:concept in keys(ctx.catalog))
+        concept_id = resolve_concept_id(ctx.catalog, n)
         if concept_id !== nothing
             return FunSQL.resolve_scalar(FunSQL.Fun."="(FunSQL.Get.concept_id, FunSQL.Lit(concept_id)), ctx)
         end
@@ -644,12 +644,9 @@ function create_concept_cache(db)
     return (db = db, dir = @get_scratch!(scratchname))
 end
 
-with_concept_cache(f, concept_cache) =
-    Base.task_local_storage(f, :concept_cache, concept_cache)
-
-function resolve_concept_id(n::AssertValidConceptNode)
-    tls = task_local_storage()
-    concept_cache = get(tls, :concept_cache, nothing)
+function resolve_concept_id(cat::FunSQL.SQLCatalog, n::AssertValidConceptNode)
+    m = cat.metadata
+    concept_cache = m !== nothing ? get(m, :concept_cache, nothing) : nothing
     concept_cache !== nothing || return
     q = @funsql concept($(n.condition)).order(concept_id).limit(3)
     sql = FunSQL.render(concept_cache.db, q)
