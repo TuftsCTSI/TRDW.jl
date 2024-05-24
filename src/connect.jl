@@ -114,19 +114,29 @@ function _tables_from_column_list(rows)
     tables
 end
 
+macro query(db, q)
+    if db isa Expr && db.head === :($) && length(db.args) == 1
+        db = esc(db.args[1])
+    end
+    ex = FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext(__module__, __source__))
+    if ex isa Expr && ex.head in (:(=), :const, :global, :local) ||
+        ex isa Expr && ex.head === :block && any(ex′ isa Expr && ex′.head in (:(=), :const, :global, :local) for ex′ in ex.args)
+        return ex
+    end
+    return quote
+        TRDW.run($db, $ex)
+    end
+end
+
 macro connect(args...)
     return quote
         const $(esc(:db)) = TRDW.connect($(Any[esc(arg) for arg in args]...))
         export $(esc(:db))
 
+        import TRDW: @query
         macro $(esc(:query))(q)
-            ex = TRDW.FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext($(esc(:__module__)), $(esc(:__source__))))
-            if ex isa Expr && ex.head in (:(=), :const, :global, :local) ||
-               ex isa Expr && ex.head === :block && any(ex′ isa Expr && ex′.head in (:(=), :const, :global, :local) for ex′ in ex.args)
-                return ex
-            end
             return quote
-                TRDW.run($(esc(:db)), $ex)
+                @query($(Expr(:($), :db)), $q)
             end
         end
         export $(esc(Symbol("@query")))
