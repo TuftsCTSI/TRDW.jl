@@ -54,8 +54,14 @@ function connect(specs...; catalog = nothing, exclude = nothing)
         end
     end
     cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark))
-
-    FunSQL.SQLConnection(conn, catalog = cat)
+    db = FunSQL.SQLConnection(conn, catalog = cat)
+    concept_cache = create_concept_cache(db)
+    if concept_cache !== nothing
+        metadata = Dict(:concept_cache => concept_cache)
+        cat = FunSQL.SQLCatalog(tables = cat.tables, dialect = cat.dialect, metadata = metadata)
+        db = FunSQL.SQLConnection(conn, catalog = cat)
+    end
+    db
 end
 
 const connect_with_funsql = connect # backward compatibility
@@ -113,9 +119,6 @@ macro connect(args...)
         const $(esc(:db)) = TRDW.connect($(Any[esc(arg) for arg in args]...))
         export $(esc(:db))
 
-        const $(esc(:concept_cache)) = TRDW.create_concept_cache($(esc(:db)))
-        export $(esc(:concept_cache))
-
         macro $(esc(:query))(q)
             ex = TRDW.FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext($(esc(:__module__)), $(esc(:__source__))))
             if ex isa Expr && ex.head in (:(=), :const, :global, :local) ||
@@ -123,7 +126,7 @@ macro connect(args...)
                 return ex
             end
             return quote
-                TRDW.with_concept_cache(() -> TRDW.run($(esc(:db)), $ex), $(esc(:concept_cache)))
+                TRDW.run($(esc(:db)), $ex)
             end
         end
         export $(esc(Symbol("@query")))
