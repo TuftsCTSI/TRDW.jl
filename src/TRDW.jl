@@ -12,6 +12,7 @@ using HTTP
 using HypertextLiteral
 using JSON
 using OrderedCollections: OrderedDict
+using HashArrayMappedTries
 using Unicode
 using LightXML
 using ODBC
@@ -48,6 +49,7 @@ include("template.jl")
 include("profile.jl")
 include("ohdsi.jl")
 include("xlsx.jl")
+include("etl.jl")
 
 include("care_site.jl")
 include("concept.jl")

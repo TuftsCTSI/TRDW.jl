@@ -2,7 +2,7 @@
 
 julia_version = "1.10.3"
 manifest_format = "2.0"
-project_hash = "92097bb7be4cc2aa95bd0a190d1a1dac5ee1c16d"
+project_hash = "3f1b9500a1ee2f2f6db632e0f7838b606a414119"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -234,7 +234,7 @@ version = "0.8.4"
 
 [[deps.FunSQL]]
 deps = ["DBInterface", "Dates", "LRUCache", "OrderedCollections", "PrettyPrinting", "Tables"]
-git-tree-sha1 = "67ff6156261c0f67a4062845cf55dd49d284e163"
+git-tree-sha1 = "3f56c6517075b5f420cd6f5bd22aa08f2d8e071b"
 repo-rev = "metadata"
 repo-url = "https://github.com/MechanicalRabbit/FunSQL.jl.git"
 uuid = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
@@ -249,6 +249,11 @@ deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapp
 git-tree-sha1 = "d1d712be3164d61d1fb98e7ce9bcbc6cc06b45ed"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 version = "1.10.8"
+
+[[deps.HashArrayMappedTries]]
+git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
+uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
+version = "0.2.0"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
