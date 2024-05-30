@@ -479,7 +479,7 @@ function FunSQL.PrettyPrinting.quoteof(n::CountAllNode, ctx::FunSQL.QuoteContext
 end
 
 function FunSQL.resolve(n::CountAllNode, ctx)
-    names = sort(collect(keys(ctx.tables)))
+    names = sort(collect(keys(ctx.catalog)))
     include = n.include
     if include !== nothing
         names = [name for name in names if occursin(include, String(name))]
