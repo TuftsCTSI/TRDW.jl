@@ -114,7 +114,7 @@ function _tables_from_column_list(rows)
     tables
 end
 
-macro query(db, q)
+function query_macro(__module__, __source__, db, q)
     if db isa Expr && db.head === :($) && length(db.args) == 1
         db = esc(db.args[1])
     end
@@ -128,19 +128,22 @@ macro query(db, q)
     end
 end
 
+macro query(db, q)
+    return query_macro(__module__, __source__, db, q)
+end
+
 macro connect(args...)
-    return quote
-        const $(esc(:db)) = TRDW.connect($(Any[esc(arg) for arg in args]...))
-        export $(esc(:db))
+    ex = quote
+        const db = TRDW.connect($(args...))
+        export db
 
         import TRDW: @query
-        macro $(esc(:query))(q)
-            return quote
-                @query($(Expr(:($), :db)), $q)
-            end
+        macro query(q)
+            return TRDW.query_macro(__module__, __source__, Expr(:($), :db), q)
         end
-        export $(esc(Symbol("@query")))
+        export @query
 
         nothing
     end
+    return esc(ex)
 end
