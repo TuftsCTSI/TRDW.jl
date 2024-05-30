@@ -55,21 +55,23 @@ const TransformEntry = Tuple{Union{FunSQL.SQLTable, FunSQL.SQLNode, SQLSnapshot}
 const TransformSchema = HAMT{Symbol, Int}
 
 struct TransformContext
+    name::Symbol
     entries::Vector{TransformEntry}
     schemas::Vector{TransformSchema}
 end
 
-function run(db, t::AbstractTransform)
+function run(db, t::AbstractTransform; name::Union{AbstractString, Symbol})
     entries = TransformEntry[]
     schema = TransformSchema()
     for (name, t) in db.catalog
         push!(entries, (t, 0))
         schema[name] = lastindex(entries)
     end
-    ctx = TransformContext(entries, [schema])
+    ctx = TransformContext(Symbol(name), entries, [schema])
     transform!(t, ctx)
     catalog′, ddls = serialize_ddls(db.catalog, ctx)
     for ddl in ddls
+        @info ddl
         DBInterface.execute(db, ddl)
     end
     FunSQL.SQLConnection(db.raw, catalog = catalog′)
@@ -141,7 +143,7 @@ function serialize_ddls(catalog, ctx)
         if def isa FunSQL.SQLNode
             schema = ctx.schemas[version]
             for dep_name in dependencies(def)
-                haskey(schema, dep_name) || error()
+                haskey(schema, dep_name) || error(dep_name)
                 dep_index = schema[dep_name]
                 dep_key = (dep_index, dep_name)
                 push!(deps, dep_key)
@@ -149,7 +151,7 @@ function serialize_ddls(catalog, ctx)
             end
         elseif def isa SQLSnapshot
             schema = ctx.schemas[version]
-            haskey(schema, def.name) || error()
+            haskey(schema, def.name) || error(def.name)
             dep_index = schema[def.name]
             dep_key = (dep_index, def.name)
             push!(deps, dep_key)
@@ -159,6 +161,10 @@ function serialize_ddls(catalog, ctx)
     end
     tables = Dict{Symbol, FunSQL.SQLTable}()
     ddls = String[]
+    schema_name_sql = FunSQL.render(catalog, FunSQL.ID(ctx.name))
+    push!(ddls, "DROP SCHEMA IF EXISTS $schema_name_sql CASCADE")
+    push!(ddls, "CREATE SCHEMA $schema_name_sql")
+    qualifiers = [ctx.name]
     ctes = FunSQL.SQLNode[]
     subs_map = Dict{Int, Set{Int}}()
     for key in sort(collect(keys(deps_map)))
@@ -167,11 +173,11 @@ function serialize_ddls(catalog, ctx)
         subs = Set{Int}()
         if def isa FunSQL.SQLTable
             if key in outs
-                name_sql = FunSQL.render(catalog, FunSQL.ID(name))
+                name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 sql = FunSQL.render(catalog, FunSQL.From(def))
                 ddl = "CREATE VIEW $name_sql AS\n$sql"
                 push!(ddls, ddl)
-                table = FunSQL.SQLTable(name, columns = sql.columns)
+                table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = sql.columns)
                 tables[name] = table
             end
             push!(ctes, name => FunSQL.From(def))
@@ -185,11 +191,11 @@ function serialize_ddls(catalog, ctx)
                 for k in sort(collect(subs), rev = true)
                     q = FunSQL.With(ctes[k], over = q)
                 end
-                name_sql = FunSQL.render(catalog, FunSQL.ID(name))
+                name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 sql = FunSQL.render(catalog, q)
                 ddl = "CREATE VIEW $name_sql AS\n$sql"
                 push!(ddls, ddl)
-                table = FunSQL.SQLTable(name, columns = sql.columns)
+                table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = sql.columns)
                 tables[name] = table
             end
             push!(ctes, name => def)
@@ -212,11 +218,11 @@ function serialize_ddls(catalog, ctx)
                     snapshot_name = Symbol("_snapshot_", name, "_", k)
                 end
             end
-            name_sql = FunSQL.render(catalog, FunSQL.ID(snapshot_name))
+            name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, snapshot_name))
             sql = FunSQL.render(catalog, q)
             ddl = "CREATE TABLE $name_sql AS\n$sql"
             push!(ddls, ddl)
-            table = FunSQL.SQLTable(snapshot_name, columns = sql.columns)
+            table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = sql.columns)
             tables[snapshot_name] = table
             empty!(subs)
             push!(ctes, name => FunSQL.From(table))
