@@ -721,32 +721,8 @@ end
 
 write_and_display(name, ::Nothing; empty_cols=[]) = nothing
 
-function write_cleanup(name)
-    isfile("$(name).csv") ? rm("$(name).csv") : nothing
-    isfile("$(name).xlsx") ? rm("$(name).xlsx") : nothing
-    return @htl("""<p>At the time of creation, $(name) is not available.</p>""")
-end
-
-function write_and_display(expr::Expr, db, case, show)
-    @assert expr.head == :(=)
-    (name, query) = expr.args
-    sname = esc(string(name))
-    vname = esc(name)
-    if show
-        return quote
-            $vname = TRDW.run($db, @funsql(begin
-                $query
-                if_not_defined(subject_id, to_subject_id($case))
-                if_defined(person_id, undefine(person_id))
-                order(subject_id)
-            end))
-            TRDW.write_and_display($sname, $vname)
-        end
-    end
-    :(TRDW.write_cleanup($sname))
-end
-
-function get_password(case)
+function get_password(case=nothing)
+    case = get_case_code(case)
     password = strip(get(ENV, "PASSWORD", ""))
     paths = ["/run", "notebooks", "cache"]
     if isdir(joinpath(paths)) && contains(pwd(), case)
@@ -776,35 +752,18 @@ For this to work, include this boilerplate in your notebook:
     JavaCall.assertroottask_or_goodenv()
 ```
 """
-function write_and_encrypt(basename, data, password)
-    @assert length(password) > 0
+function write_and_encrypt(basename, data)
+    password = get_password()
     dataframe = DataFrame(data)
     n_rows = size(dataframe)[1]
+    if length(password) == 0
+        return @htl("<p>Password not available. Number of rows: $n_rows</p>")
+    end
     filename = "$basename.xlsx"
-    TRDW.XLSX.write(filename, dataframe; password=string(password))
+    TRDW.XLSX.write(filename, dataframe; password)
     @htl("""
         <hr />
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
         <hr />
     """)
-end
-
-function write_and_encrypt(expr::Expr, db, case, show::Bool)
-    @assert expr.head == :(=)
-    (name, query) = expr.args
-    sname = esc(string(name))
-    vname = esc(name)
-    password = get_password(case)
-    if show && length(password) > 0
-        return quote
-            $vname = TRDW.run($db, @funsql(begin
-                $query
-                if_not_defined(subject_id, to_subject_id($case))
-                if_defined(person_id, undefine(person_id))
-                order(subject_id)
-            end))
-            TRDW.write_and_encrypt($sname, $vname, $password)
-        end
-    end
-    :(TRDW.write_cleanup($sname))
 end
