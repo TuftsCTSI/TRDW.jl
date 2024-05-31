@@ -144,7 +144,7 @@ function serialize_ddls(catalog, ctx)
         deps = Set{Tuple{Int, Symbol}}()
         if def isa FunSQL.SQLNode
             schema = ctx.schemas[version]
-            for dep_name in dependencies(def)
+            for dep_name in dependencies(def, schema)
                 haskey(schema, dep_name) || error(dep_name)
                 dep_index = schema[dep_name]
                 dep_key = (dep_index, dep_name)
@@ -195,6 +195,7 @@ function serialize_ddls(catalog, ctx)
                 end
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 sql = FunSQL.render(catalog, q)
+                @assert sql.columns !== nothing name
                 ddl = "CREATE VIEW $name_sql AS\n$sql"
                 push!(ddls, ddl)
                 table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = sql.columns)
@@ -222,6 +223,7 @@ function serialize_ddls(catalog, ctx)
             end
             name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, snapshot_name))
             sql = FunSQL.render(catalog, q)
+            @assert sql.columns !== nothing name
             ddl = "CREATE TABLE $name_sql AS\n$sql"
             push!(ddls, ddl)
             table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = sql.columns)
@@ -236,33 +238,33 @@ function serialize_ddls(catalog, ctx)
     catalog′, ddls
 end
 
-function dependencies(n::FunSQL.SQLNode)
+function dependencies(n::FunSQL.SQLNode, schema)
     free = Set{Symbol}()
     bound = Set{Symbol}()
-    dependencies!(n, free, bound)
+    dependencies!(n, schema, free, bound)
     sort!(collect(free))
 end
 
-function dependencies!(n::FunSQL.SQLNode, free, bound)
-    dependencies!(n[], free, bound)
+function dependencies!(n::FunSQL.SQLNode, schema, free, bound)
+    dependencies!(n[], schema, free, bound)
 end
 
-function dependencies!(ns::Vector{FunSQL.SQLNode}, free, bound)
+function dependencies!(ns::Vector{FunSQL.SQLNode}, schema, free, bound)
     for n in ns
-        dependencies!(n, free, bound)
+        dependencies!(n, schema, free, bound)
     end
 end
 
-dependencies!(::Nothing, free, bound) =
+dependencies!(::Nothing, schema, free, bound) =
     nothing
 
-@generated function dependencies!(n::FunSQL.AbstractSQLNode, free, bound)
+@generated function dependencies!(n::FunSQL.AbstractSQLNode, schema, free, bound)
     exs = Expr[]
     for f in fieldnames(n)
         t = fieldtype(n, f)
         if t === FunSQL.SQLNode || t === Union{FunSQL.SQLNode, Nothing} || t === Vector{FunSQL.SQLNode}
             ex = quote
-                dependencies!(n.$(f), free, bound)
+                dependencies!(n.$(f), schema, free, bound)
             end
             push!(exs, ex)
         end
@@ -271,23 +273,30 @@ dependencies!(::Nothing, free, bound) =
     Expr(:block, exs...)
 end
 
-function dependencies!(n::FunSQL.FromNode, free, bound)
+function dependencies!(n::FunSQL.FromNode, schema, free, bound)
     source = n.source
     if source isa Symbol && source ∉ bound
         push!(free, source)
     elseif source isa FunSQL.FunctionSource
-        dependencies!(source.node, free, bound)
+        dependencies!(source.node, schema, free, bound)
     end
 end
 
-function dependencies!(n::Union{FunSQL.WithNode, FunSQL.WithExternalNode}, free, bound)
-    dependencies!(n.args, free, bound)
+function dependencies!(n::Union{FunSQL.WithNode, FunSQL.WithExternalNode}, schema, free, bound)
+    dependencies!(n.args, schema, free, bound)
     names = Symbol[name for name in keys(n.label_map) if name ∉ bound]
     for name in names
         push!(bound, name)
     end
-    dependencies!(n.over, free, bound)
+    dependencies!(n.over, schema, free, bound)
     for name in names
         pop!(bound, name)
     end
+end
+
+function dependencies!(n::IfSetNode, schema, free, bound)
+    over = n.over
+    node = haskey(schema, n.name) ? n.node : n.else_node
+    node = node !== nothing && over !== nothing ? over |> node : node !== nothing ? node : over
+    dependencies!(node, schema, free, bound)
 end
