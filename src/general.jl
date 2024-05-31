@@ -13,19 +13,19 @@ sqlname(db, node::FunSQL.SQLNode) =
     sqlname(db, getfield(getfield(node, :core), :source))
 
 """
-create_table(db, schema, table, def)
+create_or_replace_table(db, schema, table, def)
 
 Example usage
 -------------
 
 ```
-let t = TRDW.create_table(db, "rr_58599", "cohort", @funsql cohort_definition())
+let t = TRDW.create_or_replace_table(db, TRDW.user_schema(), :cohort, @funsql cohort_definition())
     global @funsql cohort() = from(\$t)
 end
 ```
 
 """
-function create_table(db, schema::Symbol, table::Symbol, def)
+function create_or_replace_table(db, schema::Symbol, table::Symbol, def)
     schema_name_sql = sqlname(db, schema)
     name_sql = sqlname(db, schema, table)
     sql = FunSQL.render(db, def)
