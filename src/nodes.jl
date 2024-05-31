@@ -594,6 +594,42 @@ funsql_if_defined_scalar(field_name, q, else_q) = begin
     CustomResolve(resolve_scalar = custom_resolve, terminal = true)
 end
 
+mutable struct IfSetNode <: FunSQL.AbstractSQLNode
+    over::Union{FunSQL.SQLNode, Nothing}
+    name::Symbol
+    node::Union{FunSQL.SQLNode, Nothing}
+    else_node::Union{FunSQL.SQLNode, Nothing}
+
+    IfSetNode(; over = nothing, name::Union{AbstractString, Symbol}, node = nothing, else_node = nothing) =
+        new(over, Symbol(name), node, else_node)
+end
+
+IfSetNode(name, node, else_node = nothing; over = nothing) =
+    IfSetNode(over = over, name = name, node = node, else_node = else_node)
+
+IfSet(args...; kws...) =
+    IfSetNode(args...; kws...) |> FunSQL.SQLNode
+
+const funsql_if_set = IfSet
+
+function FunSQL.PrettyPrinting.quoteof(n::IfSetNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(IfSet), QuoteNode(n.name), n.node !== nothing ? FunSQL.quoteof(n.node, ctx) : nothing)
+    if n.else_node !== nothing
+        push!(ex.args, FunSQL.quoteof(n.else_node, ctx))
+    end
+    if n.over !== nothing
+        ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
+    end
+    ex
+end
+
+function FunSQL.resolve(n::IfSetNode, ctx)
+    over = n.over
+    node = haskey(ctx.catalog, n.name) ? n.node : n.else_node
+    node = node !== nothing && over !== nothing ? over |> node : node !== nothing ? node : over
+    FunSQL.resolve(node, ctx)
+end
+
 _concept_attribute(s::String) =
     [s]
 
