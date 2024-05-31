@@ -66,7 +66,7 @@ function NotebookHeader(TITLE=nothing)
                 Counts below ten are indicated with the ≤ symbol.
             </p>
             $(isnothing(IRB_START_DATE) ? "" : @htl("""
-                <span>Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
+                <span>IRB Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
             """))
         """)
      else
