@@ -1,11 +1,11 @@
 const CONFIG_FILE = "TRDW.json"
 const DISCOVERY_IRB = "11642"
 
-is_discovery(irb) = isnothing(irb) || string(irb) == DISCOVERY_IRB
-
-function configuration(; kwargs...)
+function configuration()
+    @assert isfile(CONFIG_FILE)
     retval = Dict{Symbol, Union{String, Nothing}}()
-    source = isfile(CONFIG_FILE) ? JSON.parsefile(CONFIG_FILE) : Dict{String, Any}()
+    source = JSON.parsefile(CONFIG_FILE)
+    # flatten
     if haskey(source, "project")
         merge!(source, source["project"])
         delete!(source, "project")
@@ -19,22 +19,17 @@ function configuration(; kwargs...)
             source[k] = nothing
         end
     end
-    for (to, from) in (:project_slug => "project_id",
-                       :project_code => "project_name",
-                       :project_title => "project_title",
-                       :irb_code => "irb_id",
-                       :irb_start_date => "irb_start_date",
-                       :irb_end_date => "irb_end_date",
-                       :pi_name => "pi_display_name",
-                       :case_slug => "case_id",
-                       :case_code => "case_number",
-                       :case_title => "subject")
+    for (from, to) in ("project_id" => :project_slug,
+                       "project_name" => :project_code,
+                       "project_title" => :project_title,
+                       "irb_id" => :irb_code,
+                       "irb_start_date" => :irb_start_date,
+                       "irb_end_date" => :irb_end_date,
+                       "pi_display_name" => :pi_name,
+                       "case_id" => :case_slug,
+                       "case_number" => :case_code,
+                       "subject" => :case_title)
         retval[to] = get(source, from, nothing)
-    end
-    for (k,v) in kwargs
-        if !isnothing(v)
-            retval[k] = v
-        end
     end
     retval[:irb_code] = something(retval[:irb_code], DISCOVERY_IRB)
     project_code = retval[:project_code]
@@ -49,13 +44,22 @@ function configuration(; kwargs...)
     return retval
 end
 
-get_case_code(case_code=nothing; config=nothing)::String =
-    something(config, configuration(; case_code))[:case_code]
+function get_config_item(item)
+    item = get(configuration(), item, nothing)
+    @assert !isnothing(item) "$item not configured; see TRDW.json file"
+    return item
+end
+
+get_case_code() = get_config_item(:case_code)
 funsql_get_case_code = get_case_code
 
-get_irb_code(irb_code=nothing; config=nothing)::String =
-    something(config, configuration(; irb_code))[:irb_code]
+get_irb_code() = get_config_item(:irb_code)
 funsql_get_irb_code = get_irb_code
 
-is_discovery() = is_discovery(get_irb_code())
+funsql_get_irb_start_date() = Date(get_config_item(:irb_start_date))
+funsql_get_irb_end_date() = Date(get_config_item(:irb_end_date))
+
+@funsql is_during_irb_window() = between(datetime, get_irb_start_date(), get_irb_end_date())
+
+is_discovery() = string(get_irb_code()) == DISCOVERY_IRB
 funsql_is_discovery = is_discovery

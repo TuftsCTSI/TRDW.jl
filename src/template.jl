@@ -19,7 +19,7 @@ function NotebookFooter()
         <a href="https://tuftsctsi.lightning.force.com/lightning/r/Case/$SFID/view">$CASE</a>
         """))
       <br />"""))
-    $(is_discovery(IRB) ? "" : @htl("<p>IRB Study# $(IRB)"))
+    $(is_discovery() ? "" : @htl("<p>IRB Study# $(IRB)"))
   </div>
    """)
 end
@@ -57,7 +57,7 @@ function NotebookHeader(TITLE=nothing)
    </div>
    $(isnothing(NOTE) ? "" :
      @htl("""<p style="font-style: italic; font-size: 21px;">$NOTE</p>"""))
-   $(if is_discovery(IRB)
+   $(if is_discovery()
         @htl("""
             <p>
                 This cohort discovery is provided under IRB Protocol #11642,

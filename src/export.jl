@@ -511,14 +511,14 @@ end
 end
 
 function export_keyfile(filename, etl::ETLContext; include_dob=false)
-    password = get_password(etl.case)
+    password = get_password()
     if length(password) < 1
         return
     end
     @debug "export_keyfile($(repr(filename)))"
     cohort_q = etl.cohort[]
     query = @funsql $cohort_q.query_mrns(;include_dob=$include_dob)
-    query = @funsql $query.to_subject_id($(etl.case)).order(subject_id)
+    query = @funsql $query.to_subject_id().order(subject_id)
     data = run(etl.db, query)
     @debug "writing", "mrn"
     write_xlsx(data, filename, password)
@@ -528,13 +528,6 @@ function export_zip(filename, etl::ETLContext)
 
     @debug "export_zip($(repr(filename)))"
     @assert isassigned(etl.queries)
-
-    postfix = isnothing(etl.case) ?
-        @funsql(define()) :
-        @funsql to_subject_id($(etl.case); rename=false)
-    fact_postfix = isnothing(etl.case) ?
-        @funsql(define()) :
-        @funsql fact_to_subject_id($(etl.case))
 
     condition_occurrence_q = etl.queries[].condition_occurrence
     death_q = etl.queries[].death

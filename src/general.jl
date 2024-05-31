@@ -721,8 +721,8 @@ end
 
 write_and_display(name, ::Nothing; empty_cols=[]) = nothing
 
-function get_password(case=nothing)
-    case = get_case_code(case)
+function get_password()
+    case = get_case_code()
     password = strip(get(ENV, "PASSWORD", ""))
     paths = ["/run", "notebooks", "cache"]
     if isdir(joinpath(paths)) && contains(pwd(), case)
