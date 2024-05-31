@@ -5,12 +5,11 @@ HashArrayMappedTries.HashState(key::Symbol) =
 abstract type AbstractTransform end
 
 struct SetTransform <: AbstractTransform
-    name::Symbol
-    node::FunSQL.SQLNode
+    defs::Vector{Pair{Symbol, FunSQL.SQLNode}}
 end
 
-funsql_set((name, node) :: Pair) =
-    SetTransform(name, node)
+funsql_set(defs::Pair...) =
+    SetTransform(Pair{Symbol, FunSQL.SQLNode}[defs...])
 
 struct SnapshotTransform <: AbstractTransform
     names::Vector{Symbol}
@@ -19,19 +18,19 @@ end
 funsql_snapshot(names...) =
     SnapshotTransform(Symbol[names...])
 
-struct ForgetTransform <: AbstractTransform
+struct UnsetTransform <: AbstractTransform
     names::Vector{Symbol}
 end
 
-funsql_forget(names...) =
-    ForgetTransform(Symbol[names...])
+funsql_unset(names...) =
+    UnsetTransform(Symbol[names...])
 
-struct ForgetAllExceptTransform <: AbstractTransform
+struct UnsetAllExceptTransform <: AbstractTransform
     names::Vector{Symbol}
 end
 
-funsql_forget_all_except(names...) =
-    ForgetAllExceptTransform(Symbol[names...])
+funsql_unset_all_except(names...) =
+    UnsetAllExceptTransform(Symbol[names...])
 
 struct IdentityTransform <: AbstractTransform
 end
@@ -79,8 +78,11 @@ end
 
 function transform!(t::SetTransform, ctx)
     version = lastindex(ctx.schemas)
-    push!(ctx.entries, (t.node, version))
-    schema′ = insert(ctx.schemas[end], t.name, lastindex(ctx.entries))
+    schema′ = ctx.schemas[end]
+    for (name, node) in t.defs
+        push!(ctx.entries, (node, version))
+        schema′ = insert(schema′, name, lastindex(ctx.entries))
+    end
     push!(ctx.schemas, schema′)
     nothing
 end
@@ -99,7 +101,7 @@ function transform!(t::SnapshotTransform, ctx)
     nothing
 end
 
-function transform!(t::ForgetTransform, ctx)
+function transform!(t::UnsetTransform, ctx)
     schema′ = ctx.schemas[end]
     for name in t.names
         schema′ = delete(schema′, name)
@@ -108,7 +110,7 @@ function transform!(t::ForgetTransform, ctx)
     nothing
 end
 
-function transform!(t::ForgetAllExceptTransform, ctx)
+function transform!(t::UnsetAllExceptTransform, ctx)
     schema′ = schema = ctx.schemas[end]
     for (name, _) in schema
         name ∉ t.names || continue
