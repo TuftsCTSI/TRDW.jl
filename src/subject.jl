@@ -16,22 +16,6 @@ function user_schema()
     return Symbol(temp_schema_prefix() * "_" * case)
 end
 
-function user_index()
-    table = FunSQL.SQLTable(qualifiers = [:ctsi, user_schema()], name = :index,
-                            columns = [:person_id, :occurrence_id, :datetime, :datetime_end])
-    return linkto_person(FunSQL.From(table))
-end
-
-function user_rebuild_index(db, query::FunSQL.SQLNode)
-    sname = user_schema()
-    create_table(db, sname, :index, @funsql begin
-        $query.select(person_id, occurrence_id,
-                      datetime => to_timestamp(datetime),
-                      datetime_end => to_timestamp(datetime_end))
-    end)
-    return user_index()
-end
-
 function funsql_subject_table()
     case = get_case_code()
     FunSQL.SQLTable(qualifiers = [env_catalog(), :person_map], name = Symbol(case),
@@ -99,22 +83,20 @@ function ensure_subject_table!(db; datatype=nothing)
         :added => :TIMESTAMP, :removed => :TIMESTAMP)
 end
 
-function merge_subject_table!(db, q::FunSQL.SQLNode; truncate=false, datatype=nothing)
+function merge_subject_table!(result::SQLResult; truncate=false, datatype=nothing)
+    db = result.db
+    sql = result.sql
+    @assert occursin("subject_id", sql) "subject_id missing from query"
     case = get_case_code()
     subject_table = ensure_subject_table!(db; datatype=datatype)
     subject_sql = sqlname(db, subject_table)
-    if is_production_schema_prefix()
-        c = DBInterface.execute(db, "DESCRIBE TABLE EXTENDED $subject_sql")
-        message = filter(row -> row.col_name == "Comment", DataFrame(c))[1,2]
-        @info "table $subject_sql $message"
-        return
-    end
-    load_sql = FunSQL.render(db, @funsql begin
-             $q
-             group(subject_id)
-             assert_one_row(; carry=[person_id])
-             assert(isnotnull(person_id) && isnotnull(subject_id))
-        end)
+    load_sql = """
+        SELECT subject_id, person_id FROM (
+            $sql
+        )
+        GROUP BY subject_id, person_id
+        HAVING assert_true(count(subject_id) = 1)
+    """
     if truncate
         DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
     end
@@ -123,12 +105,12 @@ function merge_subject_table!(db, q::FunSQL.SQLNode; truncate=false, datatype=no
         USING ($load_sql) AS cohort
         ON target.subject_id = cohort.subject_id
         WHEN MATCHED THEN
-            UPDATE SET person_id = cohort.person_id,
-                       removed = NULL
+            UPDATE SET removed = assert_true(person_id = cohort.person_id)
         WHEN NOT MATCHED BY TARGET THEN
             INSERT (subject_id, person_id, added)
             VALUES (cohort.subject_id, cohort.person_id, current_timestamp())
     """
+    print(query)
     DBInterface.execute(db, query)
     query = """
         UPDATE $subject_sql
