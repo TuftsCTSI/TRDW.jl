@@ -55,6 +55,34 @@ function create_table_if_not_exists(db, schema::Symbol, table::Symbol, spec...)
     return FunSQL.SQLTable(qualifiers = [env_catalog(), schema], name = table, columns = cols)
 end
 
+struct CreateTableSpecification
+    schema_name::Symbol
+    name::Symbol
+    node::FunSQL.SQLNode
+end
+
+funsql_create_table((name, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; schema::Union{Symbol, AbstractString} = user_schema()) =
+    CreateTableSpecification(Symbol(schema), Symbol(name), node)
+
+function run(db, spec::CreateTableSpecification)
+    schema_name_sql = FunSQL.render(db, FunSQL.ID(spec.schema_name))
+    name_sql = FunSQL.render(db, FunSQL.ID([spec.schema_name], spec.name))
+    sql = FunSQL.render(db, spec.node)
+    # TODO: requires FunSQL#metadata branch
+    # t = FunSQL.SQLTable(qualifiers = [spec.schema_name], spec.name, columns = sql.columns)
+    ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
+    q = FunSQL.From(spec.name) |> FunSQL.WithExternal(spec.name => spec.node,
+                                                      qualifiers = [spec.schema_name],
+                                                      handler = (p -> ref[] = p))
+    FunSQL.render(db, q)
+    t, c = ref[]
+    DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
+    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
+    DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
+    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
+    return t
+end
+
 function describe_all(db)
     tables = Pair{Symbol, Any}[]
     for name in sort(collect(keys(db.catalog)))
