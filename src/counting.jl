@@ -1,6 +1,6 @@
 @funsql begin
 
-demographics(roundup=true) = begin
+demographics(roundup=is_discovery()) = begin
     as(cohort)
     over(
         append(
@@ -12,7 +12,7 @@ demographics(roundup=true) = begin
     format(group_by = label)
 end
 
-count_n_person(; roundup=true) = begin
+count_n_person(; roundup=is_discovery()) = begin
     define(n_person => count_distinct(person_id))
     order(n_person.desc(nulls=last))
     define(n_person => roundups(n_person; round=$roundup))
@@ -21,7 +21,7 @@ end
 count_n_person(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).count_n_person(; roundup=$roundup)
 
-cohort_count(; roundup=true) = begin
+cohort_count(; roundup=is_discovery()) = begin
     group()
     count_n_person(; roundup=$roundup)
     define(n_event => count(person_id))
@@ -31,7 +31,7 @@ end
 cohort_count(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).cohort_count(; roundup=$roundup)
 
-stratify_by_age(; roundup=true) = begin
+stratify_by_age(; roundup=is_discovery()) = begin
     deduplicate(person_id)
     as(base)
     join(person(), base.person_id == person_id)
@@ -55,7 +55,7 @@ end
 stratify_by_age(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).stratify_by_age(; roundup=$roundup)
 
-stratify_by_race(; roundup=true) = begin
+stratify_by_race(; roundup=is_discovery()) = begin
     deduplicate(person_id)
     as(base)
     join(from(person), base.person_id == person_id)
@@ -74,7 +74,7 @@ end
 stratify_by_race(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).stratify_by_race(; roundup=$roundup)
 
-stratify_by_sex(; roundup=true) = begin
+stratify_by_sex(; roundup=is_discovery()) = begin
     deduplicate(person_id)
     as(base)
     join(from(person), base.person_id == person_id)
@@ -88,7 +88,7 @@ end
 stratify_by_sex(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).stratify_by_sex(; roundup=$roundup)
 
-stratify_by_ethnicity(; roundup=true) = begin
+stratify_by_ethnicity(; roundup=is_discovery()) = begin
     deduplicate(person_id)
     as(base)
     join(from(person), base.person_id == person_id)
@@ -105,7 +105,7 @@ end
 stratify_by_ethnicity(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
     $(pair[2]).stratify_by_ethnicity(; roundup=$roundup)
 
-stratify_by_translator(; roundup=true) = begin
+stratify_by_translator(; roundup=is_discovery()) = begin
 	deduplicate(person_id)
     define_profile(translator)
 	group(translator)
@@ -113,7 +113,7 @@ stratify_by_translator(; roundup=true) = begin
     select(n_person, translator)
 end
 
-stratify_by_preferred_language(; roundup=true) = begin
+stratify_by_preferred_language(; roundup=is_discovery()) = begin
 	deduplicate(person_id)
     define_profile(preferred_language)
     group(preferred_language)
