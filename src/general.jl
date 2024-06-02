@@ -31,7 +31,7 @@ struct CreateTableSpecification
 end
 
 """
-@query write_table(table_name => table_content(); schema=user_schema())
+@query write_table(table_name => table_content(); schema=user_project_schema())
 
 Create *or replace* the named table using contents from the query.
 This returns a `FunSQL.SQLTable` object that would need to be wrapped in a `FunSQL.FromNode` to be used.
@@ -49,7 +49,7 @@ end
 
 """
 funsql_write_table((name, node)::Pair{<:Union{Symbol, AbstractString}, <:Any};
-                    schema::Union{Symbol, AbstractString} = funsql_user_schema()) =
+                    schema::Union{Symbol, AbstractString} = user_project_schema()) =
     CreateTableSpecification(Symbol(schema), Symbol(name), node)
 
 function run(db, spec::CreateTableSpecification)

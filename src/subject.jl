@@ -11,10 +11,12 @@ end
 is_production_schema_prefix() =
     ("zz" == temp_schema_prefix())
 
-function funsql_user_schema()
+function user_project_schema()
     project_code = funsql_get_project_code()
     return temp_schema_prefix() * "_" * project_code
 end
+
+funsql_user_project_schema = user_project_schema
 
 function funsql_subject_table()
     project_code = funsql_get_project_code()
