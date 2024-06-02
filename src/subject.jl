@@ -119,7 +119,7 @@ function run(db, spec::MergeSubjectSpecification)
     message = "has $n persons; updated at $(now())"
     DBInterface.execute(db, "COMMENT ON TABLE $subject_sql IS '$message'")
     @info "table $subject_sql $message"
-    subject_table
+    nothing
 end
 
 struct MergeCustomerSubjectSpecification
@@ -173,5 +173,5 @@ function run(db, spec::MergeCustomerSubjectSpecification)
     message = "has $n persons; updated at $(now())"
     DBInterface.execute(db, "COMMENT ON TABLE $subject_sql IS '$message'")
     @info "table $subject_sql $message"
-    subject_table
+    nothing
 end
