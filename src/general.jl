@@ -723,7 +723,6 @@ function get_password()
     password = strip(get(ENV, "PASSWORD", ""))
     if length(password) == 0 && haskey(ENV, "CACHE_DIR")
         pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
-        println(pwfile)
         if isfile(pwfile)
             password = strip(read(open(pwfile), String), "")
         else
@@ -756,6 +755,7 @@ funsql_write_encrypted_xlsx((prefix, node)::Pair{<:Union{Symbol, AbstractString}
 function run(db, spec::WriteXLSXSpecification)
     @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_encrypt you need:
       import JavaCall
+      # then, after TRDW is imported
       JavaCall.isloaded() ? nothing : JavaCall.init()
     """
     data = run(db, spec.node)
