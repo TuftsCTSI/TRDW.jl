@@ -149,11 +149,11 @@ function run(db, spec::MergeCustomerSubjectSpecification)
     subject_table = ensure_subject_table(db; spec.datatype)
     subject_sql = sqlname(db, subject_table)
     load_sql = """
-        SELECT subject_id, max(person_id) AS person_id FROM (
+        SELECT person_id, first_value(subject_id) AS subject_id FROM (
             $sql
         )
-        GROUP BY subject_id
-        HAVING assert_true(count(person_id) = 1) IS NULL
+        GROUP BY person_id
+        HAVING assert_true(count(subject_id) = 1) IS NULL
     """
     if spec.truncate
         DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
@@ -161,9 +161,9 @@ function run(db, spec::MergeCustomerSubjectSpecification)
     query = """
         MERGE INTO $subject_sql AS target
         USING ($load_sql) AS cohort
-        ON target.subject_id = cohort.subject_id
+        ON target.person_id = cohort.person_id
         WHEN MATCHED THEN
-            UPDATE SET removed = assert_true(target.person_id = cohort.person_id)
+            UPDATE SET removed = assert_true(target.subject_id = cohort.subject_id)
         WHEN NOT MATCHED BY TARGET THEN
             INSERT (subject_id, person_id, added)
             VALUES (cohort.subject_id, cohort.person_id, current_timestamp())
@@ -172,7 +172,7 @@ function run(db, spec::MergeCustomerSubjectSpecification)
     query = """
         UPDATE $subject_sql
         SET removed = current_timestamp()
-        WHERE subject_id NOT IN (SELECT subject_id FROM ($load_sql))
+        WHERE person_id NOT IN (SELECT person_id FROM ($load_sql))
     """
     # DBInterface.execute(db, query)
     c = DBInterface.execute(db, "SELECT COUNT(*) FROM $subject_sql WHERE removed IS NULL")
