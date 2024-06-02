@@ -1,6 +1,6 @@
 module TRDW
 
-export @connect, Chain, Fun, Var, @concepts, @valuesets, OHDSI
+export @connect, Chain, Fun, Var, @concepts, @valuesets, OHDSI, user_project_schema
 
 using CSV
 using DBInterface
