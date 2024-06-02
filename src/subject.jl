@@ -15,8 +15,13 @@ function user_project_schema()
     project_code = funsql_get_project_code()
     return temp_schema_prefix() * "_" * project_code
 end
-
 funsql_user_project_schema = user_project_schema
+
+function project_schema()
+    project_code = funsql_get_project_code()
+    return "zz_" * project_code
+end
+funsql_project_schema = project_schema
 
 function funsql_subject_table()
     project_code = funsql_get_project_code()
