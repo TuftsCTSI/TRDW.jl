@@ -475,11 +475,6 @@ function zipfile(filename, db, pairs...)
     end
 end
 
-function make_password()
-    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwzyz0123456789"
-    return join(rand(valid_characters, 13))
-end
-
 @funsql query_mrns(;include_dob=true) = begin
     as(cohort)
     join(from(person), cohort.person_id == person_id)

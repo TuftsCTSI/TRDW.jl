@@ -12,37 +12,6 @@ sqlname(db, t::FunSQL.SQLTable) =
 sqlname(db, node::FunSQL.SQLNode) =
     sqlname(db, getfield(getfield(node, :core), :source))
 
-"""
-create_or_replace_table(db, schema, table, def)
-
-Example usage
--------------
-
-```
-let t = TRDW.create_or_replace_table(db, TRDW.user_schema(), :cohort, @funsql cohort_definition())
-    global @funsql cohort() = from(\$t)
-end
-```
-
-"""
-function create_or_replace_table(db, schema::Symbol, table::Symbol, def)
-    schema_name_sql = sqlname(db, schema)
-    name_sql = sqlname(db, schema, table)
-    sql = FunSQL.render(db, def)
-    ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
-    q = FunSQL.From(table) |> FunSQL.WithExternal(table => def,
-                                                  qualifiers = (env_catalog(), schema),
-                                                  handler = (p -> ref[] = p))
-    FunSQL.render(db, q)
-    t, c = ref[]
-    DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
-    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
-    DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
-    DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
-    @info "table $name_sql updated at $(now())"
-    return t
-end
-
 function create_table_if_not_exists(db, schema::Symbol, table::Symbol, spec...)
     schema_name_sql = sqlname(db, schema)
     name_sql = sqlname(db, schema, table)
@@ -61,25 +30,48 @@ struct CreateTableSpecification
     node::FunSQL.SQLNode
 end
 
-funsql_create_table((name, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; schema::Union{Symbol, AbstractString} = user_schema()) =
+"""
+@query write_table(table_name => table_content(); schema=user_schema())
+
+Create *or replace* the named table using contents from the query.
+This returns a `FunSQL.SQLTable` object that would need to be wrapped in a `FunSQL.FromNode` to be used.
+This creates the schema if it is not exists and assigns appropriate permissions.
+
+Example usage
+-------------
+
+```
+begin
+    t = @query write_table(cohort => cohort_definition())
+    @funsql cohort() = from(\$t)
+end
+```
+
+"""
+funsql_write_table((name, node)::Pair{<:Union{Symbol, AbstractString}, <:Any};
+                    schema::Union{Symbol, AbstractString} = funsql_user_schema()) =
     CreateTableSpecification(Symbol(schema), Symbol(name), node)
 
 function run(db, spec::CreateTableSpecification)
     schema_name_sql = FunSQL.render(db, FunSQL.ID(spec.schema_name))
     name_sql = FunSQL.render(db, FunSQL.ID([spec.schema_name], spec.name))
     sql = FunSQL.render(db, spec.node)
-    # TODO: requires FunSQL#metadata branch
-    # t = FunSQL.SQLTable(qualifiers = [spec.schema_name], spec.name, columns = sql.columns)
-    ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
-    q = FunSQL.From(spec.name) |> FunSQL.WithExternal(spec.name => spec.node,
-                                                      qualifiers = [spec.schema_name],
-                                                      handler = (p -> ref[] = p))
-    FunSQL.render(db, q)
-    t, c = ref[]
+    if false
+        # TODO: requires FunSQL#metadata branch
+        # t = FunSQL.SQLTable(qualifiers = [spec.schema_name], spec.name, columns = sql.columns)
+    else
+        ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
+        q = FunSQL.From(spec.name) |> FunSQL.WithExternal(spec.name => spec.node,
+                                                        qualifiers = [spec.schema_name],
+                                                        handler = (p -> ref[] = p))
+        FunSQL.render(db, q)
+        t, c = ref[]
+    end
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
+    DBInterface.execute(db, "COMMENT ON TABLE $(name_sql) IS '$(Dates.now())'")
     return t
 end
 
@@ -694,100 +686,88 @@ const omop_catalog = FunSQL.SQLCatalog(
         :cohort_initiation_date),
     dialect = :spark)
 
-macro funsql_import(expr)
-    names = []
-    if @dissect(expr, Expr(:tuple, args...))
-        expr = args[1]
-        append!(names, args[2:end])
-    end
-    if @dissect(expr, Expr(:call, sym, module_name, fun))
-        @assert sym == :(:)
-        push!(names, fun)
-    else
-        error("unexpected funsql import expression")
-    end
-    snames = [ Symbol("funsql_$(name)") for name in names]
-    args = [ Expr(:(.), sname) for sname in snames]
-    Expr(:import, Expr(:(:), Expr(:(.), :(.), module_name), args...))
+struct WriteCSVSpecification
+    prefix::String
+    node::FunSQL.SQLNode
+    empty_cols::Vector{Symbol}
 end
 
-import_workaround(modnm::Symbol, mod::Module) =
-    print("#TRDW.import_workaround(:$modnm, $modnm)\nbegin\n",
-        join(sort(["    $nm = $modnm.$nm\n"
-            for nm in [
-                contains(string(name), "#") ? "var\"$name\"" : name
-                    for name in names(mod)[2:end]]])),
-        "    nothing\nend\n")
+funsql_write_csv((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any};
+                 empty_cols = Symbol[]) =
+    WriteCSVSpecification(string(prefix), node, empty_cols)
 
-macro funsql_export(expr)
-    if expr isa Symbol
-        name = Symbol("funsql_$(expr)")
-        return Expr(:export, name)
-    elseif @dissect(expr, Expr(:tuple, args...))
-        names = [Symbol("funsql_$(name)") for name in args]
-        return Expr(:export, names...)
-    else
-        error("unexpected funsql export expression")
-        return
-    end
-end
-
-function write_and_display(basename, data; empty_cols=[])
+function run(db, spec::WriteCSVSpecification)
+    data = run(db, spec.node)
     dataframe = DataFrame(data)
-    for col in empty_cols
+    for col in spec.empty_cols
         insertcols!(dataframe, names(dataframe)[1], col => "")
     end
-    filename = "$(basename).csv"
+    when = Dates.format(Dates.now(),"yyyymmdd")
+    filename = "$(spec.prefix)_$(when).csv"
     n_rows = size(dataframe)[1]
     CSV.write(filename, dataframe)
     @htl("""
-        <div>$(data)</div>
+        <div>$(dataframe)</div>
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
         <p><hr /></p>
     """)
 end
 
-write_and_display(name, ::Nothing; empty_cols=[]) = nothing
-
-function get_password()
-    case = get_case_code()
-    password = strip(get(ENV, "PASSWORD", ""))
-    paths = ["/run", "notebooks", "cache"]
-    if isdir(joinpath(paths)) && contains(pwd(), case)
-        curr = splitpath(pwd())[end]
-        push!(paths, curr)
-        if isdir(joinpath(paths))
-            push!(paths, "password.txt")
-            pwfile = joinpath(paths)
-            if length(password) > 0
-                f = open(pwfile, "w")
-                write(f, password * "\n")
-                close(f)
-            elseif isfile(pwfile)
-                password = strip(read(open(pwfile), String))
-            end
-        end
-    end
-    return password
+function make_password()
+    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwzyz0123456789"
+    return join(rand(valid_characters, 13))
 end
 
-""" write_and_encrypt(df, name, pass)
+function get_password()
+    case = funsql_get_project_code()
+    password = strip(get(ENV, "PASSWORD", ""))
+    if length(password) == 0 && haskey(ENV, "CACHE_DIR")
+        pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
+        println(pwfile)
+        if isfile(pwfile)
+            password = strip(read(open(pwfile), String), "")
+        else
+            password = make_password()
+            f = open(pwfile, "w")
+            write(f, password * "\n")
+            close(f)
+        end
+    end
+    return password == "" ? nothing : password
+end
+
+struct WriteXLSXSpecification
+    prefix::String
+    node::FunSQL.SQLNode
+end
+
+""" @query write_encrypted_xlsx(prefix => content())
 
 For this to work, include this boilerplate in your notebook:
 ```
-    using JavaCall
+    using JavaCall;
     JavaCall.isloaded() ? nothing : JavaCall.init()
     JavaCall.assertroottask_or_goodenv()
 ```
 """
-function write_and_encrypt(basename, data)
+funsql_write_encrypted_xlsx((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}) =
+    WriteXLSXSpecification(string(prefix), node)
+
+function run(db, spec::WriteXLSXSpecification)
+    @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_encrypt you need:
+      import JavaCall
+      JavaCall.isloaded() ? nothing : JavaCall.init()
+    """
+    data = run(db, spec.node)
+    dataframe = DataFrame(data)
     password = get_password()
     dataframe = DataFrame(data)
     n_rows = size(dataframe)[1]
-    if length(password) == 0
+    if isnothing(password)
         return @htl("<p>Password not available. Number of rows: $n_rows</p>")
     end
-    filename = "$basename.xlsx"
+    when = Dates.format(Dates.now(),"yyyymmdd")
+    filename = "$(spec.prefix)_$(when).xlsx"
     TRDW.XLSX.write(filename, dataframe; password)
     @htl("""
         <hr />
