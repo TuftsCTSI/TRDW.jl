@@ -59,13 +59,13 @@ function funsql_define_subject_id(table=funsql_subject_table(); assert=true)
     return @funsql($query.define_front($name.subject_id).undefine($name))
 end
 
-function funsql_to_subject_id(table=funsql_subject_table(); assert=true)
+function funsql_use_subject_id(table=funsql_subject_table(); assert=true)
     query = funsql_define_subject_id(table; assert=assert)
     return @funsql($query.undefine(person_id))
 end
 
-funsql_fact_to_subject_id(domain_concept_id, fact_id) = begin
-    name = :_fact_to_subject_id
+funsql_fact_use_subject_id(domain_concept_id, fact_id) = begin
+    name = :_fact_use_subject_id
     query = funsql_subject_query()
     @funsql begin
         left_join($name => $query, $name.person_id == $fact_id)
@@ -75,10 +75,10 @@ funsql_fact_to_subject_id(domain_concept_id, fact_id) = begin
     end
 end
 
-funsql_fact_to_subject_id() =
+funsql_fact_use_subject_id() =
     @funsql begin
-        fact_to_subject_id(domain_concept_id_1, fact_id_1)
-        fact_to_subject_id(domain_concept_id_2, fact_id_2)
+        fact_use_subject_id(domain_concept_id_1, fact_id_1)
+        fact_use_subject_id(domain_concept_id_2, fact_id_2)
     end
 
 struct MergeSubjectSpecification

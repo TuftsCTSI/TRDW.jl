@@ -707,7 +707,7 @@ function run(db, spec::WriteCSVSpecification)
     n_rows = size(dataframe)[1]
     CSV.write(filename, dataframe)
     @htl("""
-        <div>$(dataframe)</div>
+        <div>$(data)</div>
         <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
         <p><hr /></p>
     """)
