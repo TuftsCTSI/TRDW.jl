@@ -1,5 +1,13 @@
 @funsql begin
 
+count_values(keys...) = begin
+	group($(keys...))
+	define(n => count())
+	partition()
+	define(`%` => round(100 * n / sum(n), 1))
+	order(n.desc())
+end
+
 define_era(datetime, datetime_end) = begin
     partition(person_id, order_by = [$datetime, occurrence_id],
               frame = (mode = rows, start = -Inf, finish = -1),
