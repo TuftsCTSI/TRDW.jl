@@ -727,10 +727,13 @@ function get_password()
             password = strip(read(open(pwfile), String))
         else
             password = make_password()
-            f = open(pwfile, "w")
-            write(f, password * "\n")
-            close(f)
         end
+    end
+    if length(password) > 0 && haskey(ENV, "CACHE_DIR")
+        pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
+        f = open(pwfile, "w")
+        write(f, password * "\n")
+        close(f)
     end
     return password == "" ? nothing : password
 end
