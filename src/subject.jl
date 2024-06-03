@@ -86,7 +86,7 @@ struct MergeSubjectSpecification
     truncate::Bool
 end
 
-funsql_merge_subject(node; truncate=false) = MergeSubjectSpecification(node, truncate)
+funsql_assign_subject_ids(node; truncate=false) = MergeSubjectSpecification(node, truncate)
 
 function run(db, spec::MergeSubjectSpecification)
     sql = FunSQL.render(db, spec.node)
@@ -94,7 +94,7 @@ function run(db, spec::MergeSubjectSpecification)
         # TODO: requires FunSQL#metadata branch
         # check sql.columns for subject_id
     else
-        @assert !occursin("subject_id", sql) "use merge_customer_subject() for customer-provided subject ids"
+        @assert !occursin("subject_id", sql) "use assign_customer_subject_ids() for customer-provided subject ids"
     end
     subject_table = ensure_subject_table(db)
     subject_sql = sqlname(db, subject_table)
@@ -135,7 +135,7 @@ struct MergeCustomerSubjectSpecification
     truncate::Bool
 end
 
-funsql_merge_customer_subject(node; truncate=false, datatype="BIGINT") =
+funsql_assign_customer_subject_ids(node; truncate=false, datatype="BIGINT") =
     MergeCustomerSubjectSpecification(node, datatype, truncate)
 
 function run(db, spec::MergeCustomerSubjectSpecification)
@@ -144,7 +144,7 @@ function run(db, spec::MergeCustomerSubjectSpecification)
         # TODO: requires FunSQL#metadata branch
         # check sql.columns for subject_id
     else
-        @assert occursin("subject_id", sql) "use merge_subject() to add/remove subjects"
+        @assert occursin("subject_id", sql) "use assign_subject_ids() to add/remove subjects"
     end
     subject_table = ensure_subject_table(db; spec.datatype)
     subject_sql = sqlname(db, subject_table)
