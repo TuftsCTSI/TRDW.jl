@@ -163,7 +163,7 @@ macro connect(args...)
 
         import TRDW: @query
         macro query(q)
-            return TRDW.query_macro(__module__, __source__, Expr(:($), :db), q)
+            return TRDW.query_macro(__module__, __source__, db, q)
         end
         export @query
 
