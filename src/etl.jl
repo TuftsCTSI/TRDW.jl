@@ -59,23 +59,6 @@ struct TransformContext
     schemas::Vector{TransformSchema}
 end
 
-function run(db, t::AbstractTransform; name::Union{AbstractString, Symbol})
-    entries = TransformEntry[]
-    schema = TransformSchema()
-    for (name, t) in db.catalog
-        push!(entries, (t, 0))
-        schema[name] = lastindex(entries)
-    end
-    ctx = TransformContext(Symbol(name), entries, [schema])
-    transform!(t, ctx)
-    catalog′, ddls = serialize_ddls(db.catalog, ctx)
-    for ddl in ddls
-        @info ddl
-        DBInterface.execute(db, ddl)
-    end
-    FunSQL.SQLConnection(db.raw, catalog = catalog′)
-end
-
 function transform!(t::SetTransform, ctx)
     version = lastindex(ctx.schemas)
     schema′ = ctx.schemas[end]
@@ -234,8 +217,7 @@ function serialize_ddls(catalog, ctx)
         end
         subs_map[index] = subs
     end
-    catalog′ = FunSQL.SQLCatalog(tables = tables, dialect = catalog.dialect)
-    catalog′, ddls
+    ddls
 end
 
 function dependencies(n::FunSQL.SQLNode, schema)
@@ -299,4 +281,38 @@ function dependencies!(n::IfSetNode, schema, free, bound)
     node = haskey(schema, n.name) ? n.node : n.else_node
     node = node !== nothing && over !== nothing ? over |> node : node !== nothing ? node : over
     dependencies!(node, schema, free, bound)
+end
+
+struct CreateSchemaSpecification
+    name::Symbol
+    etl::AbstractTransform
+end
+
+funsql_create_schema((name, etl)::Pair{<:Union{Symbol, AbstractString}, <:AbstractTransform}) =
+    CreateSchemaSpecification(Symbol(name), etl)
+
+function run(db, spec::CreateSchemaSpecification)
+    entries = TransformEntry[]
+    schema = TransformSchema()
+    for (name, t) in db.catalog
+        push!(entries, (t, 0))
+        schema[name] = lastindex(entries)
+    end
+    ctx = TransformContext(spec.name, entries, [schema])
+    transform!(spec.etl, ctx)
+    ddls = serialize_ddls(db.catalog, ctx)
+    for ddl in ddls
+        @info ddl
+        DBInterface.execute(db, ddl)
+    end
+    tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
+    cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect)
+    db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
+    concept_cache = create_concept_cache(db′)
+    if concept_cache !== nothing
+        metadata = Dict(:concept_cache => concept_cache)
+        cat′ = FunSQL.SQLCatalog(tables = cat′.tables, dialect = cat′.dialect, metadata = metadata)
+        db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
+    end
+    db′
 end
