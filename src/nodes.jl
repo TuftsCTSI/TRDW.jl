@@ -669,27 +669,27 @@ function FunSQL.resolve_scalar(n::AssertValidConceptNode, ctx)
     FunSQL.resolve_scalar(n.condition, ctx)
 end
 
-function create_concept_cache(db)
-    t = get(db.catalog.tables, :concept, nothing)
+function create_concept_cache(conn, t)
     t !== nothing && t.metadata !== nothing && get(t.metadata, :created, nothing) isa DateTime || return
     key = join(string.([t.qualifiers..., t.name]), '.')
     table_ctime = trunc(Int, datetime2unix(t.metadata[:created]))
     scratchname = "$key.$table_ctime"
-    return (db = db, dir = @get_scratch!(scratchname))
+    return (conn = conn, dir = @get_scratch!(scratchname))
 end
 
 function resolve_concept_id(cat::FunSQL.SQLCatalog, n::AssertValidConceptNode)
     m = cat.metadata
     concept_cache = m !== nothing ? get(m, :concept_cache, nothing) : nothing
     concept_cache !== nothing || return
+    db = FunSQL.SQLConnection(concept_cache.conn, catalog = cat)
     q = @funsql concept($(n.condition)).order(concept_id).limit(3)
-    sql = FunSQL.render(concept_cache.db, q)
+    sql = FunSQL.render(db, q)
     key = bytes2hex(sha256(sql))
     filename = joinpath(concept_cache.dir, key * ".arrow")
     if isfile(filename)
         df = DataFrame(Arrow.Table(filename))
     else
-        df = DataFrame(DBInterface.execute(concept_cache.db, sql))
+        df = DataFrame(DBInterface.execute(db, sql))
         tmpname = tempname(concept_cache.dir)
         Arrow.write(tmpname, df)
         mv(tmpname, filename, force = true)
