@@ -671,12 +671,10 @@ end
 
 function create_concept_cache(db)
     t = get(db.catalog.tables, :concept, nothing)
-    t !== nothing || return
+    t !== nothing && t.metadata !== nothing && get(t.metadata, :created, nothing) isa DateTime || return
     key = join(string.([t.qualifiers..., t.name]), '.')
-    t_id = FunSQL.render(db, FunSQL.ID(t.qualifiers, t.name))
-    table_detail = Tables.columntable(DBInterface.execute(db, "DESCRIBE DETAIL $t_id"))
-    table_mtime = trunc(Int, datetime2unix(table_detail.lastModified[1]))
-    scratchname = "$key.$table_mtime"
+    table_ctime = trunc(Int, datetime2unix(t.metadata[:created]))
+    scratchname = "$key.$table_ctime"
     return (db = db, dir = @get_scratch!(scratchname))
 end
 
