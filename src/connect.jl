@@ -115,9 +115,7 @@ function _tables_from_column_list(rows)
 end
 
 function query_macro(__module__, __source__, db, q)
-    if db isa Expr && db.head === :($) && length(db.args) == 1
-        db = esc(db.args[1])
-    end
+    db = esc(db)
     ex = FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext(__module__, __source__))
     if ex isa Expr && ex.head in (:(=), :const, :global, :local) ||
         ex isa Expr && ex.head === :block && any(ex′ isa Expr && ex′.head in (:(=), :const, :global, :local) for ex′ in ex.args)
