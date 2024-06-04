@@ -111,6 +111,12 @@ function transform!(t::ChainTransform, ctx)
     transform!(t.t2, ctx)
 end
 
+struct DDLEntry
+    id::Int
+    sql::String
+    reqs::Set{Int}
+end
+
 function serialize_ddls(catalog, ctx)
     outs = Set{Tuple{Int, Symbol}}()
     deps_map = Dict{Tuple{Int, Symbol}, Set{Tuple{Int, Symbol}}}()
@@ -145,13 +151,14 @@ function serialize_ddls(catalog, ctx)
         deps_map[key] = deps
     end
     tables = Dict{Symbol, FunSQL.SQLTable}()
-    ddls = String[]
+    ddls = DDLEntry[]
     schema_name_sql = FunSQL.render(catalog, FunSQL.ID(ctx.name))
-    push!(ddls, "DROP SCHEMA IF EXISTS $schema_name_sql CASCADE")
-    push!(ddls, "CREATE SCHEMA $schema_name_sql")
+    push!(ddls, DDLEntry(-1, "DROP SCHEMA IF EXISTS $schema_name_sql CASCADE", Set{Int}()))
+    push!(ddls, DDLEntry(0, "CREATE SCHEMA $schema_name_sql", Set([-1])))
     qualifiers = [ctx.name]
     ctes = FunSQL.SQLNode[]
     subs_map = Dict{Int, Set{Int}}()
+    sub_to_req = Dict{Int, Int}()
     for key in sort(collect(keys(deps_map)))
         (index, name) = key
         (def, version) = ctx.entries[index]
@@ -160,7 +167,7 @@ function serialize_ddls(catalog, ctx)
             if key in outs
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 sql = FunSQL.render(catalog, FunSQL.From(def))
-                ddl = "CREATE VIEW $name_sql AS\n$sql"
+                ddl = DDLEntry(index, "CREATE VIEW $name_sql AS\n$sql", Set([0]))
                 push!(ddls, ddl)
                 table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = sql.columns)
                 tables[name] = table
@@ -173,14 +180,19 @@ function serialize_ddls(catalog, ctx)
             end
             if key in outs
                 q = def
+                reqs = Set{Int}([0])
                 for k in sort(collect(subs), rev = true)
                     q = FunSQL.With(ctes[k], over = q)
+                    req = get(sub_to_req, k, nothing)
+                    if req !== nothing
+                        push!(reqs, req)
+                    end
                 end
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 sql = FunSQL.render(catalog, q)
                 @assert sql.columns !== nothing name
                 ddl = "CREATE VIEW $name_sql AS\n$sql"
-                push!(ddls, ddl)
+                push!(ddls, DDLEntry(index, ddl, reqs))
                 table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = sql.columns)
                 tables[name] = table
             end
@@ -191,8 +203,13 @@ function serialize_ddls(catalog, ctx)
                 union!(subs, subs_map[dep_index])
             end
             q = FunSQL.From(def.name)
+            reqs = Set{Int}([0])
             for k in sort(collect(subs), rev = true)
                 q = FunSQL.With(ctes[k], over = q)
+                req = get(sub_to_req, k, nothing)
+                if req !== nothing
+                    push!(reqs, req)
+                end
             end
             if key in outs
                 snapshot_name = name
@@ -208,12 +225,13 @@ function serialize_ddls(catalog, ctx)
             sql = FunSQL.render(catalog, q)
             @assert sql.columns !== nothing name
             ddl = "CREATE TABLE $name_sql AS\n$sql"
-            push!(ddls, ddl)
+            push!(ddls, DDLEntry(index, ddl, reqs))
             table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = sql.columns)
             tables[snapshot_name] = table
             empty!(subs)
             push!(ctes, name => FunSQL.From(table))
             push!(subs, lastindex(ctes))
+            sub_to_req[lastindex(ctes)] = index
         end
         subs_map[index] = subs
     end
@@ -301,9 +319,35 @@ function run(db, spec::CreateSchemaSpecification)
     ctx = TransformContext(spec.name, entries, [schema])
     transform!(spec.etl, ctx)
     ddls = serialize_ddls(db.catalog, ctx)
-    for ddl in ddls
-        @info ddl
-        DBInterface.execute(db, ddl)
+    task_map = Dict{Int, Task}()
+    conn_pool = [db.raw]
+    conn_pool_lock = ReentrantLock()
+    default_catalog = db.catalog.metadata !== nothing ? get(db.catalog.metadata, :default_catalog, nothing) : nothing
+    @sync for ddl in ddls
+        task_reqs = [task_map[req] for req in ddl.reqs]
+        sql = ddl.sql
+        task_map[ddl.id] = Threads.@spawn begin
+            for task_req in $task_reqs
+                wait(task_req)
+            end
+            conn_pool = $conn_pool
+            conn_pool_lock = $conn_pool_lock
+            conn = Ref{Any}(nothing)
+            lock(conn_pool_lock) do
+                if !isempty(conn_pool)
+                    conn[] = pop!(conn_pool)
+                end
+            end
+            if conn[] === nothing
+                conn[] = connect_to_databricks(catalog = $default_catalog)
+            end
+            sql = $sql
+            @info sql
+            DBInterface.execute(conn[], sql)
+            lock(conn_pool_lock) do
+                push!(conn_pool, conn[])
+            end
+        end
     end
     tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
     metadata′ = Dict{Symbol, Any}()
