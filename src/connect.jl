@@ -33,20 +33,11 @@ isessentiallyuppercase(s) =
 function connect(specs...; catalog = nothing, exclude = nothing)
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
     catalog = something(catalog, DATABRICKS_CATALOG)
-
     conn = connect_to_databricks(catalog = catalog)
     table_map = Dict{Symbol, FunSQL.SQLTable}()
     for spec in specs
-        prefix, (catalogname, schemaname) = _unpack_spec(spec, catalog)
-        raw_cols = ODBC.columns(conn,
-                                catalogname = catalogname,
-                                schemaname = schemaname)
-        cols = [(lowercase(row.TABLE_CAT),
-                 lowercase(row.TABLE_SCHEM),
-                 lowercase(row.TABLE_NAME),
-                 isessentiallyuppercase(row.COLUMN_NAME) ? lowercase(row.COLUMN_NAME) : row.COLUMN_NAME)
-                for row in Tables.rows(raw_cols)]
-        tables = _tables_from_column_list(cols)
+        prefix, (catalogname, schemaname) = _unpack_spec(spec)
+        tables = _introspect_schema(conn, catalogname, schemaname)
         for table in tables
             exclude === nothing || !exclude(table) || continue
             name = Symbol("$prefix$(table.name)")
@@ -66,27 +57,59 @@ end
 
 const connect_with_funsql = connect # backward compatibility
 
-_unpack_spec(schema::Union{Symbol, AbstractString, NTuple{2, Union{Symbol, AbstractString}}}, default_catalog) =
-    "", _split_schema(schema, default_catalog)
+_unpack_spec(schema::Union{Symbol, AbstractString, NTuple{2, Union{Symbol, AbstractString}}}) =
+    "", _split_schema(schema)
 
-_unpack_spec(pair::Pair, default_catalog) =
-    string(first(pair)), _split_schema(last(pair), default_catalog)
+_unpack_spec(pair::Pair) =
+    string(first(pair)), _split_schema(last(pair))
 
-function _split_schema(schema::AbstractString, default_catalog)
+function _split_schema(schema::AbstractString)
     parts = split(schema, '.', limit = 2)
     length(parts) == 1 ?
-      (default_catalog, string(parts[1])) : (string(parts[1]), string(parts[2]))
+      (nothing, string(parts[1])) : (string(parts[1]), string(parts[2]))
 end
 
-_split_schema(schema::NTuple{2, Union{Symbol, AbstractString}}, default_catalog) =
+_split_schema(schema::NTuple{2, Union{Symbol, AbstractString}}) =
     string(schema[1]), string(schema[2])
+
+function _introspect_schema(conn, catalogname, schemaname)
+    info_schema = FunSQL.ID(:information_schema)
+    if catalogname !== nothing
+        info_schema = FunSQL.ID(catalogname) |> info_schema
+    end
+    introspect_clause =
+        FunSQL.FROM(:t => info_schema |> FunSQL.ID(:tables)) |>
+        FunSQL.JOIN(
+            :c => info_schema |> FunSQL.ID(:columns),
+            on = FunSQL.FUN(:and,
+                FunSQL.FUN("=", (:t, :table_catalog), (:c, :table_catalog)),
+                FunSQL.FUN("=", (:t, :table_schema), (:c, :table_schema)),
+                FunSQL.FUN("=", (:t, :table_name), (:c, :table_name)))) |>
+        FunSQL.WHERE(FunSQL.FUN("=", (:t, :table_schema), schemaname)) |>
+        FunSQL.ORDER((:t, :table_catalog), (:t, :table_schema), (:t, :table_name), (:c, :ordinal_position)) |>
+        FunSQL.SELECT(
+            :created => (:t, :created),
+            :table_catalog => (:t, :table_catalog),
+            :table_schema => (:t, :table_schema),
+            :table_name => (:t, :table_name),
+            :column_name => (:c, :column_name))
+    sql = FunSQL.render(introspect_clause, dialect = FunSQL.SQLDialect(:spark))
+    cr = DBInterface.execute(conn, sql)
+    column_list = [(row.created,
+                    lowercase(row.table_catalog),
+                    lowercase(row.table_schema),
+                    lowercase(row.table_name),
+                    isessentiallyuppercase(row.column_name) ? lowercase(row.column_name) : row.column_name)
+                  for row in Tables.rows(cr)]
+    _tables_from_column_list(column_list)
+end
 
 function _tables_from_column_list(rows)
     tables = FunSQL.SQLTable[]
     qualifiers = Symbol[]
-    catalog = schema = name = nothing
+    created = catalog = schema = name = nothing
     columns = Symbol[]
-    for (cat, s, n, c) in rows
+    for (cr, cat, s, n, c) in rows
         cat = Symbol(cat)
         s = Symbol(s)
         n = Symbol(n)
@@ -95,12 +118,14 @@ function _tables_from_column_list(rows)
             push!(columns, c)
         else
             if !isempty(columns)
-                t = FunSQL.SQLTable(qualifiers = qualifiers, name = name, columns = columns)
+                metadata = Dict{Symbol, Any}(:created => created)
+                t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
                 push!(tables, t)
             end
             if cat !== catalog || s !== schema
                 qualifiers = [cat, s]
             end
+            created = cr
             catalog = cat
             schema = s
             name = n
@@ -108,7 +133,8 @@ function _tables_from_column_list(rows)
         end
     end
     if !isempty(columns)
-        t = FunSQL.SQLTable(qualifiers = qualifiers, name = name, columns = columns)
+        metadata = Dict{Symbol, Any}(:created => created)
+        t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
         push!(tables, t)
     end
     tables
