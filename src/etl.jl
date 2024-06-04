@@ -306,13 +306,12 @@ function run(db, spec::CreateSchemaSpecification)
         DBInterface.execute(db, ddl)
     end
     tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
-    cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect)
+    metadata′ = Dict{Symbol, Any}()
+    cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect, metadata = metadata′)
+    metadata = @something db.catalog.metadata Dict{Symbol, Any}()
+    metadata′[:default_catalog] = get(metadata, :default_catalog, nothing)
+    metadata′[:concept_cache] = create_concept_cache(db.raw, get(cat′, :concept, nothing))
+    metadata′[:created] = Dates.now()
     db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
-    concept_cache = create_concept_cache(db′)
-    if concept_cache !== nothing
-        metadata = Dict(:concept_cache => concept_cache)
-        cat′ = FunSQL.SQLCatalog(tables = cat′.tables, dialect = cat′.dialect, metadata = metadata)
-        db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
-    end
     db′
 end

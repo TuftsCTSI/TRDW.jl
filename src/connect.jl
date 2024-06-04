@@ -44,14 +44,12 @@ function connect(specs...; catalog = nothing, exclude = nothing)
             table_map[name] = table
         end
     end
-    cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark))
+    metadata = Dict{Symbol, Any}()
+    metadata[:default_catalog] = catalog
+    metadata[:concept_cache] = create_concept_cache(conn, get(table_map, :concept, nothing))
+    metadata[:created] = Dates.now()
+    cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark), metadata = metadata)
     db = FunSQL.SQLConnection(conn, catalog = cat)
-    concept_cache = create_concept_cache(db)
-    if concept_cache !== nothing
-        metadata = Dict(:concept_cache => concept_cache)
-        cat = FunSQL.SQLCatalog(tables = cat.tables, dialect = cat.dialect, metadata = metadata)
-        db = FunSQL.SQLConnection(conn, catalog = cat)
-    end
     db
 end
 
