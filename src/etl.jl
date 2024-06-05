@@ -123,7 +123,7 @@ end
 
 struct SchemaDefinition
     name_sql::String
-    defs::Vector{TableDefinition}
+    defs::OrderedDict{String, TableDefinition}
 end
 
 function build_definition(catalog, ctx)
@@ -135,25 +135,26 @@ function build_definition(catalog, ctx)
         push!(outs, key)
         push!(queue, key)
     end
+    sort!(queue)
     while !isempty(queue)
         (index, name) = key = popfirst!(queue)
         !haskey(deps_map, key) || continue
-        (def, version) = ctx.entries[index]
+        (obj, version) = ctx.entries[index]
         deps = Set{Tuple{Int, Symbol}}()
-        if def isa FunSQL.SQLNode
+        if obj isa FunSQL.SQLNode
             schema = ctx.schemas[version]
-            for dep_name in dependencies(def, schema)
+            for dep_name in dependencies(obj, schema)
                 haskey(schema, dep_name) || error(dep_name)
                 dep_index = schema[dep_name]
                 dep_key = (dep_index, dep_name)
                 push!(deps, dep_key)
                 push!(queue, dep_key)
             end
-        elseif def isa SQLSnapshot
+        elseif obj isa SQLSnapshot
             schema = ctx.schemas[version]
-            haskey(schema, def.name) || error(def.name)
-            dep_index = schema[def.name]
-            dep_key = (dep_index, def.name)
+            haskey(schema, obj.name) || error(obj.name)
+            dep_index = schema[obj.name]
+            dep_key = (dep_index, obj.name)
             push!(deps, dep_key)
             push!(queue, dep_key)
         end
@@ -161,31 +162,31 @@ function build_definition(catalog, ctx)
     end
     tables = Dict{Symbol, FunSQL.SQLTable}()
     schema_name_sql = FunSQL.render(catalog, FunSQL.ID(ctx.name))
-    defs = TableDefinition[]
+    defs = OrderedDict{String, TableDefinition}()
     qualifiers = [ctx.name]
     ctes = FunSQL.SQLNode[]
     subs_map = Dict{Int, Set{Int}}()
     sub_to_req = Dict{Int, String}()
     for key in sort(collect(keys(deps_map)))
         (index, name) = key
-        (def, version) = ctx.entries[index]
+        (obj, version) = ctx.entries[index]
         subs = Set{Int}()
-        if def isa FunSQL.SQLTable
+        if obj isa FunSQL.SQLTable
             if key in outs
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
-                body_sql = FunSQL.render(catalog, FunSQL.From(def))
-                push!(defs, TableDefinition(name_sql, body_sql, is_view = true))
+                body_sql = FunSQL.render(catalog, FunSQL.From(obj))
+                defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true)
                 table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.columns)
                 tables[name] = table
             end
-            push!(ctes, name => FunSQL.From(def))
+            push!(ctes, name => FunSQL.From(obj))
             push!(subs, lastindex(ctes))
-        elseif def isa FunSQL.SQLNode
+        elseif obj isa FunSQL.SQLNode
             for (dep_index, _) in deps_map[key]
                 union!(subs, subs_map[dep_index])
             end
             if key in outs
-                q = def
+                q = obj
                 reqs = Set{String}()
                 for k in sort(collect(subs), rev = true)
                     q = FunSQL.With(ctes[k], over = q)
@@ -197,17 +198,17 @@ function build_definition(catalog, ctx)
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 body_sql = FunSQL.render(catalog, q)
                 @assert body_sql.columns !== nothing name
-                push!(defs, TableDefinition(name_sql, body_sql, is_view = true, reqs = reqs))
+                defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true, reqs = reqs)
                 table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.columns)
                 tables[name] = table
             end
-            push!(ctes, name => def)
+            push!(ctes, name => obj)
             push!(subs, lastindex(ctes))
-        elseif def isa SQLSnapshot
+        elseif obj isa SQLSnapshot
             for (dep_index, _) in deps_map[key]
                 union!(subs, subs_map[dep_index])
             end
-            q = FunSQL.From(def.name)
+            q = FunSQL.From(obj.name)
             reqs = Set{String}()
             for k in sort(collect(subs), rev = true)
                 q = FunSQL.With(ctes[k], over = q)
@@ -229,7 +230,7 @@ function build_definition(catalog, ctx)
             name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, snapshot_name))
             body_sql = FunSQL.render(catalog, q)
             @assert body_sql.columns !== nothing name
-            push!(defs, TableDefinition(name_sql, body_sql, reqs = reqs))
+            defs[name_sql] = TableDefinition(name_sql, body_sql, reqs = reqs)
             table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = body_sql.columns)
             tables[snapshot_name] = table
             empty!(subs)
@@ -368,7 +369,7 @@ function run(db, spec::CreateSchemaSpecification)
         sql = "CREATE SCHEMA $(schema_def.name_sql)"
         task0 = Threads.@spawn execute_ddl($pool, $sql, [$task0])
         task_map = Dict{String, Task}()
-        for def in schema_def.defs
+        for def in values(schema_def.defs)
             sql = "CREATE $(def.is_view ? "VIEW" : "TABLE") $(def.name_sql) AS $(def.body_sql)"
             req_tasks = [task0]
             for req in def.reqs
