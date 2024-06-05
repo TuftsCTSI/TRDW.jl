@@ -115,10 +115,12 @@ struct TableDefinition
     name_sql::String
     body_sql::String
     is_view::Bool
-    reqs::Set{String}
+    reqs::Vector{String}
+    etl_hash::String
+    etl_time::Int
 
-    TableDefinition(name_sql, body_sql; is_view = false, reqs = Set{String}()) =
-        new(name_sql, body_sql, is_view, reqs)
+    TableDefinition(name_sql, body_sql; is_view = false, reqs = String[], etl_hash, etl_time) =
+        new(name_sql, body_sql, is_view, reqs, etl_hash, etl_time)
 end
 
 struct SchemaDefinition
@@ -127,6 +129,7 @@ struct SchemaDefinition
 end
 
 function build_definition(catalog, ctx)
+    etl_time = catalog.metadata !== nothing && get(catalog.metadata, :ctime, nothing) isa Int ? catalog.metadata[:ctime] : trunc(Int, datetime2unix(Dates.now()))
     outs = Set{Tuple{Int, Symbol}}()
     deps_map = Dict{Tuple{Int, Symbol}, Set{Tuple{Int, Symbol}}}()
     queue = Tuple{Int, Symbol}[]
@@ -167,7 +170,7 @@ function build_definition(catalog, ctx)
     ctes = FunSQL.SQLNode[]
     subs_map = Dict{Int, Set{Int}}()
     sub_to_req = Dict{Int, String}()
-    for key in sort(collect(keys(deps_map)))
+    for key in sort!(collect(keys(deps_map)))
         (index, name) = key
         (obj, version) = ctx.entries[index]
         subs = Set{Int}()
@@ -175,7 +178,11 @@ function build_definition(catalog, ctx)
             if key in outs
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 body_sql = FunSQL.render(catalog, FunSQL.From(obj))
-                defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true)
+                etl_hash_ctx = SHA256_CTX()
+                update!(etl_hash_ctx, codeunits("CREATE VIEW"))
+                update!(etl_hash_ctx, codeunits(body_sql))
+                etl_hash = bytes2hex(digest!(etl_hash_ctx))
+                defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true, etl_hash = etl_hash, etl_time = etl_time)
                 table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.columns)
                 tables[name] = table
             end
@@ -195,10 +202,18 @@ function build_definition(catalog, ctx)
                         push!(reqs, req)
                     end
                 end
+                reqs = sort!(collect(reqs))
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 body_sql = FunSQL.render(catalog, q)
                 @assert body_sql.columns !== nothing name
-                defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true, reqs = reqs)
+                etl_hash_ctx = SHA256_CTX()
+                for req in reqs
+                    update!(etl_hash_ctx, codeunits(defs[req].etl_hash))
+                end
+                update!(etl_hash_ctx, codeunits("CREATE VIEW"))
+                update!(etl_hash_ctx, codeunits(body_sql))
+                etl_hash = bytes2hex(digest!(etl_hash_ctx))
+                defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true, reqs = reqs, etl_hash = etl_hash, etl_time = etl_time)
                 table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.columns)
                 tables[name] = table
             end
@@ -217,6 +232,7 @@ function build_definition(catalog, ctx)
                     push!(reqs, req)
                 end
             end
+            reqs = sort!(collect(reqs))
             if key in outs
                 snapshot_name = name
             else
@@ -230,7 +246,14 @@ function build_definition(catalog, ctx)
             name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, snapshot_name))
             body_sql = FunSQL.render(catalog, q)
             @assert body_sql.columns !== nothing name
-            defs[name_sql] = TableDefinition(name_sql, body_sql, reqs = reqs)
+            etl_hash_ctx = SHA256_CTX()
+            for req in reqs
+                update!(etl_hash_ctx, codeunits(defs[req].etl_hash))
+            end
+            update!(etl_hash_ctx, codeunits("CREATE TABLE"))
+            update!(etl_hash_ctx, codeunits(body_sql))
+            etl_hash = bytes2hex(digest!(etl_hash_ctx))
+            defs[name_sql] = TableDefinition(name_sql, body_sql, reqs = reqs, etl_hash = etl_hash, etl_time = etl_time)
             table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = body_sql.columns)
             tables[snapshot_name] = table
             empty!(subs)
@@ -370,12 +393,16 @@ function run(db, spec::CreateSchemaSpecification)
         task0 = Threads.@spawn execute_ddl($pool, $sql, [$task0])
         task_map = Dict{String, Task}()
         for def in values(schema_def.defs)
-            sql = "CREATE $(def.is_view ? "VIEW" : "TABLE") $(def.name_sql) AS $(def.body_sql)"
+            obj_sql = def.is_view ? "VIEW" : "TABLE"
+            sql = "CREATE $obj_sql $(def.name_sql) AS $(def.body_sql)"
             req_tasks = [task0]
             for req in def.reqs
                 push!(req_tasks, task_map[req])
             end
-            task_map[def.name_sql] = Threads.@spawn execute_ddl($pool, $sql, $req_tasks)
+            task = Threads.@spawn execute_ddl($pool, $sql, $req_tasks)
+            task_map[def.name_sql] = task
+            sql = "ALTER $obj_sql $(def.name_sql) SET TAGS ('etl_hash' = '$(def.etl_hash)', 'etl_time' = '$(def.etl_time)')"
+            Threads.@spawn execute_ddl($pool, $sql, [$task])
         end
     end
     tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
