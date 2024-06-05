@@ -30,6 +30,36 @@ end
 isessentiallyuppercase(s) =
     all(ch -> isuppercase(ch) || isdigit(ch) || ch == '_', s)
 
+struct CatalogMetadata
+    default_catalog::String
+    concept_cache::Union{Tuple{ODBC.Connection, String}, Nothing}
+    src_time::Int
+
+    CatalogMetadata(default_catalog, concept_cache) =
+        new(default_catalog, concept_cache, trunc(Int, datetime2unix(Dates.now())))
+end
+
+function get_metadata(cat::FunSQL.SQLCatalog)
+    cat.metadata !== nothing || return
+    m = get(cat.metadata, :trdw, nothing)
+    m isa CatalogMetadata || return
+    m
+end
+
+struct TableMetadata
+    ctime::Int
+    is_view::Bool
+    etl_hash::Union{String, Nothing}
+    etl_time::Union{Int, Nothing}
+end
+
+function get_metadata(t::FunSQL.SQLTable)
+    t.metadata !== nothing || return
+    m = get(t.metadata, :trdw, nothing)
+    m isa TableMetadata || return
+    m
+end
+
 function connect(specs...; catalog = nothing, exclude = nothing)
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
     catalog = something(catalog, DATABRICKS_CATALOG)
@@ -44,10 +74,8 @@ function connect(specs...; catalog = nothing, exclude = nothing)
             table_map[name] = table
         end
     end
-    metadata = Dict{Symbol, Any}()
-    metadata[:default_catalog] = catalog
-    metadata[:concept_cache] = create_concept_cache(conn, get(table_map, :concept, nothing))
-    metadata[:ctime] = trunc(Int, datetime2unix(Dates.now()))
+    concept_cache = create_concept_cache(conn, get(table_map, :concept, nothing))
+    metadata = Dict{Symbol, Any}(:trdw => CatalogMetadata(catalog, concept_cache))
     cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark), metadata = metadata)
     db = FunSQL.SQLConnection(conn, catalog = cat)
     db
@@ -83,10 +111,29 @@ function _introspect_schema(conn, catalogname, schemaname)
                 FunSQL.FUN("=", (:t, :table_catalog), (:c, :table_catalog)),
                 FunSQL.FUN("=", (:t, :table_schema), (:c, :table_schema)),
                 FunSQL.FUN("=", (:t, :table_name), (:c, :table_name)))) |>
+        FunSQL.JOIN(
+            :etl_hash_t => info_schema |> FunSQL.ID(:table_tags),
+            on = FunSQL.FUN(:and,
+                FunSQL.FUN("=", (:t, :table_catalog), (:etl_hash_t, :catalog_name)),
+                FunSQL.FUN("=", (:t, :table_schema), (:etl_hash_t, :schema_name)),
+                FunSQL.FUN("=", (:t, :table_name), (:etl_hash_t, :table_name)),
+                FunSQL.FUN("=", (:etl_hash_t, :tag_name), "etl_hash")),
+            left = true) |>
+        FunSQL.JOIN(
+            :etl_time_t => info_schema |> FunSQL.ID(:table_tags),
+            on = FunSQL.FUN(:and,
+                FunSQL.FUN("=", (:t, :table_catalog), (:etl_time_t, :catalog_name)),
+                FunSQL.FUN("=", (:t, :table_schema), (:etl_time_t, :schema_name)),
+                FunSQL.FUN("=", (:t, :table_name), (:etl_time_t, :table_name)),
+                FunSQL.FUN("=", (:etl_time_t, :tag_name), "etl_time")),
+            left = true) |>
         FunSQL.WHERE(FunSQL.FUN("=", (:t, :table_schema), schemaname)) |>
         FunSQL.ORDER((:t, :table_catalog), (:t, :table_schema), (:t, :table_name), (:c, :ordinal_position)) |>
         FunSQL.SELECT(
             :created => (:t, :created),
+            :is_view => FunSQL.FUN("=", (:t, :table_type), "VIEW"),
+            :etl_hash => (:etl_hash_t, :tag_value),
+            :etl_time => (:etl_time_t, :tag_value),
             :table_catalog => (:t, :table_catalog),
             :table_schema => (:t, :table_schema),
             :table_name => (:t, :table_name),
@@ -94,6 +141,9 @@ function _introspect_schema(conn, catalogname, schemaname)
     sql = FunSQL.render(introspect_clause, dialect = FunSQL.SQLDialect(:spark))
     cr = DBInterface.execute(conn, sql)
     column_list = [(row.created,
+                    row.is_view,
+                    row.etl_hash,
+                    row.etl_time,
                     lowercase(row.table_catalog),
                     lowercase(row.table_schema),
                     lowercase(row.table_name),
@@ -105,10 +155,12 @@ end
 function _tables_from_column_list(rows)
     tables = FunSQL.SQLTable[]
     qualifiers = Symbol[]
-    ctime = catalog = schema = name = nothing
+    ctime = is_view = etl_hash = etl_time = catalog = schema = name = nothing
     columns = Symbol[]
-    for (ct, cat, s, n, c) in rows
+    for (ct, v, etl_h, etl_t, cat, s, n, c) in rows
         ct = trunc(Int, datetime2unix(ct))
+        etl_h = etl_h !== missing ? etl_h : nothing
+        etl_t = etl_t !== missing ? tryparse(Int, etl_t) : nothing
         cat = Symbol(cat)
         s = Symbol(s)
         n = Symbol(n)
@@ -117,7 +169,7 @@ function _tables_from_column_list(rows)
             push!(columns, c)
         else
             if !isempty(columns)
-                metadata = Dict{Symbol, Any}(:ctime => ctime)
+                metadata = Dict{Symbol, Any}(:trdw => TableMetadata(ctime, is_view, etl_hash, etl_time))
                 t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
                 push!(tables, t)
             end
@@ -125,6 +177,9 @@ function _tables_from_column_list(rows)
                 qualifiers = [cat, s]
             end
             ctime = ct
+            is_view = v
+            etl_hash = etl_h
+            etl_time = etl_t
             catalog = cat
             schema = s
             name = n
@@ -132,7 +187,7 @@ function _tables_from_column_list(rows)
         end
     end
     if !isempty(columns)
-        metadata = Dict{Symbol, Any}(:ctime => ctime)
+        metadata = Dict{Symbol, Any}(:trdw => TableMetadata(ctime, is_view, etl_hash, etl_time))
         t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
         push!(tables, t)
     end

@@ -343,10 +343,11 @@ struct ConnectionPool
     lock::ReentrantLock
 
     function ConnectionPool(db)
-        default_catalog = db.catalog.metadata !== nothing ? get(db.catalog.metadata, :default_catalog, nothing) : nothing
+        m = get_metadata(db.catalog)
+        @assert m !== nothing
         conns = [db.raw]
         lock = ReentrantLock()
-        new(default_catalog, conns, lock)
+        new(m.default_catalog, conns, lock)
     end
 end
 
@@ -408,10 +409,11 @@ function run(db, spec::CreateSchemaSpecification)
     tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
     metadata′ = Dict{Symbol, Any}()
     cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect, metadata = metadata′)
-    metadata = @something db.catalog.metadata Dict{Symbol, Any}()
-    metadata′[:default_catalog] = get(metadata, :default_catalog, nothing)
-    metadata′[:concept_cache] = create_concept_cache(db.raw, get(cat′, :concept, nothing))
-    metadata′[:created] = Dates.now()
+    m = get_metadata(db.catalog)
+    if m !== nothing
+        concept_cache = create_concept_cache(db.raw, get(cat′, :concept, nothing))
+        metadata′[:trdw] = CatalogMetadata(m.default_catalog, concept_cache)
+    end
     db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
     db′
 end
