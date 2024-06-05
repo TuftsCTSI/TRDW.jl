@@ -47,7 +47,7 @@ function connect(specs...; catalog = nothing, exclude = nothing)
     metadata = Dict{Symbol, Any}()
     metadata[:default_catalog] = catalog
     metadata[:concept_cache] = create_concept_cache(conn, get(table_map, :concept, nothing))
-    metadata[:created] = Dates.now()
+    metadata[:ctime] = trunc(Int, datetime2unix(Dates.now()))
     cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark), metadata = metadata)
     db = FunSQL.SQLConnection(conn, catalog = cat)
     db
@@ -105,9 +105,10 @@ end
 function _tables_from_column_list(rows)
     tables = FunSQL.SQLTable[]
     qualifiers = Symbol[]
-    created = catalog = schema = name = nothing
+    ctime = catalog = schema = name = nothing
     columns = Symbol[]
-    for (cr, cat, s, n, c) in rows
+    for (ct, cat, s, n, c) in rows
+        ct = trunc(Int, datetime2unix(ct))
         cat = Symbol(cat)
         s = Symbol(s)
         n = Symbol(n)
@@ -116,14 +117,14 @@ function _tables_from_column_list(rows)
             push!(columns, c)
         else
             if !isempty(columns)
-                metadata = Dict{Symbol, Any}(:created => created)
+                metadata = Dict{Symbol, Any}(:ctime => ctime)
                 t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
                 push!(tables, t)
             end
             if cat !== catalog || s !== schema
                 qualifiers = [cat, s]
             end
-            created = cr
+            ctime = ct
             catalog = cat
             schema = s
             name = n
@@ -131,7 +132,7 @@ function _tables_from_column_list(rows)
         end
     end
     if !isempty(columns)
-        metadata = Dict{Symbol, Any}(:created => created)
+        metadata = Dict{Symbol, Any}(:ctime => ctime)
         t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
         push!(tables, t)
     end

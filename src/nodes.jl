@@ -670,10 +670,10 @@ function FunSQL.resolve_scalar(n::AssertValidConceptNode, ctx)
 end
 
 function create_concept_cache(conn, t)
-    t !== nothing && t.metadata !== nothing && get(t.metadata, :created, nothing) isa DateTime || return
+    t !== nothing && t.metadata !== nothing && get(t.metadata, :ctime, nothing) isa Int || return
     key = join(string.([t.qualifiers..., t.name]), '.')
-    table_ctime = trunc(Int, datetime2unix(t.metadata[:created]))
-    scratchname = "$key.$table_ctime"
+    ctime = t.metadata[:ctime]
+    scratchname = "$key.$ctime"
     return (conn = conn, dir = @get_scratch!(scratchname))
 end
 
