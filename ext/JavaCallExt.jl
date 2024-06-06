@@ -21,13 +21,13 @@ const OPCPackage = @jimport org.apache.poi.openxml4j.opc.OPCPackage
 const OutputStream = @jimport java.io.OutputStream
 const PackageAccess = @jimport org.apache.poi.openxml4j.opc.PackageAccess
 const POIFSFileSystem = @jimport org.apache.poi.poifs.filesystem.POIFSFileSystem
-const XSSFCell = @jimport org.apache.poi.xssf.usermodel.XSSFCell
-const XSSFRow = @jimport org.apache.poi.xssf.usermodel.XSSFRow
-const XSSFSheet = @jimport org.apache.poi.xssf.usermodel.XSSFSheet
-const XSSFWorkbook = @jimport org.apache.poi.xssf.usermodel.XSSFWorkbook
+const SXSSFCell = @jimport org.apache.poi.xssf.streaming.SXSSFCell
+const SXSSFRow = @jimport org.apache.poi.xssf.streaming.SXSSFRow
+const SXSSFSheet = @jimport org.apache.poi.xssf.streaming.SXSSFSheet
+const SXSSFWorkbook = @jimport org.apache.poi.xssf.streaming.SXSSFWorkbook
 
 function TRDW.XLSX.write(file, table; password = nothing)
-    workbook = XSSFWorkbook(())
+    workbook = SXSSFWorkbook(())
     creation_helper = jcall(workbook, "getCreationHelper", CreationHelper, ())
     date_format = jcall(creation_helper, "createDataFormat", DataFormat, ())
     date_format_idx = jcall(date_format, "getFormat", jshort, (JString,), "yyyy-mm-dd")
@@ -37,7 +37,7 @@ function TRDW.XLSX.write(file, table; password = nothing)
     jcall(date_cell_style, "setDataFormat", Nothing, (jshort,), date_format_idx)
     datetime_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
     jcall(datetime_cell_style, "setDataFormat", Nothing, (jshort,), datetime_format_idx)
-    sheet = jcall(workbook, "createSheet", XSSFSheet, (JString,), "Sheet1")
+    sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), "Sheet1")
     for (i, t) in enumerate(Tables.schema(table).types)
         t !== nothing || continue
         t = Base.nonmissingtype(t)
@@ -47,16 +47,16 @@ function TRDW.XLSX.write(file, table; password = nothing)
             jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
         end
     end
-    row = jcall(sheet, "createRow", XSSFRow, (jint,), 0)
+    row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
     for (i, c) in enumerate(Tables.columnnames(table))
-        cell = jcall(row, "createCell", XSSFCell, (jint,), i-1)
+        cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
         jcall(cell, "setCellValue", Nothing, (JString,), string(c))
     end
     for (k, r) in enumerate(Tables.rows(table))
-        row = jcall(sheet, "createRow", XSSFRow, (jint,), k)
+        row = jcall(sheet, "createRow", SXSSFRow, (jint,), k)
         vals = Any[Tables.getcolumn(r, c) for c in Tables.columnnames(r)]
         for (i, val) in enumerate(vals)
-            cell = jcall(row, "createCell", XSSFCell, (jint,), i-1)
+            cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
             if val === missing
             elseif val isa Dates.Date
                 datetime = jcall(LocalDateTime, "of", LocalDateTime, (jint, jint, jint, jint, jint), year(val), month(val), day(val), 0, 0)
@@ -92,6 +92,7 @@ function TRDW.XLSX.write(file, table; password = nothing)
     jcall(filesystem, "writeFilesystem", Nothing, (OutputStream,), file_output_stream)
     jcall(file_output_stream, "close", Nothing, ())
     jcall(filesystem, "close", Nothing, ())
+    jcall(workbook, "dispose", jboolean, ())
     nothing
 end
 
