@@ -129,7 +129,9 @@ struct SchemaDefinition
 end
 
 function build_definition(catalog, ctx)
-    etl_time = catalog.metadata !== nothing && get(catalog.metadata, :ctime, nothing) isa Int ? catalog.metadata[:ctime] : trunc(Int, datetime2unix(Dates.now()))
+    cat_m = get_metadata(catalog)
+    @assert cat_m !== nothing
+    etl_time = cat_m.src_time
     outs = Set{Tuple{Int, Symbol}}()
     deps_map = Dict{Tuple{Int, Symbol}, Set{Tuple{Int, Symbol}}}()
     queue = Tuple{Int, Symbol}[]
@@ -338,31 +340,54 @@ funsql_create_schema((name, etl)::Pair{<:Union{Symbol, AbstractString}, <:Abstra
     CreateSchemaSpecification(Symbol(name), etl)
 
 struct ConnectionPool
+    size::Int
     default_catalog::String
     conns::Vector{ODBC.Connection}
-    lock::ReentrantLock
+    lock::Threads.Condition
+    n_qs::Ref{Int}
+    n_conns::Ref{Int}
 
-    function ConnectionPool(db)
+    function ConnectionPool(db; size = 10)
         m = get_metadata(db.catalog)
         @assert m !== nothing
         conns = [db.raw]
-        lock = ReentrantLock()
-        new(m.default_catalog, conns, lock)
+        lock = Threads.Condition()
+        new(size, m.default_catalog, conns, lock, Ref(0), Ref(1))
     end
 end
+
+_is_ready(pool::ConnectionPool) =
+    !isempty(pool.conns) || pool.n_conns[] < pool.size
 
 function Base.pop!(pool::ConnectionPool)
     conn = nothing
     @lock pool.lock begin
+        pool.n_qs[] += 1
+        while !_is_ready(pool)
+            wait(pool.lock)
+        end
         if !isempty(pool.conns)
             conn = pop!(pool.conns)
+        else
+            pool.n_conns[] += 1
         end
     end
-    @something conn connect_to_databricks(catalog = pool.default_catalog)
+    if conn === nothing
+        try
+            conn = connect_to_databricks(catalog = pool.default_catalog)
+        catch
+            @lock pool.lock pool.n_conns[] -= 1
+            rethrow()
+        end
+    end
+    conn
 end
 
 function Base.push!(pool::ConnectionPool, conn::ODBC.Connection)
-    @lock pool.lock push!(pool.conns, conn)
+    @lock pool.lock begin
+        push!(pool.conns, conn)
+        notify(pool.lock, all = false)
+    end
 end
 
 function execute_ddl(pool, sql, req_tasks = Task[])
@@ -370,9 +395,13 @@ function execute_ddl(pool, sql, req_tasks = Task[])
         wait(task)
     end
     conn = pop!(pool)
-    @info sql
-    DBInterface.execute(conn, sql)
-    push!(pool, conn)
+    try
+        @info sql
+        sec = @elapsed DBInterface.execute(conn, sql)
+        @info "$(split(sql, '\n', limit = 2)[1]): $sec seconds"
+    finally
+        push!(pool, conn)
+    end
     nothing
 end
 
@@ -387,24 +416,63 @@ function run(db, spec::CreateSchemaSpecification)
     transform!(spec.etl, ctx)
     schema_def = build_definition(db.catalog, ctx)
     pool = ConnectionPool(db)
-    @sync begin
-        sql = "DROP SCHEMA IF EXISTS $(schema_def.name_sql) CASCADE"
-        task0 = Threads.@spawn execute_ddl($pool, $sql)
-        sql = "CREATE SCHEMA $(schema_def.name_sql)"
-        task0 = Threads.@spawn execute_ddl($pool, $sql, [$task0])
+    existing_tables = Dict{String, TableMetadata}(
+        [FunSQL.render(db, FunSQL.ID(t.qualifiers[end:end], t.name)) => (let m = get_metadata(t); @assert m !== nothing; m; end)
+         for t in _introspect_schema(db.raw, pool.default_catalog, string(spec.name))])
+    matches = Set{String}()
+    for (name_sql, m) in existing_tables
+        def = get(schema_def.defs, name_sql, nothing)
+        if def !== nothing && m.etl_hash == def.etl_hash && m.etl_time == def.etl_time
+            push!(matches, name_sql)
+        end
+    end
+    sec = @elapsed @sync begin
+        task0 = nothing
+        if isempty(matches)
+            sql = "DROP SCHEMA IF EXISTS $(schema_def.name_sql) CASCADE"
+            task0 = Threads.@spawn execute_ddl($pool, $sql)
+            sql = "CREATE SCHEMA $(schema_def.name_sql)"
+            task0 = Threads.@spawn execute_ddl($pool, $sql, [$task0])
+        else
+            for (name_sql, m) in existing_tables
+                !haskey(schema_def.defs, name_sql) || continue
+                cur_obj_sql = m.is_view ? "VIEW" : "TABLE"
+                sql = "DROP $cur_obj_sql $name_sql"
+                Threads.@spawn execute_ddl($pool, $sql)
+            end
+        end
         task_map = Dict{String, Task}()
         for def in values(schema_def.defs)
+            def.name_sql ∉ matches || continue
+            m = get(existing_tables, def.name_sql, nothing)
+            drop_task = nothing
+            cmd = "CREATE"
+            if isempty(matches) || m === nothing
+                drop_task = task0
+            elseif m.is_view == def.is_view
+                cmd = "CREATE OR REPLACE"
+            else
+                cur_obj_sql = m.is_view ? "VIEW" : "TABLE"
+                sql = "DROP $cur_obj_sql $(def.name_sql)"
+                drop_task = Threads.@spawn execute_ddl($pool, $sql)
+            end
             obj_sql = def.is_view ? "VIEW" : "TABLE"
-            sql = "CREATE $obj_sql $(def.name_sql) AS $(def.body_sql)"
-            req_tasks = [task0]
+            sql = "$cmd $obj_sql $(def.name_sql) AS\n$(def.body_sql)"
+            req_tasks = drop_task !== nothing ? [drop_task] : Task[]
             for req in def.reqs
+                haskey(task_map, req) || continue
                 push!(req_tasks, task_map[req])
             end
             task = Threads.@spawn execute_ddl($pool, $sql, $req_tasks)
             task_map[def.name_sql] = task
-            sql = "ALTER $obj_sql $(def.name_sql) SET TAGS ('etl_hash' = '$(def.etl_hash)', 'etl_time' = '$(def.etl_time)')"
+            sql = "ALTER $obj_sql $(def.name_sql)\nSET TAGS ('etl_hash' = '$(def.etl_hash)', 'etl_time' = '$(def.etl_time)')"
             Threads.@spawn execute_ddl($pool, $sql, [$task])
         end
+    end
+    n_qs = pool.n_qs[]
+    if n_qs > 0
+        n_conns = pool.n_conns[]
+        @info "$n_qs quer$(n_qs == 1 ? "y" : "ies") executed in $sec seconds using $n_conns connection$(n_conns == 1 ? "" : "s")"
     end
     tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
     metadata′ = Dict{Symbol, Any}()
