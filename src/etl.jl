@@ -398,7 +398,7 @@ function execute_ddl(pool, sql, req_tasks = Task[])
     try
         @info sql
         sec = @elapsed DBInterface.execute(conn, sql)
-        @info "$(split(sql, '\n', limit = 2)[1]): $sec seconds"
+        @info "$(split(sql, '\n', limit = 2)[1]): $(round(sec, digits = 1)) seconds"
     finally
         push!(pool, conn)
     end
@@ -472,7 +472,7 @@ function run(db, spec::CreateSchemaSpecification)
     n_qs = pool.n_qs[]
     if n_qs > 0
         n_conns = pool.n_conns[]
-        @info "$n_qs quer$(n_qs == 1 ? "y" : "ies") executed in $sec seconds using $n_conns connection$(n_conns == 1 ? "" : "s")"
+        @info "$n_qs quer$(n_qs == 1 ? "y" : "ies") executed in $(round(sec, digits = 1)) seconds using $n_conns connection$(n_conns == 1 ? "" : "s")"
     end
     tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
     metadata′ = Dict{Symbol, Any}()
