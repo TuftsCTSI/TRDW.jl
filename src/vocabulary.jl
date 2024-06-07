@@ -92,6 +92,13 @@ RxNorm_Extension(code_or_name, name=nothing) =
             is_concept_codename_match($code_or_name, $name),
             $(:(RxNorm_Extension($code_or_name, $name)))))
 
+NDFRT(code_or_name, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "NDFRT" &&
+            is_concept_codename_match($code_or_name, $name),
+            $(:(NDFRT($code_or_name, $name)))))
+
 SNOMED(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
