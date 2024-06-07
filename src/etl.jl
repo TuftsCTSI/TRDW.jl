@@ -74,7 +74,8 @@ function transform!(t::SnapshotTransform, ctx)
     version = lastindex(ctx.schemas)
     schema′ = ctx.schemas[end]
     for name in t.names
-        if name ∈ schema′ && (local def = first(entries[schema′[name]]); def isa SQLSnapshot && def.name === name)
+        index = get(schema′, name, 0)
+        if index != 0 && (local def = first(ctx.entries[index])) isa SQLSnapshot && def.name === name
             continue
         end
         push!(ctx.entries, (SQLSnapshot(name), version))
@@ -115,17 +116,33 @@ struct TableDefinition
     name_sql::String
     body_sql::String
     is_view::Bool
+    is_aux::Bool
+    is_tmp::Bool
     reqs::Vector{String}
     etl_hash::String
     etl_time::Int
 
-    TableDefinition(name_sql, body_sql; is_view = false, reqs = String[], etl_hash, etl_time) =
-        new(name_sql, body_sql, is_view, reqs, etl_hash, etl_time)
+    TableDefinition(name_sql, body_sql; is_view = false, is_aux = false, is_tmp = false, reqs = String[], etl_hash, etl_time) =
+        new(name_sql, body_sql, is_view, is_aux, is_tmp, reqs, etl_hash, etl_time)
 end
 
 struct SchemaDefinition
     name_sql::String
     defs::OrderedDict{String, TableDefinition}
+    rev_reqs::Dict{String, Vector{String}}
+
+    function SchemaDefinition(name_sql, defs)
+        rev_reqs = Dict{String, Vector{String}}()
+        for req in keys(defs)
+            rev_reqs[req] = String[]
+        end
+        for (rev_req, def) in defs
+            for req in def.reqs
+                push!(rev_reqs[req], rev_req)
+            end
+        end
+        new(name_sql, defs, rev_reqs)
+    end
 end
 
 function build_definition(catalog, ctx)
@@ -133,11 +150,13 @@ function build_definition(catalog, ctx)
     @assert cat_m !== nothing
     etl_time = cat_m.src_time
     outs = Set{Tuple{Int, Symbol}}()
+    outs_closure = Set{Tuple{Int, Symbol}}()
     deps_map = Dict{Tuple{Int, Symbol}, Set{Tuple{Int, Symbol}}}()
     queue = Tuple{Int, Symbol}[]
     for (name, index) in ctx.schemas[end]
         key = (index, name)
         push!(outs, key)
+        push!(outs_closure, key)
         push!(queue, key)
     end
     sort!(queue)
@@ -154,6 +173,9 @@ function build_definition(catalog, ctx)
                 dep_key = (dep_index, dep_name)
                 push!(deps, dep_key)
                 push!(queue, dep_key)
+            end
+            if key in outs_closure
+                union!(outs_closure, deps)
             end
         elseif obj isa SQLSnapshot
             schema = ctx.schemas[version]
@@ -235,14 +257,21 @@ function build_definition(catalog, ctx)
                 end
             end
             reqs = sort!(collect(reqs))
+            is_aux = is_tmp = false
             if key in outs
                 snapshot_name = name
             else
+                is_aux = true
+                prefix = :_aux_
+                if key ∉ outs_closure
+                    is_tmp = true
+                    prefix = :_tmp_
+                end
                 k = 1
-                snapshot_name = Symbol("_snapshot_", name, "_", k)
+                snapshot_name = Symbol(prefix, name, "_", k)
                 while haskey(tables, snapshot_name) || haskey(ctx.schemas[end], snapshot_name)
                     k += 1
-                    snapshot_name = Symbol("_snapshot_", name, "_", k)
+                    snapshot_name = Symbol(prefix, name, "_", k)
                 end
             end
             name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, snapshot_name))
@@ -255,7 +284,7 @@ function build_definition(catalog, ctx)
             update!(etl_hash_ctx, codeunits("CREATE TABLE"))
             update!(etl_hash_ctx, codeunits(body_sql))
             etl_hash = bytes2hex(digest!(etl_hash_ctx))
-            defs[name_sql] = TableDefinition(name_sql, body_sql, reqs = reqs, etl_hash = etl_hash, etl_time = etl_time)
+            defs[name_sql] = TableDefinition(name_sql, body_sql; reqs, is_aux, is_tmp, etl_hash, etl_time)
             table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = body_sql.columns)
             tables[snapshot_name] = table
             empty!(subs)
@@ -334,10 +363,11 @@ end
 struct CreateSchemaSpecification
     name::Symbol
     etl::AbstractTransform
+    drop_tmp::Bool
 end
 
-funsql_create_schema((name, etl)::Pair{<:Union{Symbol, AbstractString}, <:AbstractTransform}) =
-    CreateSchemaSpecification(Symbol(name), etl)
+funsql_create_schema((name, etl)::Pair{<:Union{Symbol, AbstractString}, <:AbstractTransform}; drop_tmp::Bool = true) =
+    CreateSchemaSpecification(Symbol(name), etl, drop_tmp)
 
 struct ConnectionPool
     size::Int
@@ -420,10 +450,12 @@ function run(db, spec::CreateSchemaSpecification)
         [FunSQL.render(db, FunSQL.ID(t.qualifiers[end:end], t.name)) => (let m = get_metadata(t); @assert m !== nothing; m; end)
          for t in _introspect_schema(db.raw, pool.default_catalog, string(spec.name))])
     matches = Set{String}()
-    for (name_sql, m) in existing_tables
-        def = get(schema_def.defs, name_sql, nothing)
-        if def !== nothing && m.etl_hash == def.etl_hash && m.etl_time == def.etl_time
-            push!(matches, name_sql)
+    for def in reverse!(collect(values(schema_def.defs)))
+        m = get(existing_tables, def.name_sql, nothing)
+        if m !== nothing && m.etl_hash == def.etl_hash && m.etl_time == def.etl_time
+            push!(matches, def.name_sql)
+        elseif spec.drop_tmp && def.is_tmp && all(rev_req ∈ matches for rev_req in schema_def.rev_reqs[def.name_sql])
+            push!(matches, def.name_sql)
         end
     end
     sec = @elapsed @sync begin
@@ -435,14 +467,16 @@ function run(db, spec::CreateSchemaSpecification)
             task0 = Threads.@spawn execute_ddl($pool, $sql, [$task0])
         else
             for (name_sql, m) in existing_tables
-                !haskey(schema_def.defs, name_sql) || continue
+                name_sql ∉ keys(schema_def.defs) || continue
                 cur_obj_sql = m.is_view ? "VIEW" : "TABLE"
                 sql = "DROP $cur_obj_sql $name_sql"
                 Threads.@spawn execute_ddl($pool, $sql)
             end
         end
         task_map = Dict{String, Task}()
+        done_tasks_map = Dict{String, Vector{Task}}()
         for def in values(schema_def.defs)
+            done_tasks_map[def.name_sql] = Task[]
             def.name_sql ∉ matches || continue
             m = get(existing_tables, def.name_sql, nothing)
             drop_task = nothing
@@ -465,8 +499,28 @@ function run(db, spec::CreateSchemaSpecification)
             end
             task = Threads.@spawn execute_ddl($pool, $sql, $req_tasks)
             task_map[def.name_sql] = task
+            for req in def.reqs
+                push!(done_tasks_map[req], task)
+            end
             sql = "ALTER $obj_sql $(def.name_sql)\nSET TAGS ('etl_hash' = '$(def.etl_hash)', 'etl_time' = '$(def.etl_time)')"
-            Threads.@spawn execute_ddl($pool, $sql, [$task])
+            task = Threads.@spawn execute_ddl($pool, $sql, [$task])
+            push!(done_tasks_map[def.name_sql], task)
+        end
+        if spec.drop_tmp
+            for def in values(schema_def.defs)
+                def.is_tmp || continue
+                if def.name_sql ∉ matches
+                    is_view = def.is_view
+                elseif def.name_sql ∈ keys(existing_tables)
+                    is_view = existing_tables[def.name_sql].is_view
+                else
+                    continue
+                end
+                obj_sql = is_view ? "VIEW" : "TABLE"
+                sql = "DROP $obj_sql $(def.name_sql)"
+                req_tasks = done_tasks_map[def.name_sql]
+                Threads.@spawn execute_ddl($pool, $sql, $req_tasks)
+            end
         end
     end
     n_qs = pool.n_qs[]
