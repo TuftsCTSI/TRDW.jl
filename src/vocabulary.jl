@@ -168,6 +168,13 @@ ConditionStatus(code_or_name, name=nothing) =
             is_concept_codename_match($code_or_name, $name),
             $(:(ConditionStatus($code_or_name, $name)))))
 
+CDM(code_or_name, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "CDM" &&
+            is_concept_codename_match($code_or_name, $name),
+            $(:(CDM($code_or_name, $name)))))
+
 type_isa(cs) =
     isa(type_concept_id, $cs)
 
