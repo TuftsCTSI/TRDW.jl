@@ -2,6 +2,7 @@
 
 note() = begin
     from(note)
+    define(is_preepic => note_id > 1500000000)
     as(omop)
     define(
         # event columns
@@ -38,14 +39,6 @@ note() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    cross_join(
-        ext => begin
-            # computed variables
-            select(
-                is_preepic => :ID > 1500000000)
-            bind(
-                :ID => omop.note_id)
-        end)
 end
 
 note(match...) =

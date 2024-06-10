@@ -2,6 +2,7 @@
 
 drug() = begin
     from(drug_exposure)
+    define(is_preepic => drug_exposure_id > 1500000000)
     as(omop)
     define(
         # event columns
@@ -49,14 +50,6 @@ drug() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    cross_join(
-        ext => begin
-            # computed variables
-            select(
-                is_preepic => :ID > 1500000000)
-            bind(
-                :ID => omop.drug_exposure_id)
-        end)
 end
 
 drug(match...) =

@@ -2,6 +2,7 @@
 
 visit_detail() = begin
     from(visit_detail)
+    define(is_preepic => visit_detail_id > 1000000000)
     as(omop)
     define(
         # event columns
@@ -54,14 +55,6 @@ visit_detail() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    cross_join(
-        ext => begin
-            # computed variables
-            select(
-                is_preepic => :ID > 1000000000)
-            bind(
-                :ID => omop.visit_detail_id)
-        end)
 end
 
 visit_detail(match...) =

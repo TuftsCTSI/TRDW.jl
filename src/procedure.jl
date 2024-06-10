@@ -2,6 +2,7 @@
 
 procedure() = begin
     from(procedure_occurrence)
+    define(is_preepic => procedure_occurrence_id > 1500000000)
     left_join(
         procedure_source_concept => from(concept),
         procedure_source_concept_id == procedure_source_concept.concept_id,
@@ -46,21 +47,6 @@ procedure() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    cross_join(
-        ext => begin
-            # computed variables
-            select(
-                icd_concept_id =>
-                   case(in(:source_vocabulary_id, "ICD9CM", "ICD10CM"), :source_concept_id),
-                icd_concept_code =>
-                   case(in(:source_vocabulary_id, "ICD9CM", "ICD10CM"), :source_concept_code),
-                is_preepic => :ID > 1500000000)
-            bind(
-                :ID => omop.procedure_occurrence_id,
-                :source_vocabulary_id => omop.procedure_source_concept.vocabulary_id,
-                :source_concept_code => omop.procedure_source_concept.concept_code,
-                :source_concept_id => omop.procedure_source_concept.concept_id)
-        end)
 end
 
 procedure(match...) =

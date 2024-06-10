@@ -2,6 +2,7 @@
 
 provider() = begin
     from(provider)
+    define(is_preepic => provider_id > 1000000000)
     as(omop)
     define(
         provider_id => omop.provider_id,
@@ -24,14 +25,6 @@ provider() = begin
         gender_concept => concept(),
         concept_id == gender_concept.concept_id,
         optional = true)
-    cross_join(
-        ext => begin
-            # computed variables
-            select(
-                is_preepic => :ID > 1000000000)
-            bind(
-                :ID => omop.provider_id)
-        end)
 end
 
 provider(match...) =

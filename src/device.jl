@@ -2,6 +2,7 @@
 
 device() = begin
     from(device_exposure)
+    define(is_preepic => device_exposure_id > 1500000000)
     as(omop)
     define(
         # event columns
@@ -45,14 +46,6 @@ device() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    cross_join(
-        ext => begin
-            # computed variables
-            select(
-                is_preepic => :ID > 1500000000)
-            bind(
-                :ID => omop.device_exposure_id)
-        end)
 end
 
 device(match...) =

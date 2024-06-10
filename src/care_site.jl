@@ -2,6 +2,7 @@
 
 care_site() = begin
     from(care_site)
+    define(is_preepic => care_site_id > 1000000000)
     as(omop)
     define(
         care_site_id => omop.care_site_id,
@@ -16,14 +17,6 @@ care_site() = begin
         location => location(),
         location_id == location.location_id,
         optional = true)
-    cross_join(
-        ext => begin
-            select(
-                is_preepic => :ID > 1000000000)
-            bind(
-                :ID => omop.care_site_id,
-                :NAME => omop.care_site_name)
-        end)
 end
 
 end
