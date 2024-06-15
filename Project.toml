@@ -37,4 +37,4 @@ JavaCallExt = "JavaCall"
 PlutoRunnerExt = "PlutoRunner"
 
 [compat]
-FunSQL = "0.13.0"
+FunSQL = "0.14.0"
