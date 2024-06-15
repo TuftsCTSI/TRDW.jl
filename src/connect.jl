@@ -40,7 +40,6 @@ struct CatalogMetadata
 end
 
 function get_metadata(cat::FunSQL.SQLCatalog)
-    cat.metadata !== nothing || return
     m = get(cat.metadata, :trdw, nothing)
     m isa CatalogMetadata || return
     m
@@ -54,7 +53,6 @@ struct TableMetadata
 end
 
 function get_metadata(t::FunSQL.SQLTable)
-    t.metadata !== nothing || return
     m = get(t.metadata, :trdw, nothing)
     m isa TableMetadata || return
     m
@@ -75,7 +73,7 @@ function connect(specs...; catalog = nothing, exclude = nothing)
         end
     end
     concept_cache = create_concept_cache(conn, get(table_map, :concept, nothing))
-    metadata = Dict{Symbol, Any}(:trdw => CatalogMetadata(catalog, concept_cache))
+    metadata = (; trdw = CatalogMetadata(catalog, concept_cache))
     cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark), metadata = metadata)
     db = FunSQL.SQLConnection(conn, catalog = cat)
     db
@@ -169,7 +167,7 @@ function _tables_from_column_list(rows)
             push!(columns, c)
         else
             if !isempty(columns)
-                metadata = Dict{Symbol, Any}(:trdw => TableMetadata(ctime, is_view, etl_hash, etl_time))
+                metadata = (; trdw = TableMetadata(ctime, is_view, etl_hash, etl_time))
                 t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
                 push!(tables, t)
             end
@@ -187,7 +185,7 @@ function _tables_from_column_list(rows)
         end
     end
     if !isempty(columns)
-        metadata = Dict{Symbol, Any}(:trdw => TableMetadata(ctime, is_view, etl_hash, etl_time))
+        metadata = (; trdw = TableMetadata(ctime, is_view, etl_hash, etl_time))
         t = FunSQL.SQLTable(; qualifiers, name, columns, metadata)
         push!(tables, t)
     end
@@ -197,8 +195,8 @@ end
 function query_macro(__module__, __source__, db, q)
     db = esc(db)
     ex = FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext(__module__, __source__))
-    if ex isa Expr && ex.head in (:(=), :const, :global, :local) ||
-        ex isa Expr && ex.head === :block && any(ex′ isa Expr && ex′.head in (:(=), :const, :global, :local) for ex′ in ex.args)
+    if ex isa Expr && ex.head in (:(=), :macrocall) ||
+        ex isa Expr && ex.head === :block && any(ex′ isa Expr && ex′.head in (:(=), :macrocall) for ex′ in ex.args)
         return ex
     end
     return quote
