@@ -689,28 +689,32 @@ const omop_catalog = FunSQL.SQLCatalog(
 struct WriteCSVSpecification
     prefix::String
     node::FunSQL.SQLNode
-    empty_cols::Vector{Symbol}
+    skip::Bool
 end
 
-funsql_write_csv((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any};
-                 empty_cols = Symbol[]) =
-    WriteCSVSpecification(string(prefix), node, empty_cols)
+funsql_write_csv((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip = nothing) =
+    WriteCSVSpecification(string(prefix), node, something(skip, !is_production_schema_prefix()))
 
 function run(db, spec::WriteCSVSpecification)
     data = run(db, spec.node)
     dataframe = DataFrame(data)
-    for col in spec.empty_cols
-        insertcols!(dataframe, names(dataframe)[1], col => "")
-    end
     when = Dates.format(Dates.now(),"yyyymmdd")
     filename = "$(spec.prefix)_$(when).csv"
     n_rows = size(dataframe)[1]
-    CSV.write(filename, dataframe)
-    @htl("""
-        <div>$(data)</div>
-        <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
-        <p><hr /></p>
-    """)
+    if spec.skip
+        @htl("""
+            <div>$(data)</div>
+            <hr />
+            <p>Not writing $n_rows rows to $filename</p>
+        """)
+    else
+        CSV.write(filename, dataframe)
+        @htl("""
+            <div>$(data)</div>
+            <hr />
+            <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
+        """)
+    end
 end
 
 function make_password()
@@ -725,22 +729,22 @@ function get_password()
         pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
         if isfile(pwfile)
             password = strip(read(open(pwfile), String))
-        else
-            password = make_password()
         end
     end
-    if length(password) > 0 && haskey(ENV, "CACHE_DIR")
+    password = password == "" ? make_password() : password
+    if haskey(ENV, "CACHE_DIR")
         pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
         f = open(pwfile, "w")
         write(f, password * "\n")
         close(f)
     end
-    return password == "" ? nothing : password
+    return password
 end
 
 struct WriteXLSXSpecification
     prefix::String
     node::FunSQL.SQLNode
+    skip::Bool
 end
 
 """ @query write_encrypted_xlsx(prefix => content())
@@ -752,8 +756,8 @@ For this to work, include this boilerplate in your notebook:
     JavaCall.assertroottask_or_goodenv()
 ```
 """
-funsql_write_encrypted_xlsx((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}) =
-    WriteXLSXSpecification(string(prefix), node)
+funsql_write_encrypted_xlsx((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing) =
+    WriteXLSXSpecification(string(prefix), node, something(skip, !is_production_schema_prefix()))
 
 function run(db, spec::WriteXLSXSpecification)
     @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_encrypt you need:
@@ -766,15 +770,17 @@ function run(db, spec::WriteXLSXSpecification)
     password = get_password()
     dataframe = DataFrame(data)
     n_rows = size(dataframe)[1]
-    if isnothing(password)
-        return @htl("<p>Password not available. Number of rows: $n_rows</p>")
-    end
     when = Dates.format(Dates.now(),"yyyymmdd")
     filename = "$(spec.prefix)_$(when).xlsx"
-    TRDW.XLSX.write(filename, dataframe; password)
-    @htl("""
-        <hr />
-        <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
-        <hr />
-    """)
+    if spec.skip || isnothing(password) || password == ""
+        @htl("<p>Not writing $n_rows rows to $filename</p>")
+    else
+        TRDW.XLSX.write(filename, dataframe; password)
+        if !is_production_schema_prefix()
+            @info "password for $filename is $password"
+        end
+        @htl("""
+            <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
+        """)
+    end
 end
