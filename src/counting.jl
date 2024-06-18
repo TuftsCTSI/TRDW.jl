@@ -35,7 +35,7 @@ stratify_by_age(; roundup=is_discovery()) = begin
     deduplicate(person_id)
     as(base)
     join(person(), base.person_id == person_id)
-    define(age => current_age())
+    define(age => age_at_extraction_or_death())
     group(age => case(
         age >= 90, "90+",
         age >= 80, "80-89",

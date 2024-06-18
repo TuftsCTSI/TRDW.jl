@@ -1,8 +1,8 @@
-function funsql_define_current_age()
+function funsql_define_age_at_extraction_or_death()
     person = gensym()
     @funsql begin
         join($person => person(), $person.person_id == person_id)
-        define(age=> current_age($person))
+        define(age=> age_at_extraction_or_death($person))
     end
 end
 
@@ -195,7 +195,8 @@ function funsql_define_profile(args...)
         query = query |> begin
             arg == :birth_date ? funsql_define_birth_date() :
             arg == :birth_year ? funsql_define_birth_year() :
-            arg == :current_age ? funsql_define_current_age() :
+            arg == :age_at_extraction_or_death ? funsql_define_age_at_extraction_or_death() :
+            arg == :current_age ? funsql_define_age_at_extraction_or_death() : # current_age is deprecated, use age_at_extraction_or_death
             arg == :death_date ? funsql_define_death_date() :
             arg == :death_year ? funsql_define_death_year() :
             arg == :epic_mrn ? funsql_define_epic_mrn() :
