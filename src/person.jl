@@ -62,8 +62,8 @@ is_deceased() =
 
 zipcode() = if_defined_scalar(location, location.zip, zip)
 
-age_at_extraction_or_death() = (:age_at_extraction_or_death => datediff_year(birth_datetime, nvl(death_datetime, now())))
-age_at_extraction_or_death(p) = (:age_at_extraction_or_death => datediff_year($p.birth_datetime, nvl($p.death_datetime, now())))
+age_at_extraction_or_death() = (:age_at_extraction_or_death => datediff_year(birth_datetime, nvl(death_datetime, from(cdm_source).select(source_release_date))))
+age_at_extraction_or_death(p) = (:age_at_extraction_or_death => datediff_year($p.birth_datetime, nvl($p.death_datetime, from(cdm_source).select(source_release_date))))
 
 race_isa(args...) = category_isa($Race, $args, race_concept_id)
 ethnicity_isa(args...) = category_isa($Ethnicity, $args, ethnicity_concept_id)

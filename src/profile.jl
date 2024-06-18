@@ -2,7 +2,7 @@ function funsql_define_age_at_extraction_or_death()
     person = gensym()
     @funsql begin
         join($person => person(), $person.person_id == person_id)
-        define(age=> age_at_extraction_or_death($person))
+        define(age_at_extraction_or_death=> age_at_extraction_or_death($person))
     end
 end
 
