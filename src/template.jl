@@ -1,10 +1,9 @@
 function NotebookFooter()
     config = configuration()
-    SFID = config[:case_slug]
-    CASE = config[:case_code]
+    PROJECT_SLUG = config[:project_slug]
+    PROJECT_CODE = config[:project_code]
     IRB = config[:irb_code]
-    ISSUE_NUMBER = config[:issue_number]
-    ISSUE_TITLE = config[:issue_title]
+    # ISSUE_NUMBER = config[:issue_number]
     PROJECT_STEM = config[:project_stem]
   @htl("""
   <div>
@@ -17,15 +16,13 @@ function NotebookFooter()
         Generated at $(Dates.now())
       </small>
     </td><td style="width: 28%; vertical-align: top; text-align: right;">
-    $(isnothing(CASE) ? "" : @htl("""Service Request#
-      $(isnothing(SFID) ? @htl("""<span>$CASE</span>""") : @htl("""
-        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Case/$SFID/view">$CASE</a>
+    $(isnothing(PROJECT_CODE) ? "" : @htl("""Project#
+      $(isnothing(PROJECT_SLUG) ? @htl("""<span>$PROJECT_CODE</span>""") : @htl("""
+        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Project__c/$PROJECT_SLUG/view">$PROJECT_CODE</a>
         """))
       <br />"""))
-    $(isnothing(ISSUE_NUMBER) ? "" : @htl("""<a href="https://github.com/TuftsCTSI/ResearchRequests/issues/$ISSUE_NUMBER">GitHub Issue $ISSUE_NUMBER</a>
-        <br />"""))
-    $(isnothing(PROJECT_STEM) ? "" : @htl("""<a href="https://github.com/TuftsCTSI/ResearchRequests/issues/tree/main/$PROJECT_STEM">GitHub Repo $PROJECT_STEM</a>
-        <br />"""))
+      $(isnothing(PROJECT_STEM) ? "" : @htl("""GitHub Repo <a href="https://github.com/TuftsCTSI/ResearchRequests/issues/tree/main/$PROJECT_STEM">$PROJECT_STEM</a>
+      <br />"""))
     $(is_discovery() ? "" : @htl("<p>IRB Study# $(IRB)"))
   </div>
    """)
@@ -33,9 +30,9 @@ end
 
 function NotebookHeader(TITLE=nothing)
     config = configuration()
-    SFID = config[:case_slug]
-    CASE = config[:case_code]
-    TITLE = something(TITLE, config[:case_title])
+    PROJECT_SLUG = config[:project_slug]
+    PROJECT_CODE = config[:project_code]
+    TITLE = something(TITLE, config[:project_title])
     NOTE = config[:project_title]
     IRB = config[:irb_code]
     IRB_START_DATE = config[:irb_start_date]
@@ -55,10 +52,10 @@ function NotebookHeader(TITLE=nothing)
      </h1>
      <div style="display: inline-block; width: 11%; text-align: right;
                  height: 100%; vertical-align: middle;">
-       $(isnothing(CASE) ? "" : @htl("""Service Request#
-          $(isnothing(SFID) ? @htl("""<span>$CASE</span>""") : @htl("""
+        $(isnothing(PROJECT_CODE) ? "" : @htl("""Service Request#
+          $(isnothing(PROJECT_SLUG) ? @htl("""<span>$PROJECT_CODE</span>""") : @htl("""
             <a style="text-decoration: underline dotted;"
-               href="https://tuftsctsi.my.site.com/s/case/$SFID ">$CASE</a>
+               href="https://tuftsctsi.my.site.com/s/Project__c/$PROJECT_SLUG ">$PROJECT_CODE</a>
         """))"""))
      </div>
    </div>
