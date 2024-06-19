@@ -3,6 +3,9 @@ function NotebookFooter()
     SFID = config[:case_slug]
     CASE = config[:case_code]
     IRB = config[:irb_code]
+    ISSUE_NUMBER = config[:issue_number]
+    ISSUE_TITLE = config[:issue_title]
+    PROJECT_STEM = config[:project_stem]
   @htl("""
   <div>
     <table style="width: 100%">
@@ -19,6 +22,10 @@ function NotebookFooter()
         <a href="https://tuftsctsi.lightning.force.com/lightning/r/Case/$SFID/view">$CASE</a>
         """))
       <br />"""))
+    $(isnothing(ISSUE_NUMBER) ? "" : @htl("""<a href="https://github.com/TuftsCTSI/ResearchRequests/issues/$ISSUE_NUMBER">GitHub Issue $ISSUE_NUMBER</a>
+        <br />"""))
+    $(isnothing(PROJECT_STEM) ? "" : @htl("""<a href="https://github.com/TuftsCTSI/ResearchRequests/issues/tree/main/$PROJECT_STEM">GitHub Repo $PROJECT_STEM</a>
+        <br />"""))
     $(is_discovery() ? "" : @htl("<p>IRB Study# $(IRB)"))
   </div>
    """)
