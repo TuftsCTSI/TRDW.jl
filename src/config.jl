@@ -13,6 +13,10 @@ function configuration()
         merge!(source, source["case"])
         delete!(source, "case")
     end
+    if haskey(source, "github")
+        merge!(source, source["github"])
+        delete!(source, "github")
+    end
     # normalize none/missing to nothing
     for (k,v) in source
         if v == "None" || v == "" || ismissing(v)
@@ -30,7 +34,10 @@ function configuration()
             :pi_name => "pi_display_name",
             :case_slug => "case_id",
             :case_code => "case_number",
-            :case_title => "subject")
+            :case_title => "subject",
+            :issue_number => "issue_number",
+            :issue_title => "issue_title",
+            :project_stem => "project_stem")
         retval[to] = get(source, from, nothing)
     end
     # quality checking and defaults
