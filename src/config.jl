@@ -3,20 +3,7 @@ const DISCOVERY_IRB = "11642"
 
 function configuration()
     source = isfile(CONFIG_FILE) ? JSON.parsefile(CONFIG_FILE) : Dict()
-    retval = Dict{Symbol, Union{String, Nothing}}()
-    # flatten
-    if haskey(source, "project")
-        merge!(source, source["project"])
-        delete!(source, "project")
-    end
-    if haskey(source, "case")
-        merge!(source, source["case"])
-        delete!(source, "case")
-    end
-    if haskey(source, "github")
-        merge!(source, source["github"])
-        delete!(source, "github")
-    end
+    retval = Dict{Symbol, Union{String, Vector, Nothing}}()
     # normalize none/missing to nothing
     for (k,v) in source
         if v == "None" || v == "" || ismissing(v)
@@ -32,11 +19,7 @@ function configuration()
             :irb_start_date => "irb_start_date",
             :irb_end_date => "irb_end_date",
             :pi_name => "pi_display_name",
-            :case_slug => "case_id",
-            :case_code => "case_number",
-            :case_title => "subject",
-            :issue_number => "issue_number",
-            :issue_title => "issue_title",
+            :case => "case",
             :project_stem => "project_stem")
         retval[to] = get(source, from, nothing)
     end
@@ -49,11 +32,11 @@ function configuration()
         @assert startswith(project_code, "P-") && length(project_code) == 8
         retval[:project_code] = project_code[3:end]
     end
-    case_code = retval[:case_code]
-    if isnothing(case_code)
-        retval[:case_code] = "01000526"
+    case = retval[:case]
+    if isnothing(case)
+        retval[:case] = Any[Dict("case_number" => "01000526")]
     else
-        @assert length(case_code) == 8
+        @assert length(retval[:case][1]["case_number"]) == 8
     end
     return retval
 end
