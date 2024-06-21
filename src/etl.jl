@@ -32,6 +32,24 @@ end
 funsql_unset_all_except(names...) =
     UnsetAllExceptTransform(Symbol[names...])
 
+struct DoIfSetTransform <: AbstractTransform
+    name::Symbol
+    t::AbstractTransform
+    else_t::AbstractTransform
+end
+
+funsql_do_if_set(name, t, else_t = funsql_noop()) =
+    DoIfSetTransform(name, t, else_t)
+
+struct DoIfUnsetTransform <: AbstractTransform
+    name::Symbol
+    t::AbstractTransform
+    else_t::AbstractTransform
+end
+
+funsql_do_if_unset(name, t, else_t = funsql_noop()) =
+    DoIfUnsetTransform(name, t, else_t)
+
 struct IdentityTransform <: AbstractTransform
 end
 
@@ -102,6 +120,16 @@ function transform!(t::UnsetAllExceptTransform, ctx)
     end
     push!(ctx.schemas, schema′)
     nothing
+end
+
+function transform!(t::DoIfSetTransform, ctx)
+    t′ = haskey(ctx.schemas[end], t.name) ? t.t : t.else_t
+    transform!(t′, ctx)
+end
+
+function transform!(t::DoIfUnsetTransform, ctx)
+    t′ = !haskey(ctx.schemas[end], t.name) ? t.t : t.else_t
+    transform!(t′, ctx)
 end
 
 function transform!(::IdentityTransform, ctx)
