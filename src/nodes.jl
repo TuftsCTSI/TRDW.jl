@@ -459,7 +459,7 @@ end
 
 function FunSQL.resolve(n::IfSetNode, ctx)
     over = n.over
-    node = haskey(ctx.catalog, n.name) ? n.node : n.else_node
+    node = haskey(ctx.catalog, n.name) || haskey(ctx.cte_types, n.name) ? n.node : n.else_node
     node = node !== nothing && over !== nothing ? over |> node : node !== nothing ? node : over
     FunSQL.resolve(node, ctx)
 end
