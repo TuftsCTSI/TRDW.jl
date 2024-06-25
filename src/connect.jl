@@ -147,6 +147,7 @@ function _introspect_schema(conn, catalogname, schemaname)
                     lowercase(row.table_name),
                     isessentiallyuppercase(row.column_name) ? lowercase(row.column_name) : row.column_name)
                   for row in Tables.rows(cr)]
+    ODBC.clear!(conn)
     _tables_from_column_list(column_list)
 end
 

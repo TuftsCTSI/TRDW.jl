@@ -47,6 +47,7 @@ end
 function ensure_result!(r::SQLResult)
     if !isassigned(r.ref)
         r.ref[] = cursor_to_dataframe(DBInterface.execute(r.db, r.sql))
+        ODBC.clear!(r.db.raw)
     end
     r.ref[]
 end

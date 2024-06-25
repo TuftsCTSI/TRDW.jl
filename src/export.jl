@@ -304,6 +304,7 @@ function create_temp_tables!(etl::ETLContext)
             @debug name
             @debug stmt
             DBInterface.execute(etl.db, stmt)
+            ODBC.clear!(etl.db.raw)
         catch e
             println(stmt)
             throw(e)
@@ -321,6 +322,7 @@ function drop_temp_tables!(etl::ETLContext)
         stmt = popfirst!(etl.drop_stmts)
         try
             DBInterface.execute(etl.db, stmt)
+            ODBC.clear!(etl.db.raw)
         catch e
             println(stmt)
             throw(e)
@@ -340,6 +342,7 @@ function cleanup!(etl::ETLContext)
     for query in collect(row.query for row in DBInterface.execute(etl.db, sql))
         DBInterface.execute(etl.db, query)
     end
+    ODBC.clear!(etl.db.raw)
 end
 
 function build_cohort!(etl::ETLContext, cohort_q::FunSQL.AbstractSQLNode)
@@ -467,6 +470,7 @@ function zipfile(filename, db, pairs...)
                 cr = DBInterface.execute(db, q)
                 @debug "writing", name
                 CSV.write(joinpath(folder, name), cr)
+                ODBC.clear!(db.raw)
             end
         end
         Base.run(`zip -q -j -r $(filename) $(folder)`)
@@ -1135,6 +1139,7 @@ function export_timeline_zip(filename, etl::ETLContext)
     end
     create_temp_tables!(etl)
     df = DBInterface.execute(etl.db, q) |> DataFrame
+    ODBC.clear!(etl.db.raw)
     ps = ["$(getproperty(key, :person_id)).csv" => subdf
           for (key, subdf) in pairs(groupby(df, :person_id))]
     zipfile(
