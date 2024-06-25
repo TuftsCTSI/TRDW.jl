@@ -525,6 +525,7 @@ function resolve_concept_id(cat::FunSQL.SQLCatalog, n::AssertValidConceptNode)
         df = DataFrame(Arrow.Table(filename))
     else
         df = DataFrame(DBInterface.execute(db, sql))
+        ODBC.clear!(conn)
         tmpname = tempname(dir)
         Arrow.write(tmpname, df)
         mv(tmpname, filename, force = true)

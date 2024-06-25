@@ -21,6 +21,7 @@ function create_table_if_not_exists(db, schema::Symbol, table::Symbol, spec...)
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "CREATE TABLE IF NOT EXISTS $(name_sql) ($spec)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
+    ODBC.clear!(db.raw)
     return FunSQL.SQLTable(qualifiers = [env_catalog(), schema], name = table, columns = cols)
 end
 
@@ -72,6 +73,7 @@ function run(db, spec::CreateTableSpecification)
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON TABLE $(name_sql) to CTSIStaff")
     DBInterface.execute(db, "COMMENT ON TABLE $(name_sql) IS '$(Dates.now())'")
+    ODBC.clear!(db.raw)
     return t
 end
 

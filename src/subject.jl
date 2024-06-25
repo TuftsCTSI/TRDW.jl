@@ -124,6 +124,7 @@ function run(db, spec::MergeSubjectSpecification)
     message = "has $n persons; updated at $(now())"
     DBInterface.execute(db, "COMMENT ON TABLE $subject_sql IS '$message'")
     @info "table $subject_sql $message"
+    ODBC.clear!(db.raw)
     nothing
 end
 
@@ -178,5 +179,6 @@ function run(db, spec::MergeCustomerSubjectSpecification)
     message = "has $n persons; updated at $(now())"
     DBInterface.execute(db, "COMMENT ON TABLE $subject_sql IS '$message'")
     @info "table $subject_sql $message"
+    ODBC.clear!(db.raw)
     nothing
 end

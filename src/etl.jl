@@ -455,7 +455,10 @@ function execute_ddl(pool, sql, req_tasks = Task[])
     conn = pop!(pool)
     try
         @info sql
-        sec = @elapsed DBInterface.execute(conn, sql)
+        sec = @elapsed begin
+            DBInterface.execute(conn, sql)
+            ODBC.clear!(conn)
+        end
         @info "$(split(sql, '\n', limit = 2)[1]): $(round(sec, digits = 1)) seconds"
     finally
         push!(pool, conn)
