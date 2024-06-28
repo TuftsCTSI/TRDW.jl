@@ -189,15 +189,16 @@ end
 mutable struct DensityNode <: FunSQL.TabularNode
     over::Union{FunSQL.SQLNode, Nothing}
     names::Vector{Symbol}
+    type::Bool
     top_k::Int
     nested::Bool
 
-    DensityNode(; over = nothing, names = Symbol[], top_k = 0, nested = false) =
-        new(over, names, top_k, nested)
+    DensityNode(; over = nothing, names = Symbol[], type = false, top_k = 0, nested = false) =
+        new(over, names, type, top_k, nested)
 end
 
-DensityNode(names...; over = nothing, top_k = 0, nested = false) =
-    DensityNode(over = over, names = Symbol[names...], top_k = top_k, nested = nested)
+DensityNode(names...; over = nothing, type = false, top_k = 0, nested = false) =
+    DensityNode(over = over, names = Symbol[names...], type = type, top_k = top_k, nested = nested)
 
 Density(args...; kws...) =
     DensityNode(args...; kws...) |> FunSQL.SQLNode
@@ -206,6 +207,9 @@ const funsql_density = Density
 
 function FunSQL.PrettyPrinting.quoteof(n::DensityNode, ctx::FunSQL.QuoteContext)
     ex = Expr(:call, nameof(Density), FunSQL.quoteof(n.names, ctx)...)
+    if n.type
+        push!(ex.args, Expr(:kw, :type, n.type))
+    end
     if n.top_k > 0
         push!(ex.args, Expr(:kw, :top_k, n.top_k))
     end
@@ -233,10 +237,13 @@ function FunSQL.resolve(n::DensityNode, ctx)
     cases = _density_cases(t, isempty(n.names) ? Set(keys(t.fields)) : Set(n.names), n.nested)
     cols = last.(cases)
     max_i = length(cases)
-    args =FunSQL.SQLNode[]
+    args = FunSQL.SQLNode[]
+    push!(args, :name => _density_switch(first.(cases)))
+    if n.type
+        push!(args, :type => _density_switch(map(col -> @funsql(typeof(any_value($col))), cols)))
+    end
     push!(
         args,
-        :name => _density_switch(first.(cases)),
         :n_not_null => _density_switch(map(col -> @funsql(count($col)), cols)),
         :pct_not_null => _density_switch(map(col -> @funsql(100 * count($col) / count()), cols)),
         :approx_n_distinct => _density_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
