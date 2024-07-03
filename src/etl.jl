@@ -381,6 +381,10 @@ function dependencies!(n::Union{FunSQL.WithNode, FunSQL.WithExternalNode}, schem
     end
 end
 
+function dependencies!(n::FunSQL.OverNode, schema, free, bound)
+    dependencies!(FunSQL.With(over = n.arg, args = n.over !== nothing ? FunSQL.SQLNode[n.over] : FunSQL.SQLNode[]), schema, free, bound)
+end
+
 function dependencies!(n::IfSetNode, schema, free, bound)
     over = n.over
     node = haskey(schema, n.name) ? n.node : n.else_node
