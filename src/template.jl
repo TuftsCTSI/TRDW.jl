@@ -70,16 +70,47 @@ function NotebookHeader(TITLE=nothing)
                 Counts below ten are indicated with the ≤ symbol.
             </p>
             $(isnothing(IRB_START_DATE) ? "" : @htl("""
-                <span>IRB Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
+                <br>
+                <div style="display: inline-block; width: 90%; text-align: left;
+                 height: 100%; vertical-align: middle; background-color: #dbe9d4; padding-left: .5rem;
+                 padding-right: .5rem; border-radius: 8px;border: 5px solid #9ec889; margin-block-end: 1em;
+                 margin-block-start: 1em;">
+                   <p style="color: black;font-family: Vollkorn, Palatino, sans-serif;font-size: 1.3em;
+                   font-weight: 600;margin-block-end: 0;padding-left: .3em; background: #9ec889; margin: -1px -.55rem;">
+                     <span>IRB Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
+                  </p>
+                  Please note: the IRB approved timeframe for this study is <b> $IRB_START_DATE to $IRB_END_DATE</b>.
+                  <br><br>
+                  All data used in this analysis is from this timeframe.
+                  <br><br>
+                  If your study or cohort definition requires access to data outside this timeframe, please contact the IRB to request an amendment.
+                </div>
             """))
         """)
      else
         @htl("""
             <p>IRB Study # $(IRB)
-            $(isnothing(IRB_START_DATE) ? "" : @htl("($IRB_START_DATE to $IRB_END_DATE)"))
+            $(isnothing(IRB_START_DATE) ? "" : @htl("""
+                <br>
+                <div style="display: inline-block; width: 90%; text-align: left;
+                 height: 100%; vertical-align: middle; background-color: #dbe9d4; padding-left: .5rem;
+                 padding-right: .5rem; border-radius: 8px;border: 5px solid #9ec889; margin-block-end: 1em;
+                 margin-block-start: 1em;">
+                   <p style="color: black;font-family: Vollkorn, Palatino, sans-serif;font-size: 1.3em;
+                   font-weight: 600;margin-block-end: 0;padding-left: .3em; background: #9ec889; margin: -1px -.55rem;">
+                     <span>IRB Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
+                  </p>
+                  Please note: the IRB approved timeframe for this study is <b> $IRB_START_DATE to $IRB_END_DATE</b>.
+                  <br><br>
+                  All data used in this analysis is from this timeframe.
+                  <br><br>
+                  If your study or cohort definition requires access to data outside this timeframe, please contact the IRB to request an amendment.
+                </div>
+            """))
             </p>
         """)
      end)
    $(PlutoUI.TableOfContents())
   """)
+
 end
