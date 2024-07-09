@@ -18,18 +18,12 @@ count_n_person(; roundup=is_discovery()) = begin
     define(n_person => roundups(n_person; round=$roundup))
 end
 
-count_n_person(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
-    $(pair[2]).count_n_person(; roundup=$roundup)
-
-cohort_count(; roundup=is_discovery()) = begin
-    group()
+cohort_count(groups...; roundup=is_discovery()) = begin
+    group($groups...)
     count_n_person(; roundup=$roundup)
     define(n_event => count(person_id))
     define(n_event => roundups(n_event; round=$roundup))
 end
-
-cohort_count(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
-    $(pair[2]).cohort_count(; roundup=$roundup)
 
 stratify_by_age(; roundup=is_discovery()) = begin
     deduplicate(person_id)
