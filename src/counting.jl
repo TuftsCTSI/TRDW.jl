@@ -4,7 +4,7 @@ demographics(roundup=is_discovery()) = begin
     as(cohort)
     over(
         append(
-            from(cohort).cohort_count(roundup = $roundup).select(label => "Total", category => missing, n_person),
+            from(cohort).stratify_by(roundup = $roundup).select(label => "Total", category => missing, n_person),
             from(cohort).stratify_by_age(roundup = $roundup).select(label => "Age", category => age, n_person),
             from(cohort).stratify_by_sex(roundup = $roundup).select(label => "Sex", category => sex_name, n_person),
             from(cohort).stratify_by_race(roundup = $roundup).select(label => "Race", category => race_name, n_person),
@@ -12,15 +12,15 @@ demographics(roundup=is_discovery()) = begin
     format(group_by = label)
 end
 
-count_n_person(; roundup=is_discovery()) = begin
+define_n_person(; roundup=is_discovery()) = begin
     define(n_person => count_distinct(person_id))
     order(n_person.desc(nulls=last))
     define(n_person => roundups(n_person; round=$roundup))
 end
 
-cohort_count(groups...; roundup=is_discovery()) = begin
+stratify_by(groups...; roundup=is_discovery()) = begin
     group($groups...)
-    count_n_person(; roundup=$roundup)
+    define_n_person(; roundup=$roundup)
     define(n_event => count(person_id))
     define(n_event => roundups(n_event; round=$roundup))
 end
@@ -41,7 +41,7 @@ stratify_by_age(; roundup=is_discovery()) = begin
         age >= 30, "30-39",
         age >= 20, "20-29",
         "19 or less"))
-    count_n_person(; roundup=$roundup)
+    define_n_person(; roundup=$roundup)
     order(age)
     select(n_person, age)
 end
@@ -61,7 +61,7 @@ stratify_by_race(; roundup=is_discovery()) = begin
           "Unspecified") :
         race.concept_name)
     group(race_name)
-    count_n_person(; roundup=$roundup)
+    define_n_person(; roundup=$roundup)
     select(n_person, race_name)
 end
 
@@ -75,7 +75,7 @@ stratify_by_sex(; roundup=is_discovery()) = begin
     left_join(sex => from(concept), gender_concept_id == sex.concept_id)
     define(sex_name => gender_concept_id == 0 ? "Unspecified" : sex.concept_name)
     group(sex_name)
-    count_n_person(; roundup=$roundup)
+    define_n_person(; roundup=$roundup)
     select(n_person, sex_name)
 end
 
@@ -92,7 +92,7 @@ stratify_by_ethnicity(; roundup=is_discovery()) = begin
         ethnicity_concept_id == 0 ?
         "Unspecified" : ethnicity.concept_name)
     group(ethnicity_name)
-    count_n_person(; roundup=$roundup)
+    define_n_person(; roundup=$roundup)
     select(n_person, ethnicity_name)
 end
 
@@ -103,7 +103,7 @@ stratify_by_translator(; roundup=is_discovery()) = begin
 	deduplicate(person_id)
     define_profile(translator)
 	group(translator)
-	count_n_person(; roundup=$roundup)
+	define_n_person(; roundup=$roundup)
     select(n_person, translator)
 end
 
@@ -111,7 +111,7 @@ stratify_by_preferred_language(; roundup=is_discovery()) = begin
 	deduplicate(person_id)
     define_profile(preferred_language)
     group(preferred_language)
-	count_n_person(; roundup=$roundup)
+	define_n_person(; roundup=$roundup)
     select(n_person, preferred_language)
 end
 
