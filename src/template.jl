@@ -52,7 +52,7 @@ function NotebookHeader(TITLE=nothing)
      </h1>
      <div style="display: inline-block; width: 11%; text-align: right;
                  height: 100%; vertical-align: middle;">
-        $(isnothing(PROJECT_CODE) ? "" : @htl("""Service Request#
+        $(isnothing(PROJECT_CODE) ? "" : @htl("""Project #
           $(isnothing(PROJECT_SLUG) ? @htl("""<span>$PROJECT_CODE</span>""") : @htl("""
             <a style="text-decoration: underline dotted;"
                href="https://tuftsctsi.my.site.com/s/Project__c/$PROJECT_SLUG ">$PROJECT_CODE</a>
@@ -69,46 +69,15 @@ function NotebookHeader(TITLE=nothing)
                 permitting <i>"aggregate, obfuscated patient counts"</i>.
                 Counts below ten are indicated with the ≤ symbol.
             </p>
-            $(isnothing(IRB_START_DATE) ? "" : @htl("""
-                <br>
-                <div style="display: inline-block; width: 90%; text-align: left;
-                 height: 100%; vertical-align: middle; background-color: #dbe9d4; padding-left: .5rem;
-                 padding-right: .5rem; border-radius: 8px;border: 5px solid #9ec889; margin-block-end: 1em;
-                 margin-block-start: 1em;">
-                   <p style="color: black;font-family: Vollkorn, Palatino, sans-serif;font-size: 1.3em;
-                   font-weight: 600;margin-block-end: 0;padding-left: .3em; background: #9ec889; margin: -1px -.55rem;">
-                     <span>IRB Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
-                  </p>
-                  Please note: the IRB approved timeframe for this study is <b> $IRB_START_DATE to $IRB_END_DATE</b>.
-                  <br><br>
-                  All data used in this analysis is from this timeframe.
-                  <br><br>
-                  If your study or cohort definition requires access to data outside this timeframe, please contact the IRB to request an amendment.
-                </div>
-            """))
         """)
      else
         @htl("""
-            <p>IRB Study # $(IRB)
-            $(isnothing(IRB_START_DATE) ? "" : @htl("""
-                <br>
-                <div style="display: inline-block; width: 90%; text-align: left;
-                 height: 100%; vertical-align: middle; background-color: #dbe9d4; padding-left: .5rem;
-                 padding-right: .5rem; border-radius: 8px;border: 5px solid #9ec889; margin-block-end: 1em;
-                 margin-block-start: 1em;">
-                   <p style="color: black;font-family: Vollkorn, Palatino, sans-serif;font-size: 1.3em;
-                   font-weight: 600;margin-block-end: 0;padding-left: .3em; background: #9ec889; margin: -1px -.55rem;">
-                     <span>IRB Date Range: ($IRB_START_DATE to $IRB_END_DATE)</span>
-                  </p>
-                  Please note: the IRB approved timeframe for this study is <b> $IRB_START_DATE to $IRB_END_DATE</b>.
-                  <br><br>
-                  All data used in this analysis is from this timeframe.
-                  <br><br>
-                  If your study or cohort definition requires access to data outside this timeframe, please contact the IRB to request an amendment.
-                </div>
-            """))
+            <p>IRB Study # $(IRB).
+            The IRB approved timeframe for this study is <b>$IRB_START_DATE</b> to <b>$IRB_END_DATE</b>.
+            <i>Data must be recorded during this timeframe to be considered.</i>
+            If this study should consider any data outside this timeframe, please contact the IRB Office.
             </p>
-        """)
+            """)
      end)
    $(PlutoUI.TableOfContents())
   """)
