@@ -28,6 +28,8 @@ function configuration()
     project_code = retval[:project_code]
     if isnothing(project_code)
         retval[:project_code] = "005547"
+        retval[:irb_start_date] = something(retval[:irb_start_date], "2010-01-01")
+        retval[:irb_end_date] = something(retval[:irb_end_date], string(Dates.now())[1:10])
     else
         @assert startswith(project_code, "P-") && length(project_code) == 8
         retval[:project_code] = project_code[3:end]
