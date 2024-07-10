@@ -56,6 +56,12 @@ person() = begin
         optional = true)
 end
 
+pat_id() =
+    (:pat_id =>
+         if_defined_scalar(person, person.omop.person_source_value,
+                           if_defined_scalar(omop, omop.person_source_value,
+                                             person_source_value)))
+
 is_deceased() = 
     (:is_deceased =>
      isnotnull(if_defined_scalar(person, person.omop.death.person_id, omop.death.person_id)))
