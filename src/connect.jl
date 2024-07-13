@@ -33,10 +33,11 @@ isessentiallyuppercase(s) =
 struct CatalogMetadata
     default_catalog::String
     concept_cache::Union{Tuple{ODBC.Connection, String}, Nothing}
+    project::Union{Project, Nothing}
     src_time::Int
 
-    CatalogMetadata(default_catalog, concept_cache) =
-        new(default_catalog, concept_cache, trunc(Int, datetime2unix(Dates.now())))
+    CatalogMetadata(default_catalog, concept_cache, project) =
+        new(default_catalog, concept_cache, project, trunc(Int, datetime2unix(Dates.now())))
 end
 
 function get_metadata(cat::FunSQL.SQLCatalog)
@@ -58,12 +59,17 @@ function get_metadata(t::FunSQL.SQLTable)
     m
 end
 
-function connect(specs...; catalog = nothing, exclude = nothing)
+function connect(specs...; catalog = nothing, exclude = nothing, project = nothing)
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
     catalog = something(catalog, DATABRICKS_CATALOG)
     conn = connect_to_databricks(catalog = catalog)
     table_map = Dict{Symbol, FunSQL.SQLTable}()
     for spec in specs
+        if spec isa Project
+            @assert project === nothing
+            project = spec
+            continue
+        end
         prefix, (catalogname, schemaname) = _unpack_spec(spec)
         tables = _introspect_schema(conn, catalogname, schemaname)
         for table in tables
@@ -73,7 +79,7 @@ function connect(specs...; catalog = nothing, exclude = nothing)
         end
     end
     concept_cache = create_concept_cache(conn, get(table_map, :concept, nothing))
-    metadata = (; trdw = CatalogMetadata(catalog, concept_cache))
+    metadata = (; trdw = CatalogMetadata(catalog, concept_cache, project))
     cat = FunSQL.SQLCatalog(tables = table_map, dialect = FunSQL.SQLDialect(:spark), metadata = metadata)
     db = FunSQL.SQLConnection(conn, catalog = cat)
     db
