@@ -725,19 +725,18 @@ function make_password()
 end
 
 function get_password()
-    case = funsql_get_project_code()
-    password = strip(get(ENV, "PASSWORD", ""))
-    if length(password) == 0 && haskey(ENV, "CACHE_DIR")
-        pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
-        if isfile(pwfile)
-            password = strip(read(open(pwfile), String))
-        end
+    if !haskey(ENV, "CACHE_DIR")
+        return nothing
     end
-    password = password == "" ? make_password() : password
-    if haskey(ENV, "CACHE_DIR")
-        pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
+    pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
+    if isfile(pwfile)
+        password = strip(read(open(pwfile), String))
+        @assert length(password) > 10
+    else
+        password = make_password()
         f = open(pwfile, "w")
         write(f, password * "\n")
+        flush(f)
         close(f)
     end
     return password
