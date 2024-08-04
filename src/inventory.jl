@@ -42,38 +42,90 @@ percentiles(expr, qs = [0, 0.025, 0.25, 2.5, 25, 50, 75, 97.5, 99.75, 99.975, 10
         $name => `[]`(percentile($expr, array(args = $(qs ./ 100))), pcts.i - 1))
 end
 
-validate_primary_key(table, column) = begin
-    from($table)
+validate_primary_key(source::FunSQL.SQLNode, columns::Vector{Symbol}) = begin
+    $source
+    group($(columns...))
+    define(key_is_not_null => and(args = $[@funsql(is_not_null($column)) for column in columns]))
     group()
     define(
-        column_name => $("$table.$column"),
-        n_rows => count(),
-        n_keys => count_distinct($column))
-    define(is_valid_pk => n_rows == n_keys)
+        primary_key => $(_primary_key_name(source, columns)),
+        n => sum(count()),
+        ndv => count(filter = key_is_not_null),
+        n_null => nullif(sum(count(), filter = !key_is_not_null), 0),
+        n_dup => nullif(sum(count(), filter = count() > 1 && key_is_not_null), 0),
+        ndv_dup => nullif(count(filter = count() > 1 && key_is_not_null), 0))
+    define(is_valid => is_null(n_null) && is_null(n_dup), after = primary_key)
+    define(pct_null => floor(100 * n_null / n, 1), after = n_null)
+    define(pct_dup => floor(100 * n_dup / n, 1), after = n_dup)
 end
 
-validate_foreign_key(
-        source_table, source_column, target_table, target_column) = begin
-    from($source_table)
-    filter(is_not_null($source_column))
-    left_join(target => from($target_table), $source_column == target.$target_column)
-    filter(is_null(target.$target_column))
+validate_primary_key(table::Symbol, columns::Vector{Symbol}) =
+    validate_primary_key(from($table), $columns)
+
+validate_primary_key(source::Union{FunSQL.SQLNode, Symbol}, column::Symbol) =
+    validate_primary_key($source, [$column])
+
+validate_primary_key(sources::Vector, columns) =
+    append(args = $[@funsql(validate_primary_key($source, $columns)) for source in sources])
+
+validate_foreign_key(source::FunSQL.SQLNode, source_columns::Vector{Symbol}, target::FunSQL.SQLNode, target_columns::Vector{Symbol}) = begin
+    source => $source.group($(source_columns...)).define(is_present => true)
+    join(
+        target => $target.group($(target_columns...)).define(is_present => true),
+        on = and(args = $[@funsql(source.$source_column == target.$target_column) for (source_column, target_column) in zip(source_columns, target_columns)]),
+        left = true,
+        right = true)
+    define(
+        source_is_present => coalesce(source.is_present, false),
+        source_key_is_not_null => and(args = $[@funsql(is_not_null(source.$source_column)) for source_column in source_columns]),
+        target_is_present => coalesce(target.is_present, false),
+        target_key_is_not_null => and(args = $[@funsql(is_not_null(target.$target_column)) for target_column in target_columns]))
     group()
     define(
-        column_name => $("$source_table.$source_column"),
-        n_bad_rows => count(),
-        n_bad_keys => count_distinct($source_column))
-    define(is_valid_fk => n_bad_keys == 0)
-    cross_join(
-        begin
-            from($source_table)
-            group()
-            define(
-                n_all_rows => count($source_column),
-                n_all_keys => count_distinct($source_column))
-            define(n_null => count() - n_all_rows)
-            define(pct_null => 100 * n_null / count())
-        end)
+	foreign_key => $(_foreign_key_name(source, source_columns, target, target_columns)),
+        is_valid => coalesce(!any(source_key_is_not_null && !target_is_present), true),
+        n => sum(source.count()),
+        n_linked => sum(source.count(), filter = target_is_present),
+        n_bad => sum(source.count(), filter = source_key_is_not_null && !target_is_present),
+        ndv_bad => nullif(count(filter = source_key_is_not_null && !target_is_present), 0),
+        n_tgt => sum(target.count()),
+        n_tgt_linked => sum(target.count(), filter = source_is_present),
+        med_card => median(source.count(), filter = target_is_present),
+        max_card => max(source.count(), filter = target_is_present))
+    define(pct_linked => floor(100 * n_linked / n, 1), after = n_linked)
+    define(pct_bad => floor(100 * n_bad / n, 1), after = n_bad)
+    define(pct_tgt_linked => floor(100 * n_tgt_linked / n_tgt, 1), after = n_tgt_linked)
 end
 
+validate_foreign_key(source::Union{FunSQL.SQLNode, Symbol}, source_column::Symbol, target::Union{FunSQL.SQLNode, Symbol}, target_column::Symbol) =
+    validate_foreign_key($source, [$source_column], $target, [$target_column])
+
+validate_foreign_key(source::Union{FunSQL.SQLNode, Symbol}, source_columns::Vector{Symbol}, target_table::Symbol, target_columns::Vector{Symbol}) =
+    validate_foreign_key($source, $source_columns, from($target_table), $target_columns)
+
+validate_foreign_key(source_table::Symbol, source_columns::Vector{Symbol}, target::FunSQL.SQLNode, target_columns::Vector{Symbol}) =
+    validate_foreign_key(from($source_table), $source_columns, $target, $target_columns)
+
+validate_foreign_key(sources::Vector, source_columns, target, target_columns) =
+    append(args = $[@funsql(validate_foreign_key($source, $source_columns, $target, $target_columns)) for source in sources])
+
+end
+
+function _primary_key_name(source, columns)
+    table = FunSQL.label(source)
+    if length(columns) == 1
+        "$(table).$(columns[1])"
+    else
+        "$(table) ($(join(string.(columns), ", ")))"
+    end
+end
+
+function _foreign_key_name(source, source_columns, target, target_columns)
+    source_table = FunSQL.label(source)
+    target_table = FunSQL.label(target)
+    if length(source_columns) == length(target_columns) == 1
+        "$(source_table).$(source_columns[1]) → $(target_table).$(target_columns[1])"
+    else
+        "$(source_table) ($(join(string.(source_columns), ", "))) → $(target_table) ($(join(string.(target_columns), ", ")))"
+    end
 end
