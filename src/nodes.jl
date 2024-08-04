@@ -186,27 +186,28 @@ function FunSQL.resolve(n::ExplainConceptIdNode, ctx)
     FunSQL.resolve(q, ctx)
 end
 
-mutable struct DensityNode <: FunSQL.TabularNode
+mutable struct SummaryNode <: FunSQL.TabularNode
     over::Union{FunSQL.SQLNode, Nothing}
     names::Vector{Symbol}
     type::Bool
     top_k::Int
     nested::Bool
 
-    DensityNode(; over = nothing, names = Symbol[], type = false, top_k = 0, nested = false) =
+    SummaryNode(; over = nothing, names = Symbol[], type = true, top_k = 0, nested = false) =
         new(over, names, type, top_k, nested)
 end
 
-DensityNode(names...; over = nothing, type = false, top_k = 0, nested = false) =
-    DensityNode(over = over, names = Symbol[names...], type = type, top_k = top_k, nested = nested)
+SummaryNode(names...; over = nothing, type = true, top_k = 0, nested = false) =
+    SummaryNode(over = over, names = Symbol[names...], type = type, top_k = top_k, nested = nested)
 
-Density(args...; kws...) =
-    DensityNode(args...; kws...) |> FunSQL.SQLNode
+Summary(args...; kws...) =
+    SummaryNode(args...; kws...) |> FunSQL.SQLNode
 
-const funsql_density = Density
+const funsql_summary = Summary
+const funsql_density = Summary
 
-function FunSQL.PrettyPrinting.quoteof(n::DensityNode, ctx::FunSQL.QuoteContext)
-    ex = Expr(:call, nameof(Density), FunSQL.quoteof(n.names, ctx)...)
+function FunSQL.PrettyPrinting.quoteof(n::SummaryNode, ctx::FunSQL.QuoteContext)
+    ex = Expr(:call, nameof(Summary), FunSQL.quoteof(n.names, ctx)...)
     if n.type
         push!(ex.args, Expr(:kw, :type, n.type))
     end
@@ -222,7 +223,7 @@ function FunSQL.PrettyPrinting.quoteof(n::DensityNode, ctx::FunSQL.QuoteContext)
     ex
 end
 
-function FunSQL.resolve(n::DensityNode, ctx)
+function FunSQL.resolve(n::SummaryNode, ctx)
     over′ = FunSQL.resolve(n.over, ctx)
     t = FunSQL.row_type(over′)
     for name in n.names
@@ -234,44 +235,48 @@ function FunSQL.resolve(n::DensityNode, ctx)
                     path = FunSQL.get_path(ctx)))
         end
     end
-    cases = _density_cases(t, isempty(n.names) ? Set(keys(t.fields)) : Set(n.names), n.nested)
+    names = isempty(n.names) ? Set(keys(t.fields)) : Set(n.names)
+    cases = _summary_cases(t, names, n.nested)
+    if isempty(cases) && !n.nested
+        cases = _summary_cases(t, names, true)
+    end
     cols = last.(cases)
     max_i = length(cases)
     args = FunSQL.SQLNode[]
-    push!(args, :name => _density_switch(first.(cases)))
+    push!(args, :column => _summary_switch(first.(cases)))
     if n.type
-        push!(args, :type => _density_switch(map(col -> @funsql(typeof(any_value($col))), cols)))
+        push!(args, :type => _summary_switch(map(col -> @funsql(typeof(any_value($col))), cols)))
     end
     push!(
         args,
-        :n_not_null => _density_switch(map(col -> @funsql(count($col)), cols)),
-        :pct_not_null => _density_switch(map(col -> @funsql(100 * count($col) / count()), cols)),
-        :approx_n_distinct => _density_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
+        :n_not_null => _summary_switch(map(col -> @funsql(count($col)), cols)),
+        :pct_not_null => _summary_switch(map(col -> @funsql(floor(100 * count($col) / count(), 1)), cols)),
+        :approx_ndv => _summary_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
     if n.top_k > 0
         for i = 1:n.top_k
             push!(
                 args,
                 Symbol("approx_top_$i") =>
-                    _density_switch(map(col -> @funsql(_density_approx_top($col, $(n.top_k), $(i - 1))), cols)))
+                    _summary_switch(map(col -> @funsql(_summary_approx_top($col, $(n.top_k), $(i - 1))), cols)))
         end
     end
     q = @funsql begin
         $over′
         group()
-        cross_join(density_case => from(explode(sequence(1, $max_i)), columns = [index]))
+        cross_join(summary_case => from(explode(sequence(1, $max_i)), columns = [index]))
         define(args = $args)
     end
     FunSQL.resolve(q, ctx)
 end
 
-function _density_cases(t, name_set, nested)
+function _summary_cases(t, name_set, nested)
     cases = Tuple{String, FunSQL.SQLNode}[]
     for (f, ft) in t.fields
         f in name_set || continue
         if ft isa FunSQL.ScalarType
             push!(cases, (String(f), FunSQL.Get(f)))
         elseif ft isa FunSQL.RowType && nested
-            subcases = _density_cases(ft, Set(keys(ft.fields)), nested)
+            subcases = _summary_cases(ft, Set(keys(ft.fields)), nested)
             for (n, q) in subcases
                 push!(cases, ("$f.$n", FunSQL.Get(f) |> q))
             end
@@ -280,16 +285,16 @@ function _density_cases(t, name_set, nested)
     cases
 end
 
-function _density_switch(branches)
+function _summary_switch(branches)
     args = FunSQL.SQLNode[]
     for (i, branch) in enumerate(branches)
-        push!(args, @funsql(density_case.index == $i), branch)
+        push!(args, @funsql(summary_case.index == $i), branch)
     end
     FunSQL.Fun.case(args = args)
 end
 
-@funsql _density_approx_top(q, k, i) =
-    `[]`(agg(`transform(approx_top_k(?, ?) FILTER (WHERE ? IS NOT NULL), el -> concat(el.item, ' (', round(100 * el.count / count(?), 1), '%)'))`, $q, $k, $q, $q), $i)
+@funsql _summary_approx_top(q, k, i) =
+    `[]`(agg(`transform(approx_top_k(?, ?) FILTER (WHERE ? IS NOT NULL), el -> concat(el.item, ' (', floor(100 * el.count / count(?), 1), '%)'))`, $q, $k, $q, $q), $i)
 
 mutable struct CountAllNode <: FunSQL.TabularNode
     include::Union{Regex, Nothing}
