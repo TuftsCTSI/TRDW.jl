@@ -1,46 +1,45 @@
 @funsql begin
 
-table_size(db::FunSQL.SQLConnection, table) = begin
-    from($table)
-    group()
-    define(
-        table_name => $("$table"),
-        n_rows => count(),
-        n_columns => $(length(db.catalog[table].columns)))
+frequency(args...) = begin
+    group($(args...))
+    define(n => count())
+    partition(name = all)
+    define(`%` => floor(100 * n / all.sum(n), 1))
+    order(n.desc())
 end
 
-table_size(db::FunSQL.SQLConnection) = begin
-    append(
-        args =
-            $[@funsql(table_size($db, $table))
-            for table in keys(db.catalog)])
+array_frequency(expr; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))) = begin
+    partition(name = all)
+    cross_join(from(explode_outer($expr), columns = [$name]))
+    group($name)
+    define(n => count())
+    define(`%` => floor(100 * n / any_value(all.count()), 1))
+    order(n.desc())
 end
 
-table_density(db::FunSQL.SQLConnection, table, q = nothing) = begin
-    $(q !== nothing ? q : @funsql(from($table)))
+histogram(expr, bins = 20; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))) = begin
+    define(value => $expr)
     group()
-    cross_join(
-        index =>
-            from(
-                explode(sequence(1, $(length(db.catalog[table].columns)))),
-                columns = [i]))
+    as(source)
+    over(
+        append(
+            begin
+                from(source)
+                cross_join(histogram => from(explode(:HISTOGRAM), columns = [row]).bind(:HISTOGRAM => histogram_numeric(value, $bins)))
+                define($name => histogram.row >> x, n => bigint(histogram.row >> y))
+            end,
+            from(source).define($name => missing, n => count(filter = is_null(value))))).filter(n > 0)
+    partition(name = all)
+    define(`%` => floor(100 * n / all.sum(n), 1))
+    order($name)
+end
+
+percentiles(expr, qs = [0, 0.025, 0.25, 2.5, 25, 50, 75, 97.5, 99.75, 99.975, 100]; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))) = begin
+    group()
+    cross_join(pcts => from($(i = eachindex(qs), q = qs)))
     define(
-        column_name =>
-            case($(Iterators.flatten([
-                (@funsql(index.i == $i), "$table.$column")
-                for (i, column) in enumerate(db.catalog[table].columns)])...)),
-        n_not_null =>
-            case($(Iterators.flatten([
-                (@funsql(index.i == $i), @funsql(count($column)))
-                for (i, column) in enumerate(db.catalog[table].columns)])...)),
-        pct_not_null =>
-            case($(Iterators.flatten([
-                (@funsql(index.i == $i), @funsql(100 * count($column) / count()))
-                for (i, column) in enumerate(db.catalog[table].columns)])...)),
-        approx_n_distinct =>
-            case($(Iterators.flatten([
-                (@funsql(index.i == $i), @funsql(approx_count_distinct($column)))
-                for (i, column) in enumerate(db.catalog[table].columns)])...)))
+        pcts.q,
+        $name => `[]`(percentile($expr, array(args = $(qs ./ 100))), pcts.i - 1))
 end
 
 validate_primary_key(table, column) = begin
