@@ -20,12 +20,16 @@ struct SQLFormat
     group_by::Union{Symbol, Nothing}
     group_limit::Union{Int, Nothing}
     roundup::Union{Vector{Symbol}, Nothing}
+    hide_null_cols::Bool
 
-    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing) =
-        new(caption, limit, group_by, group_limit, roundup)
+    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing, hide_null_cols = false) =
+        new(caption, limit, group_by, group_limit, roundup, hide_null_cols)
 end
 
 function _format(df, fmt)
+    if fmt.hide_null_cols
+        df = df[!, any.(!ismissing, eachcol(df))]
+    end
     id = "trdw-format-$(rand(UInt64))"
     @htl """
     <div id="$id">
