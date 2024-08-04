@@ -15,13 +15,14 @@ Base.show(io::IO, r::Roundup) =
     0 <= r.val <= 10 ? print(io, "≤10") : show(io, r.val)
 
 struct SQLFormat
+    caption::Union{String, Nothing}
     limit::Union{Int, Nothing}
     group_by::Union{Symbol, Nothing}
     group_limit::Union{Int, Nothing}
     roundup::Union{Vector{Symbol}, Nothing}
 
-    SQLFormat(; limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing) =
-        new(limit, group_by, group_limit, roundup)
+    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing) =
+        new(caption, limit, group_by, group_limit, roundup)
 end
 
 function _format(df, fmt)
@@ -29,11 +30,19 @@ function _format(df, fmt)
     @htl """
     <div id="$id">
     <table>
+    $(_format_caption(df, fmt))
     $(_format_thead(df, fmt))
     $(_format_tbody(df, fmt))
     </table>
     </div>
     $(_format_style(id, df, fmt))
+    """
+end
+
+function _format_caption(df, fmt)
+    fmt.caption !== nothing || return
+    @htl """
+    <caption>$(fmt.caption)</caption>
     """
 end
 
@@ -155,6 +164,7 @@ function _format_style(id, df, fmt)
     <style>
     #$id { max-height: 502px; overflow: auto; }
     #$id > table { width: max-content; }
+    #$id > table > caption { padding: .2rem .5rem; }
     #$id > table > thead > tr > th { vertical-align; baseline; }
     #$id > table > tbody > tr:first-child > th { border-top: 1px solid var(--table-border-color); }
     #$id > table > tbody > tr:first-child > td { border-top: 1px solid var(--table-border-color); }
@@ -183,6 +193,9 @@ end
 
 FormatNode(; kws...) =
     FormatNode(FunSQL.Define(), SQLFormat(; kws...))
+
+FormatNode(caption; kws...) =
+    FormatNode(; caption, kws...)
 
 const funsql_format = FormatNode
 
