@@ -153,12 +153,14 @@ end
 function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; order_by)
     (name, base) = pair
     partname = :_attach_first
+    hasname = Symbol("has_$name")
     return @funsql begin
         partition(order_by = [person_id], name = $partname)
         left_join($name => $base, $name.person_id == person_id && $predicate)
         partition($partname.row_number(), order_by = $order_by, name = $partname)
         filter($partname.row_number() <= 1)
         undefine($partname)
+        define($hasname => isnotnull($name.person_id))
     end
 end
 
