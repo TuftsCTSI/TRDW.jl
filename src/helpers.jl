@@ -164,6 +164,13 @@ function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = tru
     end
 end
 
+funsql_attach_first(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; order_by) =
+    foldr(|>, [funsql_attach_first(pair; order_by) for pair in pairs])
+funsql_attach_earliest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}) =
+    foldr(|>, [funsql_attach_earliest(pair) for pair in pairs])
+funsql_attach_latest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}) =
+    foldr(|>, [funsql_attach_latest(pair) for pair in pairs])
+
 function funsql_join_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
     return @funsql(join($name => $base, $name.person_id == person_id && $predicate))
