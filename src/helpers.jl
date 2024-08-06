@@ -140,23 +140,23 @@ function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
     end)
 end
 
-function funsql_attach_earliest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true)
+function funsql_attach_earliest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; filter = true)
     (name, base) = pair
-    return funsql_attach_first(pair, predicate, order_by = [@funsql $name.datetime.asc(nulls = last)])
+    return funsql_attach_first(pair, predicate; filter, order_by = [@funsql $name.datetime.asc(nulls = last)])
 end
 
-function funsql_attach_latest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true)
+function funsql_attach_latest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; filter = true)
     (name, base) = pair
-    return funsql_attach_first(pair, predicate, order_by = [@funsql $name.datetime.desc(nulls = last)])
+    return funsql_attach_first(pair, predicate; filter, order_by = [@funsql $name.datetime.desc(nulls = last)])
 end
 
-function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; order_by)
+function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; order_by, filter = true)
     (name, base) = pair
     partname = :_attach_first
     hasname = Symbol("has_$name")
     return @funsql begin
         partition(order_by = [person_id], name = $partname)
-        left_join($name => $base, $name.person_id == person_id && $predicate)
+        left_join($name => $base.filter($filter), $name.person_id == person_id && $predicate)
         partition($partname.row_number(), order_by = $order_by, name = $partname)
         filter($partname.row_number() <= 1)
         undefine($partname)
@@ -164,12 +164,12 @@ function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = tru
     end
 end
 
-funsql_attach_first(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; order_by) =
-    foldr(|>, [funsql_attach_first(pair; order_by) for pair in pairs])
-funsql_attach_earliest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}) =
-    foldr(|>, [funsql_attach_earliest(pair) for pair in pairs])
-funsql_attach_latest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}) =
-    foldr(|>, [funsql_attach_latest(pair) for pair in pairs])
+funsql_attach_first(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; order_by, filter = true) =
+    foldr(|>, [funsql_attach_first(pair; order_by, filter) for pair in pairs])
+funsql_attach_earliest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; filter = true) =
+    foldr(|>, [funsql_attach_earliest(pair; filter) for pair in pairs])
+funsql_attach_latest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; filter = true) =
+    foldr(|>, [funsql_attach_latest(pair; filter) for pair in pairs])
 
 function funsql_join_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     (name, base) = pair
