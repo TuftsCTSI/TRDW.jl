@@ -109,6 +109,9 @@ validate_foreign_key(source_table::Symbol, source_columns::Vector{Symbol}, targe
 validate_foreign_key(sources::Vector, source_columns, target, target_columns) =
     append(args = $[@funsql(validate_foreign_key($source, $source_columns, $target, $target_columns)) for source in sources])
 
+validate_foreign_key(source, source_columns, target) =
+    validate_foreign_key($source, $source_columns, $target, $source_columns)
+
 end
 
 function _primary_key_name(source, columns)
