@@ -62,7 +62,7 @@ drug_ingredient() = drug_concept().filter(concept_class_id == "Ingredient")
 drug_pharmacologic_class() = drug_concept().filter(concept_class_id == "Pharmacologic Class")
 
 drug_ingredient_via_SNOMED(code, name) = begin
-    concept(SNOMED($code, $name))
+    SNOMED($code, $name)
     concept_relatives("Subsumes",1:3)
     concept_relatives("SNOMED - RxNorm eq")
     filter(concept_class_id=="Ingredient")
@@ -71,7 +71,7 @@ drug_ingredient_via_SNOMED(code, name) = begin
 end
 
 drug_ingredient_via_NDFRT(code, name) = begin
-    concept(NDFRT($code, $name))
+    NDFRT($code, $name)
     concept_relatives("Subsumes",1:3)
     concept_relatives("NDFRT - RxNorm eq")
     filter(concept_class_id=="Ingredient")
@@ -80,7 +80,7 @@ drug_ingredient_via_NDFRT(code, name) = begin
 end
 
 drug_ingredient_via_ATC(code, name) = begin
-    concept(ATC($code, $name))
+    ATC($code, $name)
     concept_relatives("Subsumes",1:3)
     concept_relatives("ATC - RxNorm pr lat")
     filter(concept_class_id=="Ingredient")
@@ -89,7 +89,7 @@ drug_ingredient_via_ATC(code, name) = begin
 end
 
 drug_ingredient_via_HemOnc(code, name) = begin
-    concept(HemOnc($code, $name))
+    HemOnc($code, $name)
     concept_children()
     filter(concept_class_id=="Ingredient")
 end
