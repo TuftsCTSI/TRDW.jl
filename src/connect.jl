@@ -4,25 +4,48 @@ build_dsn(; kws...) =
 function connect_to_databricks(; catalog = nothing, schema = nothing)
     DATABRICKS_SERVER_HOSTNAME = ENV["DATABRICKS_SERVER_HOSTNAME"]
     DATABRICKS_HTTP_PATH = ENV["DATABRICKS_HTTP_PATH"]
-    DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
+    DATABRICKS_ACCESS_TOKEN = get(ENV, "DATABRICKS_ACCESS_TOKEN", nothing)
+    DATABRICKS_AUTH_CLIENT_ID = get(ENV, "DATABRICKS_AUTH_CLIENT_ID", nothing)
+    DATABRICKS_AZURE_WORKSPACE_RESOURCE_ID = get(ENV, "DATABRICKS_AZURE_WORKSPACE_RESOURCE_ID", nothing)
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
 
     catalog = something(catalog, DATABRICKS_CATALOG)
     schema = get(ENV, "TRDW_SCHEMA", schema)
 
-    DATABRICKS_DSN = build_dsn(
-        Driver = "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
-        Host = DATABRICKS_SERVER_HOSTNAME,
-        Port = 443,
-        SSL = 1,
-        ThriftTransport = 2,
-        HTTPPath = DATABRICKS_HTTP_PATH,
-        UseNativeQuery = 1,
-        AuthMech = 3,
-        Catalog = catalog,
-        Schema = schema,
-        UID = "token",
-        PWD = DATABRICKS_ACCESS_TOKEN)
+    DATABRICKS_DSN =
+        if DATABRICKS_AUTH_CLIENT_ID !== nothing && DATABRICKS_AZURE_WORKSPACE_RESOURCE_ID !== nothing
+            build_dsn(
+                Driver = "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
+                Host = DATABRICKS_SERVER_HOSTNAME,
+                Port = 443,
+                SSL = 1,
+                ThriftTransport = 2,
+                HTTPPath = DATABRICKS_HTTP_PATH,
+                UseNativeQuery = 1,
+                Catalog = catalog,
+                Schema = schema,
+                # https://learn.microsoft.com/en-us/azure/databricks/integrations/odbc/authentication#authentication-azure-mi
+                AuthMech = 11,
+                Auth_Flow = 3,
+                Auth_Client_ID = DATABRICKS_AUTH_CLIENT_ID,
+                Azure_workspace_resource_id = DATABRICKS_AZURE_WORKSPACE_RESOURCE_ID)
+        elseif DATABRICKS_ACCESS_TOKEN !== nothing
+            build_dsn(
+                Driver = "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
+                Host = DATABRICKS_SERVER_HOSTNAME,
+                Port = 443,
+                SSL = 1,
+                ThriftTransport = 2,
+                HTTPPath = DATABRICKS_HTTP_PATH,
+                UseNativeQuery = 1,
+                Catalog = catalog,
+                Schema = schema,
+                # https://learn.microsoft.com/en-us/azure/databricks/integrations/odbc/authentication#authentication-pat
+                AuthMech = 3,
+                UID = "token",
+                PWD = DATABRICKS_ACCESS_TOKEN)
+        end
+    @assert DATABRICKS_DSN !== nothing
 
     DBInterface.connect(ODBC.Connection, DATABRICKS_DSN)
 end
