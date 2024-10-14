@@ -71,6 +71,13 @@ end
 
 @funsql begin
 
+ATC(code_or_name, name=nothing) =
+    concept(
+        assert_valid_concept(
+            vocabulary_id == "ATC" &&
+            is_concept_codename_match($code_or_name, $name),
+            $(:(ATC($code_or_name, $name)))))
+
 ICD9CM(code_or_name, name=nothing) =
     concept(
         assert_valid_concept(
