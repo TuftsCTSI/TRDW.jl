@@ -1,63 +1,77 @@
-const CONFIG_FILE = "TRDW.json"
+struct Project
+    project_id::String
+    project_name::String
+    project_title::String
+    irb_id::Union{String, Nothing}
+    irb_start_date::Union{Dates.Date, Nothing}
+    irb_end_date::Union{Dates.Date, Nothing}
+
+    Project(; project_id, project_name, project_title, irb_id = nothing, irb_start_date = nothing, irb_end_date = nothing) =
+        new(project_id, project_name, project_title, irb_id, irb_start_date, irb_end_date)
+end
+
+const DEFAULT_PROJECT_FILE = "TRDW.json"
 const DISCOVERY_IRB = "11642"
 
-function configuration()
-    source = isfile(CONFIG_FILE) ? JSON.parsefile(CONFIG_FILE) : Dict()
-    retval = Dict{Symbol, Union{String, Vector, Nothing}}()
-    # normalize none/missing to nothing
-    for (k,v) in source
-        if v == "None" || v == "" || ismissing(v)
-            source[k] = nothing
+function load_project(filename = DEFAULT_PROJECT_FILE)
+    json = JSON.parsefile(filename)
+    project_id = json["project_id"]::String
+    project_name = json["project_name"]::String
+    project_title = json["project_title"]::String
+    irb_id = get(json, "irb_id", nothing)::Union{String, Nothing}
+    irb_start_date =
+        let s = get(json, "irb_start_date", nothing)::Union{String, Nothing}
+            s !== nothing ? Dates.Date(s) : nothing
         end
-    end
-    # pull out values
-    for (to, from) in (
-            :project_slug => "project_id",
-            :project_code => "project_name",
-            :project_title => "project_title",
-            :irb_code => "irb_id",
-            :irb_start_date => "irb_start_date",
-            :irb_end_date => "irb_end_date",
-            :pi_name => "pi_display_name",
-            :case => "case",
-            :project_stem => "project_stem")
-        retval[to] = get(source, from, nothing)
-    end
-    # quality checking and defaults
-    retval[:irb_code] = something(retval[:irb_code], DISCOVERY_IRB)
-    if DISCOVERY_IRB == retval[:irb_code]
-        retval[:irb_start_date] = something(retval[:irb_start_date], "2010-01-01")
-        retval[:irb_end_date] = something(retval[:irb_end_date], string(Dates.now())[1:10])
-    end
-    project_code = retval[:project_code]
-    if isnothing(project_code)
-        retval[:project_code] = "005547"
-    else
-        @assert startswith(project_code, "P-") && length(project_code) == 8
-        retval[:project_code] = project_code[3:end]
-    end
-    case = retval[:case]
-    if isnothing(case)
-        retval[:case] = Any[Dict("case_number" => "01000526")]
-    else
-        @assert length(retval[:case][1]["case_number"]) == 8
-    end
-    return retval
+    irb_end_date =
+        let s = get(json, "irb_end_date", nothing)::Union{String, Nothing}
+            s !== nothing ? Dates.Date(s) : nothing
+        end
+    Project(; project_id, project_name, project_title, irb_id, irb_start_date, irb_end_date)
 end
 
-function get_config_item(item)
-    result = get(configuration(), item, nothing)
-    @assert !isnothing(result) "$item not configured; see TRDW.json file"
-    return result
+function FunSQL.Chain(prj::Project, attr::Symbol)
+    val = getproperty(prj, attr)
+    val !== nothing || return missing
+    val
 end
 
-funsql_get_case_code() = get_config_item(:case_code)
-funsql_get_project_code() = get_config_item(:project_code)
-funsql_get_irb_code() = get_config_item(:irb_code)
-funsql_get_irb_start_date() = Date(get_config_item(:irb_start_date))
-funsql_get_irb_end_date() = Date(get_config_item(:irb_end_date))
+function funsql_get_project(attr = nothing)
+    function custom_resolve(n, ctx)
+        m = get_metadata(ctx.catalog)
+        prj = m.project
+        prj !== nothing || return missing
+        attr !== nothing || return prj
+        val = getproperty(prj, attr)
+        val !== nothing || return missing
+        val
+    end
+    CustomResolve(resolve_scalar = custom_resolve, terminal = true)
+end
 
-is_discovery() = funsql_get_irb_code() == DISCOVERY_IRB
-funsql_is_discovery = is_discovery
+@funsql begin
 
-@funsql is_during_irb_window() = between(datetime, get_irb_start_date(), get_irb_end_date())
+get_project_id() =
+    get_project(project_id)
+
+get_project_name() =
+    get_project(project_name)
+
+get_project_title() =
+    get_project(project_title)
+
+get_irb_id() =
+    get_project(irb_id)
+
+get_irb_start_date() =
+    get_project(irb_start_date)
+
+get_irb_end_date() =
+    get_project(irb_end_date)
+
+is_discovery() =
+    get_irb_id() == $DISCOVERY_IRB
+
+is_during_irb_window() =
+    between(datetime, get_irb_start_date(), get_irb_end_date())
+end

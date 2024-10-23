@@ -569,7 +569,7 @@ function run(db, spec::CreateSchemaSpecification)
     m = get_metadata(db.catalog)
     if m !== nothing
         concept_cache = create_concept_cache(db.raw, get(cat′, :concept, nothing))
-        metadata′[:trdw] = CatalogMetadata(m.default_catalog, concept_cache)
+        metadata′[:trdw] = CatalogMetadata(m.default_catalog, concept_cache, m.project)
     end
     db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
     db′
