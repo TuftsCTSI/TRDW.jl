@@ -192,13 +192,14 @@ mutable struct SummaryNode <: FunSQL.TabularNode
     type::Bool
     top_k::Int
     nested::Bool
+    exact::Bool
 
-    SummaryNode(; over = nothing, names = Symbol[], type = true, top_k = 0, nested = false) =
-        new(over, names, type, top_k, nested)
+    SummaryNode(; over = nothing, names = Symbol[], type = true, top_k = 0, nested = false, exact = false) =
+        new(over, names, type, top_k, nested, exact)
 end
 
-SummaryNode(names...; over = nothing, type = true, top_k = 0, nested = false) =
-    SummaryNode(over = over, names = Symbol[names...], type = type, top_k = top_k, nested = nested)
+SummaryNode(names...; over = nothing, type = true, top_k = 0, nested = false, exact = false) =
+    SummaryNode(over = over, names = Symbol[names...], type = type, top_k = top_k, nested = nested, exact = exact)
 
 Summary(args...; kws...) =
     SummaryNode(args...; kws...) |> FunSQL.SQLNode
@@ -216,6 +217,9 @@ function FunSQL.PrettyPrinting.quoteof(n::SummaryNode, ctx::FunSQL.QuoteContext)
     end
     if n.nested
         push!(ex.args, Expr(:kw, :nested, n.nested))
+    end
+    if n.exact
+        push!(ex.args, Expr(:kw, :exact, n.exact))
     end
     if n.over !== nothing
         ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
@@ -250,8 +254,12 @@ function FunSQL.resolve(n::SummaryNode, ctx)
     push!(
         args,
         :n_not_null => _summary_switch(map(col -> @funsql(count($col)), cols)),
-        :pct_not_null => _summary_switch(map(col -> @funsql(floor(100 * count($col) / count(), 1)), cols)),
-        :approx_ndv => _summary_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
+        :pct_not_null => _summary_switch(map(col -> @funsql(floor(100 * count($col) / count(), 1)), cols)))
+    if n.exact
+        push!(args, :ndv => _summary_switch(map(col -> @funsql(count_distinct($col)), cols)))
+    else
+        push!(args, :approx_ndv => _summary_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
+    end
     if n.top_k > 0
         for i = 1:n.top_k
             push!(
