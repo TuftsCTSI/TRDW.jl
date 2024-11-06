@@ -6,12 +6,13 @@ function connect_to_databricks(; catalog = nothing, schema = nothing)
     DATABRICKS_HTTP_PATH = ENV["DATABRICKS_HTTP_PATH"]
     DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
+    ODBC_DRIVER_PATH = get(ENV, "ODBC_DRIVER_PATH", "/opt/simba/spark/lib/64/libsparkodbc_sb64.so")
 
     catalog = something(catalog, DATABRICKS_CATALOG)
     schema = get(ENV, "TRDW_SCHEMA", schema)
-
+    
     DATABRICKS_DSN = build_dsn(
-        Driver = "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
+        Driver = ODBC_DRIVER_PATH,
         Host = DATABRICKS_SERVER_HOSTNAME,
         Port = 443,
         SSL = 1,
