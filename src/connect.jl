@@ -10,9 +10,17 @@ function connect_to_databricks(; catalog = nothing, schema = nothing)
 
     catalog = something(catalog, DATABRICKS_CATALOG)
     schema = get(ENV, "TRDW_SCHEMA", schema)
-    
+    driver_paths = [
+        "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
+        "/Library/simba/spark/lib/libsparkodbc_sb64-universal.dylib"
+    ]
+    driver = driver_paths[findfirst(isfile, driver_paths)]
+    if driver === nothing
+        throw(ErrorException("No valid ODBC driver found in the specified paths."))
+    end
+
     DATABRICKS_DSN = build_dsn(
-        Driver = ODBC_DRIVER_PATH,
+        Driver = driver,
         Host = DATABRICKS_SERVER_HOSTNAME,
         Port = 443,
         SSL = 1,
