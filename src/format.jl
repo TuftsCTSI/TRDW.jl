@@ -21,9 +21,10 @@ struct SQLFormat
     group_limit::Union{Int, Nothing}
     roundup::Union{Vector{Symbol}, Nothing}
     hide_null_cols::Bool
+    scroll::Bool
 
-    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing, hide_null_cols = false) =
-        new(caption, limit, group_by, group_limit, roundup, hide_null_cols)
+    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing, hide_null_cols = false, scroll = true) =
+        new(caption, limit, group_by, group_limit, roundup, hide_null_cols, scroll)
 end
 
 function _format(df, fmt)
@@ -166,7 +167,7 @@ end
 function _format_style(id, df, fmt)
     return @htl """
     <style>
-    #$id { max-height: 502px; overflow: auto; }
+    $(fmt.scroll ? @htl("#$id { max-height: 502px; overflow: auto; }") : "")
     #$id > table { width: max-content; }
     #$id > table > caption { padding: .2rem .5rem; }
     #$id > table > thead > tr > th { vertical-align; baseline; }
