@@ -20,6 +20,7 @@ using PlutoUI
 using Scratch
 using Arrow
 using SHA
+using AbstractPlutoDingetjes
 
 import Tables
 import DBInterface.execute
