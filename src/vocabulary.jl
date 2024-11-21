@@ -40,21 +40,26 @@ Base.get(sets::NamedConceptSets, key::Symbol, default) =
 FunSQL.Chain(sets::NamedConceptSets, key::Symbol) =
     sets[key]
 
-Base.convert(::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
-    if isempty(sets.dict)
-        @funsql concept().filter(false)
-    else
-        FunSQL.Append(args = FunSQL.SQLNode[values(sets.dict)...])
-    end
+Base.convert(type::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
+    Base.convert(type, Base.convert(DataFrame, sets))
 
 function Base.show(io::IO, mime::MIME"text/html", sets::NamedConceptSets)
+    df = Base.convert(DataFrame, sets)
+    df = df[:, [:concept_group, :concept_id, :vocabulary_id, :concept_code, :concept_name]]
+    Base.show(io, mime, _format(df, SQLFormat(limit = nothing, group_by = :concept_group)))
+end
+
+function Base.convert(::Type{DataFrames.DataFrame}, sets::NamedConceptSets)
     df = DataFrame()
+    if isempty(sets.dict)
+        return DataFrame(concept_id = Integer[], concept_name = String[], domain_id = String[], vocabulary_id = String[], concept_class_id = String[], standard_concept = String[], concept_code = String[], invalid_reason = String[], concept_group = String[])
+    end
     for (var, r) in sets.dict
         df′ = DataFrame(r)
-        df′[:, :variable] .= string(var)
-        df = vcat(df, df′[:, [:variable, :concept_id, :vocabulary_id, :concept_code, :concept_name]])
+        df′[:, :concept_group] .= string(var)
+        df = vcat(df, df′)
     end
-    Base.show(io, mime, _format(df, SQLFormat(limit = nothing, group_by = :variable)))
+    return df
 end
 
 function funsql_is_concept_codename_match(code_or_name, name)
