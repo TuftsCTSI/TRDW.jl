@@ -2,6 +2,7 @@ name = "TRDW"
 uuid = "0719a0bd-20d8-4d8e-abe7-d82c18a4d09f"
 
 [deps]
+AbstractPlutoDingetjes = "6e696c72-6542-2067-7265-42206c756150"
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 Chain = "8be319e6-bccf-4806-a6f7-6fae938471bc"
@@ -37,4 +38,5 @@ JavaCallExt = "JavaCall"
 PlutoRunnerExt = "PlutoRunner"
 
 [compat]
+AbstractPlutoDingetjes = "1.3.2"
 FunSQL = "0.14.0"

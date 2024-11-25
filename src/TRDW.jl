@@ -20,6 +20,7 @@ using PlutoUI
 using Scratch
 using Arrow
 using SHA
+using AbstractPlutoDingetjes
 
 import Tables
 import DBInterface.execute
@@ -50,6 +51,7 @@ include("profile.jl")
 include("ohdsi.jl")
 include("xlsx.jl")
 include("etl.jl")
+include("excalidraw.jl")
 
 include("care_site.jl")
 include("concept.jl")
