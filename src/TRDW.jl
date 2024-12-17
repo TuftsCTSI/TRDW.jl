@@ -11,6 +11,7 @@ using FunSQL: @dissect, Chain, Fun, Var
 using HTTP
 using HypertextLiteral
 using JSON
+using JSON3
 using OrderedCollections: OrderedDict
 using HashArrayMappedTries
 using Unicode
