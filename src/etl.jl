@@ -562,12 +562,12 @@ function run(db, spec::CreateSchemaSpecification)
         @info "$n_qs quer$(n_qs == 1 ? "y" : "ies") executed in $(round(sec, digits = 1)) seconds using $n_conns connection$(n_conns == 1 ? "" : "s")"
     end
     tables′ = _introspect_schema(pool.default_catalog, string(spec.name))
-    metadata′ = Dict{Symbol, Any}()
-    cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect, metadata = metadata′)
+    cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect)
     m = get_metadata(db.catalog)
     if m !== nothing
         concept_cache = create_concept_cache(db.raw, get(cat′, :concept, nothing))
-        metadata′[:trdw] = CatalogMetadata(m.default_catalog, concept_cache)
+        metadata′ = (; trdw = CatalogMetadata(m.default_catalog, concept_cache))
+        cat′ = FunSQL.SQLCatalog(tables = cat′.tables, dialect = db.catalog.dialect, metadata = metadata′)
     end
     db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
     db′
