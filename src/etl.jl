@@ -458,7 +458,7 @@ function execute_ddl(pool, sql, req_tasks = Task[])
     end
     conn = pop!(pool)
     try
-        @info sql
+        #@info sql
         sec = @elapsed begin
             DBInterface.execute(conn, sql)
             ODBC.clear!(conn)
