@@ -143,10 +143,17 @@ function _introspect_schema(catalog, schema)
     DATABRICKS_SERVER_HOSTNAME = ENV["DATABRICKS_SERVER_HOSTNAME"]
     DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
     response =
-        HTTP.get(
-            "https://$DATABRICKS_SERVER_HOSTNAME/api/2.1/unity-catalog/tables",
-            query = ["catalog_name" => catalog, "schema_name" => schema],
-            headers = ["Authorization" => "Bearer $DATABRICKS_ACCESS_TOKEN"])
+        try
+            HTTP.get(
+                "https://$DATABRICKS_SERVER_HOSTNAME/api/2.1/unity-catalog/tables",
+                query = ["catalog_name" => catalog, "schema_name" => schema],
+                headers = ["Authorization" => "Bearer $DATABRICKS_ACCESS_TOKEN"])
+        catch e
+            if e isa HTTP.StatusError && e.status == 404
+                return FunSQL.SQLTable[]
+            end
+            rethrow()
+        end
     result = JSON3.read(response.body, DatabricksTablesAPI.Result)
     tables = FunSQL.SQLTable[]
     for t in result.tables
