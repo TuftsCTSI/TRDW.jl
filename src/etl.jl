@@ -458,7 +458,7 @@ function execute_ddl(pool, sql, req_tasks = Task[])
     end
     conn = pop!(pool)
     try
-        @info sql
+        #@info sql
         sec = @elapsed begin
             DBInterface.execute(conn, sql)
             ODBC.clear!(conn)
@@ -483,7 +483,7 @@ function run(db, spec::CreateSchemaSpecification)
     pool = ConnectionPool(db)
     existing_tables = Dict{String, TableMetadata}(
         [FunSQL.render(db, FunSQL.ID(t.qualifiers[end:end], t.name)) => (let m = get_metadata(t); @assert m !== nothing; m; end)
-         for t in _introspect_schema(db.raw, pool.default_catalog, string(spec.name))])
+         for t in _introspect_schema(pool.default_catalog, string(spec.name))])
     matches = Set{String}()
     for def in reverse!(collect(values(schema_def.defs)))
         m = get(existing_tables, def.name_sql, nothing)
@@ -526,7 +526,8 @@ function run(db, spec::CreateSchemaSpecification)
                 drop_task = Threads.@spawn execute_ddl($pool, $sql)
             end
             obj_sql = def.is_view ? "VIEW" : "TABLE"
-            sql = "$cmd $obj_sql $(def.name_sql) AS\n$(def.body_sql)"
+            tblproperties = "TBLPROPERTIES ('trdw.etl_hash' = '$(def.etl_hash)', 'trdw.etl_time' = $(def.etl_time))"
+            sql = "$cmd $obj_sql $(def.name_sql)\n$tblproperties AS\n$(def.body_sql)"
             req_tasks = drop_task !== nothing ? [drop_task] : Task[]
             for req in def.reqs
                 haskey(task_map, req) || continue
@@ -537,9 +538,6 @@ function run(db, spec::CreateSchemaSpecification)
             for req in def.reqs
                 push!(done_tasks_map[req], task)
             end
-            sql = "ALTER $obj_sql $(def.name_sql)\nSET TAGS ('etl_hash' = '$(def.etl_hash)', 'etl_time' = '$(def.etl_time)')"
-            task = Threads.@spawn execute_ddl($pool, $sql, [$task])
-            push!(done_tasks_map[def.name_sql], task)
         end
         if spec.drop_tmp
             for def in values(schema_def.defs)
@@ -563,13 +561,13 @@ function run(db, spec::CreateSchemaSpecification)
         n_conns = pool.n_conns[]
         @info "$n_qs quer$(n_qs == 1 ? "y" : "ies") executed in $(round(sec, digits = 1)) seconds using $n_conns connection$(n_conns == 1 ? "" : "s")"
     end
-    tables′ = _introspect_schema(db.raw, nothing, string(spec.name))
-    metadata′ = Dict{Symbol, Any}()
-    cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect, metadata = metadata′)
+    tables′ = _introspect_schema(pool.default_catalog, string(spec.name))
+    cat′ = FunSQL.SQLCatalog(tables = tables′, dialect = db.catalog.dialect)
     m = get_metadata(db.catalog)
     if m !== nothing
         concept_cache = create_concept_cache(db.raw, get(cat′, :concept, nothing))
-        metadata′[:trdw] = CatalogMetadata(m.default_catalog, concept_cache)
+        metadata′ = (; trdw = CatalogMetadata(m.default_catalog, concept_cache))
+        cat′ = FunSQL.SQLCatalog(tables = cat′.tables, dialect = db.catalog.dialect, metadata = metadata′)
     end
     db′ = FunSQL.SQLConnection(db.raw, catalog = cat′)
     db′
