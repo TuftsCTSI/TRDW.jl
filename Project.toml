@@ -1,5 +1,6 @@
 name = "TRDW"
 uuid = "0719a0bd-20d8-4d8e-abe7-d82c18a4d09f"
+version = "0.0.1"
 
 [deps]
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
