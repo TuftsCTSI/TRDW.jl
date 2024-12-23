@@ -52,7 +52,6 @@ include("ohdsi.jl")
 include("xlsx.jl")
 include("etl.jl")
 
-include("care_site.jl")
 include("concept.jl")
 include("condition.jl")
 include("device.jl")
