@@ -56,7 +56,6 @@ include("concept.jl")
 include("condition.jl")
 include("drug.jl")
 include("measurement.jl")
-include("observation.jl")
 include("person.jl")
 include("procedure.jl")
 
