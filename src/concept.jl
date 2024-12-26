@@ -1,10 +1,5 @@
 @funsql begin
 
-concept(concept_id::Integer...) =
-    concept().filter(in(concept_id, $concept_id...))
-
-concept(p) = concept().filter($p)
-
 concept_like(args...) = concept().filter(icontains(concept_name, $args...))
 
 select_concept(name, include...; order=[]) = begin
