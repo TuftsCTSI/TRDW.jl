@@ -54,15 +54,11 @@ include("etl.jl")
 
 include("concept.jl")
 include("condition.jl")
-include("device.jl")
 include("drug.jl")
 include("measurement.jl")
 include("observation.jl")
 include("person.jl")
 include("procedure.jl")
-include("specimen.jl")
-include("visit.jl")
-include("visit_detail.jl")
 
 funsql_export() =
     for name in Base.names(@__MODULE__, all = true)
