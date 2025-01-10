@@ -81,20 +81,26 @@ funsql_fact_use_subject_id() =
         fact_use_subject_id(domain_concept_id_2, fact_id_2)
     end
 
+struct TruncateSubjectSpecification
+end
+
+funsql_truncate_subject_table() =
+    TruncateSubjectSpecification()
+
+function run(db, spec::TruncateSubjectSpecification)
+    subject_table = ensure_subject_table(db)
+    subject_sql = sqlname(db, subject_table)
+    DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
+    @info "table $subject_sql is truncated"
+    nothing
+end
+
 struct MergeSubjectSpecification
     node::FunSQL.SQLNode
 end
 
 funsql_assign_subject_ids(node) =
     MergeSubjectSpecification(@funsql($node.deduplicate(person_id)))
-
-function funsql_truncate_subject_ids()
-    subject_table = ensure_subject_table(db)
-    subject_sql = sqlname(db, subject_table)
-    if spec.truncate
-        DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
-    end
-end
 
 function run(db, spec::MergeSubjectSpecification)
     merge_sql = FunSQL.render(db, @funsql($(spec.node).define_profile(soarian_mrn, epic_mrn)))
