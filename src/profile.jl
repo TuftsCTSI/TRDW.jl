@@ -77,6 +77,21 @@ function funsql_define_death_year(;name=:death_year)
     end
 end
 
+function funsql_define_pat_id(column_name=:pat_id)
+    person = gensym()
+    @funsql begin
+        left_join($person => begin
+            from(`trdw_epic.person`)
+        end, $person.person_id == person_id)
+        with(
+            `trdw_epic.person` =>
+                from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdw_epic],
+                                       name = :person,
+                                       columns = [:person_id, :person_source_value]))))
+        define($column_name => $person.person_source_value)
+    end
+end
+
 function funsql_define_soarian_mrn()
     person_map  = gensym()
     @funsql begin
@@ -93,21 +108,20 @@ function funsql_define_soarian_mrn()
 end
 
 function funsql_define_epic_mrn()
-    person = gensym()
+    pat_id = gensym()
     patient = gensym()
     @funsql begin
-        join($person => from(person), $person.person_id == person_id)
+        define_pat_id($pat_id)
         left_join($patient => begin
-            from(`global.patient`)
-            group(system_epic_id)
-            define(mrn => array_join(collect_set(system_epic_mrn), ";"))
-        end, $patient.system_epic_id == $person.person_source_value)
+            from(`epicclarity.patient`)
+        end, $patient.pat_id == $pat_id)
         with(
-            `global.patient` =>
-                from($(FunSQL.SQLTable(qualifiers = [:main, :global],
+            `epicclarity.patient` =>
+                from($(FunSQL.SQLTable(qualifiers = [:main, :epicclarity],
                                        name = :patient,
-                                       columns = [:id, :system_epic_id, :system_epic_mrn]))))
-        define(epic_mrn => $patient.mrn)
+                                       columns = [:pat_id, :pat_mrn_id]))))
+        define(epic_mrn => $patient.pat_mrn_id)
+        undefine($pat_id)
     end
 end
 
@@ -127,7 +141,7 @@ function funsql_define_preferred_language(filter=true; name=:preferred_language)
     @funsql begin
         group_with($name => begin
             observation(SNOMED(428996008, "Language preference"))
-		    filter(!icontains(value_as_string, "same") && "" != value_as_string)
+            filter(!icontains(value_as_string, "same") && "" != value_as_string)
         end, $filter)
         define($name => last($name.value_as_string))
     end
@@ -199,6 +213,7 @@ function funsql_define_profile(args...)
             arg == :current_age ? funsql_define_age_at_extraction_or_death() : # current_age is deprecated, use age_at_extraction_or_death
             arg == :death_date ? funsql_define_death_date() :
             arg == :death_year ? funsql_define_death_year() :
+            arg == :pat_id ? funsql_define_pat_id() :
             arg == :epic_mrn ? funsql_define_epic_mrn() :
             arg == :ethnicity ? funsql_define_ethnicity() :
             arg == :never_smoker ? funsql_define_never_smoker() :
