@@ -85,8 +85,8 @@ function funsql_define_pat_id(column_name=:pat_id)
         end, $person.person_id == person_id)
         with(
             `trdw_epic.person` =>
-                from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdw_epic],
-                                       name = :person,
+                from($(FunSQL.SQLTable(qualifiers = [:ctsi, :person_map],
+                                       name = :person_map,
                                        columns = [:person_id, :person_source_value]))))
         define($column_name => $person.person_source_value)
     end
