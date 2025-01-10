@@ -83,11 +83,18 @@ funsql_fact_use_subject_id() =
 
 struct MergeSubjectSpecification
     node::FunSQL.SQLNode
-    truncate::Bool
 end
 
-funsql_assign_subject_ids(node; truncate=false) =
-    MergeSubjectSpecification(@funsql($node.deduplicate(person_id)), truncate)
+funsql_assign_subject_ids(node) =
+    MergeSubjectSpecification(@funsql($node.deduplicate(person_id)))
+
+function funsql_truncate_subject_ids()
+    subject_table = ensure_subject_table(db)
+    subject_sql = sqlname(db, subject_table)
+    if spec.truncate
+        DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
+    end
+end
 
 function run(db, spec::MergeSubjectSpecification)
     merge_sql = FunSQL.render(db, @funsql($(spec.node).define_profile(soarian_mrn, epic_mrn)))
@@ -98,9 +105,6 @@ function run(db, spec::MergeSubjectSpecification)
     end
     subject_table = ensure_subject_table(db)
     subject_sql = sqlname(db, subject_table)
-    if spec.truncate
-        DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
-    end
     query = """
         MERGE INTO $subject_sql AS target
         USING ($merge_sql) AS cohort
@@ -131,11 +135,10 @@ end
 struct MergeCustomerSubjectSpecification
     node::FunSQL.SQLNode
     datatype::String
-    truncate::Bool
 end
 
-funsql_assign_customer_subject_ids(node; truncate=false, datatype="BIGINT") =
-    MergeCustomerSubjectSpecification(node, datatype, truncate)
+funsql_assign_customer_subject_ids(node; datatype="BIGINT") =
+    MergeCustomerSubjectSpecification(node, datatype)
 
 function run(db, spec::MergeCustomerSubjectSpecification)
     sql = FunSQL.render(db, spec.node)
@@ -154,9 +157,6 @@ function run(db, spec::MergeCustomerSubjectSpecification)
         GROUP BY person_id
         HAVING assert_true(count(subject_id) = 1) IS NULL
     """
-    if spec.truncate
-        DBInterface.execute(db, "TRUNCATE TABLE $subject_sql")
-    end
     query = """
         MERGE INTO $subject_sql AS target
         USING ($load_sql) AS cohort
