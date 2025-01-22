@@ -50,7 +50,7 @@ condition() = begin
         optional = true)
     left_join(
         icd_concept => concept().filter(in(vocabulary_id, "ICD9CM", "ICD10CM")),
-        icd_concept.concept_id == omop.condition_source_concept_id,
+        icd_concept.concept_id == omop.condition_icd_concept_id,
         optional = true)
 end
   
@@ -71,7 +71,7 @@ prefer_source_icdcm() =
             left_join($frame => begin
                 from(concept)
                 filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
-            end, omop.condition_source_concept.concept_id == $frame.concept_id)
+            end, omop.condition_icd_concept.concept_id == $frame.concept_id)
             define(concept_id => coalesce($frame.concept_id, concept_id))
             undefine($frame)
         end)
