@@ -773,8 +773,10 @@ function run(db, spec::WriteXLSXSpecification)
     n_rows = size(dataframe)[1]
     when = Dates.format(Dates.now(),"yyyymmdd")
     filename = "$(spec.prefix)_$(when).xlsx"
-    if spec.skip || isnothing(password) || password == ""
-        @htl("<p>Not writing $n_rows rows to $filename</p>")
+    if spec.skip
+        @htl("<p>Not writing $n_rows rows to $filename: not production schema</p>")
+    elseif isnothing(password) || password == ""
+        @htl("<p>Not writing $n_rows rows to $filename: password not available</p>")
     else
         TRDW.XLSX.write(filename, dataframe; password)
         if !is_production_schema_prefix()
