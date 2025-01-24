@@ -2,14 +2,15 @@ export DrawIO
 
 const DRAWIO_NEW_SVG =
     """
-    <svg xmlns="http://www.w3.org/2000/svg" width="120" height="90">
-      <rect x="2" y="2" width="116" height="86" rx="15" ry="15" fill="none" stroke ="silver" stroke-width="2" stroke-dasharray="8,4"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="120" height="60">
+      <rect x="2" y="2" width="116" height="56" rx="9" ry="9" fill="none" stroke="#666666" stroke-width="2" stroke-dasharray="6,6"/>
+      <text x="60" y="30" text-anchor="middle" dominant-baseline="central" font-family="&quot;Alegreya Sans&quot;" font-size="16px" font-style="italic" fill="#333333">Click to edit</text>
     </svg>
     """
 
 const DRAWIO_ORIGIN = "https://embed.diagrams.net"
 
-const DRAWIO_URL = "https://embed.diagrams.net/?proto=json&spin=1&libraries=1&configure=1&noSaveBtn=1"
+const DRAWIO_URL = "https://embed.diagrams.net/?proto=json&libraries=1&configure=1&noSaveBtn=1"
 
 const DRAWIO_CONFIG =
     (
@@ -57,7 +58,7 @@ function Base.show(io::IO, mime::MIME"text/html", drawio::DrawIO)
         end
     end
     if !drawio.editable
-        return print(io, "<div><figure>$svg</figure></svg>")
+        return print(io, "<figure>$svg</figure>")
     end
     id = "drawio-$(objectid(drawio))"
     show(
@@ -81,25 +82,58 @@ function Base.show(io::IO, mime::MIME"text/html", drawio::DrawIO)
           let frameNode = Array.from(figureNode.children).find((c) => c.tagName == "IFRAME") ?? null
           figureNode.prepend(svgNode)
 
+          const createFrameNode = () => {
+            frameNode = document.createElement("iframe")
+            frameNode.style.position = "fixed"
+            frameNode.style.top = "0"
+            frameNode.style.left = "0"
+            frameNode.style.width = "100%"
+            frameNode.style.height = "100%"
+            frameNode.style.border = "0"
+            frameNode.style.zIndex = "1000"
+            frameNode.style.opacity = "0"
+            frameNode.style.transition = "opacity 0.2s"
+            frameNode.style.visibility = "hidden"
+            frameNode.src = $DRAWIO_URL
+            figureNode.append(frameNode)
+            figureNode.style.cursor = "wait"
+            figureNode.removeAttribute("title")
+          }
+
+          const revealFrameNode = () => {
+            frameNode.style.visibility = "visible"
+            frameNode.style.opacity = "1"
+          }
+
+          const removeFrameNode = () => {
+            frameNode.remove()
+            frameNode = null
+            figureNode.style.cursor = "pointer"
+            figureNode.title = "Click to edit"
+          }
+
           const onMessage = (e) => {
             if (!frameNode) return
             if (e.origin !== $DRAWIO_ORIGIN) return
             if (e.source !== frameNode.contentWindow) return
             const msg = JSON.parse(e.data)
-            console.log(msg)
+            //console.log(msg)
             let action = null
             if (msg.event == "configure") {
               action = { action: "configure", config: $DRAWIO_CONFIG }
             }
             else if (msg.event == "init") {
-              frameNode.style.opacity = "1"
               const content = svgNode.getAttribute("content")
               if (content) {
                 action = { action: "load", xml: content }
               }
               else {
+                revealFrameNode()
                 action = { action: "template" }
               }
+            }
+            else if (msg.event == "load") {
+              revealFrameNode()
             }
             else if (msg.event == "save") {
               action = {
@@ -116,15 +150,13 @@ function Base.show(io::IO, mime::MIME"text/html", drawio::DrawIO)
               const svg = atob(msg.data.slice(prefix.length))
               save(svg)
               cellNode._internal_pluto_actions.set_and_run_multiple([cellNode.getAttribute("id")])
-              frameNode.remove()
-              frameNode = null
+              removeFrameNode()
             }
             else if (msg.event == "exit") {
-              frameNode.remove()
-              frameNode = null
+              removeFrameNode()
             }
             if (action) {
-              console.log(action)
+              //console.log(action)
               e.source.postMessage(JSON.stringify(action), $DRAWIO_ORIGIN)
             }
           }
@@ -132,19 +164,7 @@ function Base.show(io::IO, mime::MIME"text/html", drawio::DrawIO)
 
           const onClick = () => {
             if (frameNode) return
-            frameNode = document.createElement("iframe")
-            frameNode.style.position = "fixed"
-            frameNode.style.top = "0"
-            frameNode.style.left = "0"
-            frameNode.style.width = "100%"
-            frameNode.style.height = "100%"
-            frameNode.style.border = "0"
-            frameNode.style.zIndex = "1000"
-            frameNode.style.opacity = "0.9"
-            frameNode.style.transition = "opacity 0.2s"
-            frameNode.src = $DRAWIO_URL
-            figureNode.append(frameNode)
-            console.log(frameNode.tagName)
+            createFrameNode()
           }
           figureNode.addEventListener("click", onClick)
 
