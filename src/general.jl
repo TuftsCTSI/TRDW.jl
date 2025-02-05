@@ -695,13 +695,17 @@ struct WriteCSVSpecification
 end
 
 funsql_write_csv((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip = nothing) =
-    WriteCSVSpecification(string(prefix), node, something(skip, !is_production_schema_prefix()))
+    WriteCSVSpecification(string(prefix), node, something(skip, get(ENV, "CI", nothing) != "true"))
 
 function run(db, spec::WriteCSVSpecification)
     data = run(db, spec.node)
     dataframe = DataFrame(data)
-    when = Dates.format(Dates.now(),"yyyymmdd")
-    filename = "$(spec.prefix)_$(when).csv"
+    when =
+        let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
+            t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
+        end
+    suffix = Dates.format(when, "yyyymmddtHHMM")
+    filename = "download/$(spec.prefix)_$(suffix).csv"
     n_rows = size(dataframe)[1]
     if spec.skip
         @htl("""
@@ -710,6 +714,7 @@ function run(db, spec::WriteCSVSpecification)
             <p>Not writing $n_rows rows to $filename</p>
         """)
     else
+        mkpath(dirname(filename))
         CSV.write(filename, dataframe)
         @htl("""
             <div>$(data)</div>
@@ -752,13 +757,13 @@ end
 
 For this to work, include this boilerplate in your notebook:
 ```
-    using JavaCall;
+    using JavaCall
     JavaCall.isloaded() ? nothing : JavaCall.init()
     JavaCall.assertroottask_or_goodenv()
 ```
 """
 funsql_write_encrypted_xlsx((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing) =
-    WriteXLSXSpecification(string(prefix), node, something(skip, !is_production_schema_prefix()))
+    WriteXLSXSpecification(string(prefix), node, something(skip, get(ENV, "CI", nothing) != "true"))
 
 function run(db, spec::WriteXLSXSpecification)
     @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_encrypt you need:
@@ -771,13 +776,18 @@ function run(db, spec::WriteXLSXSpecification)
     password = get_password()
     dataframe = DataFrame(data)
     n_rows = size(dataframe)[1]
-    when = Dates.format(Dates.now(),"yyyymmdd")
-    filename = "$(spec.prefix)_$(when).xlsx"
+    when =
+        let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
+            t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
+        end
+    suffix = Dates.format(when, "yyyymmddtHHMM")
+    filename = "download/$(spec.prefix)_$(suffix).xlsx"
     if spec.skip
         @htl("<p>Not writing $n_rows rows to $filename: not production schema</p>")
     elseif isnothing(password) || password == ""
         @htl("<p>Not writing $n_rows rows to $filename: password not available</p>")
     else
+        mkpath(dirname(filename))
         TRDW.XLSX.write(filename, dataframe; password)
         if !is_production_schema_prefix()
             @info "password for $filename is $password"
