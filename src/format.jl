@@ -31,16 +31,16 @@ function _format(df, fmt)
     if fmt.hide_null_cols
         df = df[!, any.(!ismissing, eachcol(df))]
     end
-    id = "trdw-format-$(rand(UInt64))"
+    figure_class = fmt.scroll ? "trdw-format trdw-format-scroll" : "trdw-format"
     @htl """
-    <div id="$id">
+    <figure class="$figure_class">
     <table>
     $(_format_caption(df, fmt))
     $(_format_thead(df, fmt))
     $(_format_tbody(df, fmt))
     </table>
-    </div>
-    $(_format_style(id, df, fmt))
+    </figure>
+    $(_format_style(df, fmt))
     """
 end
 
@@ -164,26 +164,26 @@ function _format_cell(val, fmt)
     end
 end
 
-function _format_style(id, df, fmt)
+function _format_style(df, fmt)
     return @htl """
     <style>
-    $(fmt.scroll ? @htl("#$id { max-height: 502px; overflow: auto; }") : "")
-    #$id > table { width: max-content; }
-    #$id > table > caption { padding: .2rem .5rem; }
-    #$id > table > thead > tr > th { vertical-align; baseline; }
-    #$id > table > tbody > tr:first-child > th { border-top: 1px solid var(--table-border-color); }
-    #$id > table > tbody > tr:first-child > td { border-top: 1px solid var(--table-border-color); }
-    #$id > table > tbody > tr > th { vertical-align: baseline; }
-    #$id > table > tbody > tr > td { max-width: 300px; vertical-align: baseline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #$id > table > tbody > tr > td.trdw-number { text-align: right; }
-    #$id > table > tbody > tr > td.trdw-empty > div { display: flex; flex-direction: column; align-items: center; font-size: 1.5rem; }
-    #$id > table > tbody > tr > td.trdw-empty > div > small { font-size: 0.5rem; }
-    #$id > table > tbody > tr:focus > td { overflow: unset; text-overflow: unset; white-space: unset; }
-    #$id > table > thead > tr > th { position: sticky; top: -1px; background: var(--main-bg-color); background-clip: padding-box; z-index: 1; }
-    #$id > table > thead > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; z-index: 2; }
-    #$id > table > tbody > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; }
-    #$id > table > tbody > tr > th.trdw-group { top: 24px; text-align: left; z-index: 2; }
-    #$id > table > tbody > tr > th.trdw-group > div { display: inline-block; position: sticky; left: 0; }
+    .trdw-format-scroll { max-height: 502px; overflow: auto; }
+    .trdw-format > table { width: max-content; }
+    .trdw-format > table > caption { padding: .2rem .5rem; }
+    .trdw-format > table > thead > tr > th { vertical-align; baseline; }
+    .trdw-format > table > tbody > tr:first-child > th { border-top: 1px solid var(--table-border-color); }
+    .trdw-format > table > tbody > tr:first-child > td { border-top: 1px solid var(--table-border-color); }
+    .trdw-format > table > tbody > tr > th { vertical-align: baseline; }
+    .trdw-format > table > tbody > tr > td { max-width: 300px; vertical-align: baseline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trdw-format > table > tbody > tr > td.trdw-number { text-align: right; }
+    .trdw-format > table > tbody > tr > td.trdw-empty > div { display: flex; flex-direction: column; align-items: center; font-size: 1.5rem; }
+    .trdw-format > table > tbody > tr > td.trdw-empty > div > small { font-size: 0.5rem; }
+    .trdw-format > table > tbody > tr:focus > td { overflow: unset; text-overflow: unset; white-space: unset; }
+    .trdw-format > table > thead > tr > th { position: sticky; top: -1px; background: var(--main-bg-color); background-clip: padding-box; z-index: 1; }
+    .trdw-format > table > thead > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; z-index: 2; }
+    .trdw-format > table > tbody > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; }
+    .trdw-format > table > tbody > tr > th.trdw-group { top: 24px; text-align: left; z-index: 2; }
+    .trdw-format > table > tbody > tr > th.trdw-group > div { display: inline-block; position: sticky; left: 0; }
     </style>
     """
 end
