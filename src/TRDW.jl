@@ -54,7 +54,6 @@ include("xlsx.jl")
 include("drawio.jl")
 include("etl.jl")
 include("ddl.jl")
-include("index.jl")
 
 include("care_site.jl")
 include("concept.jl")
