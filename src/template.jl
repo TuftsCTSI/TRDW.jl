@@ -756,12 +756,18 @@ function Base.show(io::IO, mime::MIME"text/html", ::VersionList)
           }
 
           .trdw-version-list a {
+            display: inline-flex;
+            flex-direction: column;
             text-decoration: none;
             color: var(--pluto-output-color);
           }
 
           .trdw-version-list a:hover {
             color: var(--pluto-output-h-color);
+          }
+
+          .trdw-version-list li small {
+            font-weight: 400;
           }
 
           .trdw-version-list > section > p {
@@ -776,7 +782,7 @@ function Base.show(io::IO, mime::MIME"text/html", ::VersionList)
           <script>
             const disableFetch = !window.pluto_disable_ui
             const navNode = currentScript.closest("nav")
-            const currentVersion = window.location.pathname.match(/([^/]*)\\/[^/]*\$/)[1]
+            const currentTag = window.location.pathname.match(/([^/]*)\\/[^/]*\$/)[1]
 
             const fetchVersions = async () => {
               try {
@@ -790,7 +796,7 @@ function Base.show(io::IO, mime::MIME"text/html", ::VersionList)
                 const json = await response.json()
                 const versions = json.versions
                 versions.reverse()
-                if (versions.length == 1 && versions[0] == currentVersion) {
+                if (versions.length == 1 && versions[0].tag == currentTag) {
                   throw(Error("No other versions are available"))
                 }
                 return [versions, null]
@@ -802,10 +808,10 @@ function Base.show(io::IO, mime::MIME"text/html", ::VersionList)
 
             const [versions, versionsError] = await fetchVersions()
 
-            const formatVersion = (version) => {
-              const matches = version.match(/^(\\d\\d\\d\\d)(\\d\\d)(\\d\\d)T(\\d\\d)(\\d\\d)\$/)
+            const formatTag = (tag) => {
+              const matches = tag.match(/^(\\d\\d\\d\\d)(\\d\\d)(\\d\\d)T(\\d\\d)(\\d\\d)\$/)
               if (!matches) {
-                return version
+                return tag
               }
               return `\${matches[1]}-\${matches[2]}-\${matches[3]} \${matches[4]}:\${matches[5]}`
             }
@@ -814,10 +820,16 @@ function Base.show(io::IO, mime::MIME"text/html", ::VersionList)
               let links = []
               for (const version of versions) {
                 const aNode = document.createElement("a")
-                aNode.href = `../\${version}/`
-                aNode.innerText = aNode.title = formatVersion(version)
-                if (version == currentVersion) {
+                aNode.href = `../\${version.tag}/`
+                aNode.innerText = aNode.title = formatTag(version.tag)
+                if (version.tag == currentTag) {
                   aNode.classList.add("trdw-version-list-current")
+                }
+                const description = version.commit?.subject
+                if (description) {
+                  const smallNode = document.createElement("small")
+                  smallNode.innerText = description
+                  aNode.append(smallNode)
                 }
                 links.push(html`<li>\${aNode}</li>`)
               }
