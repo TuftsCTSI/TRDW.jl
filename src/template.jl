@@ -128,6 +128,10 @@ function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
             max-width: unset;
           }
 
+          pluto-output .dont-panic {
+            display: none;
+          }
+
           /*
           pluto-input {
             max-width: var(--prose-width);
@@ -245,13 +249,18 @@ function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
           .trdw-sidebar > nav > section > ul {
             list-style: none;
             padding: 0;
-            margin: 0 10px;
+            margin: 0;
           }
 
           .trdw-sidebar > nav > section > ul > li {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            border-radius: 0.5em;
+          }
+
+          .trdw-sidebar > nav > section > ul > li.trdw-sidebar-link-current {
+            background: var(--sidebar-li-active-bg);
           }
 
           .trdw-sidebar a {
@@ -266,14 +275,15 @@ function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
           .trdw-sidebar-link-H1 {
             margin-top: 0.5em;
             font-weight: 500;
+            padding: 0 10px;
           }
 
           .trdw-sidebar-link-H2 {
-            padding-left: 10px;
+            padding: 0 10px 0 20px;
           }
 
           .trdw-sidebar-link-H3 {
-            padding-left: 20px;
+            padding: 0 10px 0 30px;
           }
 
           .trdw-sidebar > nav > section > p {
@@ -342,16 +352,52 @@ function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
 
             const [notebooks, notebooksError] = await fetchNotebooks()
 
+            let currentLink = null;
+            const hToLinkMap = new Map()
+            const hIntersectingSet = new Set()
+            const hObserver = new IntersectionObserver((entries) => {
+              for (const entry of entries) {
+                if (entry.isIntersecting) {
+                  hIntersectingSet.add(entry.target)
+                }
+                else {
+                  hIntersectingSet.delete(entry.target)
+                }
+              }
+              let nextCurrentLink = null
+              for (const [h, liNode] of hToLinkMap) {
+                if (!h || hIntersectingSet.has(h)) {
+                  nextCurrentLink = liNode
+                }
+                if (nextCurrentLink !== currentLink) {
+                  if (currentLink) {
+                    currentLink.classList.remove("trdw-sidebar-link-current")
+                  }
+                  if (nextCurrentLink) {
+                    nextCurrentLink.classList.add("trdw-sidebar-link-current")
+                  }
+                  currentLink = nextCurrentLink
+                }
+              }
+            }, { rootMargin: "1000000px 0px -75% 0px" })
+
             const makeInternalLinks = () => {
               const thisNotebook = cellNode._internal_pluto_actions.get_notebook()
               const links = []
               const title1 = thisNotebook.metadata.frontmatter?.title
+              hObserver.disconnect()
+              hToLinkMap.clear()
+              hIntersectingSet.clear()
+              currentLink = null
               if (title1) {
                 const aNode1 = document.createElement("a")
                 const id1 = notebookNode.querySelector("pluto-cell").id
                 aNode1.href = `#\${id1}`
                 aNode1.innerText = aNode1.title = title1
-                links.push(html`<li class="trdw-sidebar-link-H1 trdw-sidebar-link-internal">\${aNode1}</li>`)
+                const liNode1 = html`<li class="trdw-sidebar-link-H1 trdw-sidebar-link-internal trdw-sidebar-link-current">\${aNode1}</li>`
+                links.push(liNode1)
+                hToLinkMap.set(null, liNode1)
+                currentLink = liNode1
               }
               let hs = Array.from(notebookNode.querySelectorAll("pluto-cell h1, pluto-cell h2, pluto-cell h3"))
               if (hs.length > 0 && hs[0].tagName == "H1" && links.length > 0) {
@@ -363,7 +409,10 @@ function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
                 aNode.href = `#\${id}`
                 aNode.title = h.innerText
                 aNode.innerHTML = h.innerHTML
-                links.push(html`<li class="trdw-sidebar-link-\${h.tagName} trdw-sidebar-link-internal">\${aNode}</li>`)
+                const liNode = html`<li class="trdw-sidebar-link-\${h.tagName} trdw-sidebar-link-internal">\${aNode}</li>`
+                links.push(liNode)
+                hToLinkMap.set(h, liNode)
+                hObserver.observe(h)
               }
               return links
             }
@@ -429,6 +478,7 @@ function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
             notebookObserver.observe(notebookNode, { childList: true })
 
             invalidation.then(() => {
+              hObserver.disconnect()
               cellObservers.forEach((o) => o.disconnect())
               notebookObserver.disconnect()
               toggleNode.removeEventListener("click", onToggle)
