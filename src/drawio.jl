@@ -15,8 +15,8 @@ const DRAWIO_URL = "https://embed.diagrams.net/?proto=json&libraries=1&configure
 const DRAWIO_CONFIG =
     (
         defaultFonts = ["Alegreya Sans", "Vollkorn", "JuliaMono"],
-        defaultVertexStyle = (fontFamily = "Alegreya Sans", fontSize = 16),
-        defaultEdgeStyle = (fontFamily = "Alegreya Sans", fontSize = 16),
+        defaultVertexStyle = (fontFamily = "Alegreya Sans", fontSize = 14),
+        defaultEdgeStyle = (fontFamily = "Alegreya Sans", fontSize = 14),
         simpleLabels = true,
         pageFormat = (width = 600, height = 450),
         css =
