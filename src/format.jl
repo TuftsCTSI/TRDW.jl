@@ -22,9 +22,10 @@ struct SQLFormat
     roundup::Union{Vector{Symbol}, Nothing}
     hide_null_cols::Bool
     scroll::Bool
+    zoom::Union{Int, Float64, Nothing}
 
-    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing, hide_null_cols = false, scroll = true) =
-        new(caption, limit, group_by, group_limit, roundup, hide_null_cols, scroll)
+    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing, hide_null_cols = false, scroll = true, zoom = nothing) =
+        new(caption, limit, group_by, group_limit, roundup, hide_null_cols, scroll, zoom)
 end
 
 function _format(df, fmt)
@@ -32,8 +33,9 @@ function _format(df, fmt)
         df = df[!, any.(!ismissing, eachcol(df))]
     end
     figure_class = fmt.scroll ? "trdw-format trdw-format-scroll" : "trdw-format"
+    figure_style = fmt.zoom isa Int ? (; zoom = "$(fmt.zoom)%") : fmt.zoom isa Float64 ? (; zoom = fmt.zoom) : nothing
     @htl """
-    <figure class="$figure_class">
+    <figure class="$figure_class" style=$figure_style>
     <table>
     $(_format_caption(df, fmt))
     $(_format_thead(df, fmt))
