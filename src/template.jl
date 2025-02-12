@@ -384,7 +384,7 @@ function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
             const makeInternalLinks = () => {
               const thisNotebook = cellNode._internal_pluto_actions.get_notebook()
               const links = []
-              const title1 = thisNotebook.metadata.frontmatter?.title
+              const title1 = thisNotebook?.metadata?.frontmatter?.title || document.title
               hObserver.disconnect()
               hToLinkMap.clear()
               hIntersectingSet.clear()
