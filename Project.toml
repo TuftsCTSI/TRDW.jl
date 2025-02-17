@@ -42,7 +42,7 @@ PlutoRunnerExt = "PlutoRunner"
 
 [compat]
 AbstractPlutoDingetjes = "1.3.2"
-FunSQL = "0.14.0"
+FunSQL = "0.14.0, 0.15.0"
 HTTP = "1.10.8"
 JSON3 = "1.14.1"
 StructTypes = "1.11.0"
