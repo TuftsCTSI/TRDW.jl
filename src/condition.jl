@@ -23,7 +23,8 @@ condition() = begin
         visit_occurrence_id => omop.visit_occurrence_id,
         # domain specific columns
         status_concept_id => omop.condition_status_concept_id,
-        omop.stop_reason)
+        omop.stop_reason,
+        source_concept_id => omop.condition_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,
@@ -54,8 +55,8 @@ condition() = begin
         optional = true)
 end
   
-condition(cs; with_icd9gem=false) =
-    condition().filter(isa($cs; with_icd9gem=$with_icd9gem))
+condition(cs) =
+    condition().filter(isa($cs) || isa_icd(source_concept_id, $cs))
 
 define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     left_join($name => begin
