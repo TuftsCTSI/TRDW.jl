@@ -22,7 +22,8 @@ measurement() = begin
         omop.value_as_concept_id,
         omop.unit_concept_id,
         omop.range_low,
-        omop.range_high)
+        omop.range_high,
+        source_concept_id => omop.measurement_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,
