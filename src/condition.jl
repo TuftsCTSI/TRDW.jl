@@ -66,6 +66,28 @@ define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     define($name => $name.concept_id_2)
 end
 
+define_icd_code_set() = begin
+    left_join(
+        source_to_icd_concept => begin
+            from(concept)
+            left_join(
+                edg_current_icd10 => begin
+                    from(concept_relationship)
+                    filter(relationship_id == "Has edg_current_icd10.code")
+                end,
+                concept_id == edg_current_icd10.concept_id_1)
+            join(
+                icd_concept => begin
+                    from(concept)
+                    filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
+                end,
+                coalesce(edg_current_icd10.concept_id_2, concept_id) == icd_concept.concept_id)
+            group(concept_id)
+        end,
+        source_concept_id == source_to_icd_concept.concept_id)
+    define(icd_code_set => array_join(array_sort(source_to_icd_concept.collect_set(icd_concept.concept_code)), "; "), before = source_concept_id)
+end
+
 prefer_source_icdcm() =
     $(let frame = :_source_icdcm;
         @funsql(begin
