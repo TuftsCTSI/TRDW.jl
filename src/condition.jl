@@ -49,14 +49,10 @@ condition() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    left_join(
-        icd_concept => concept().filter(in(vocabulary_id, "ICD9CM", "ICD10CM")),
-        icd_concept.concept_id == omop.condition_icd_concept_id,
-        optional = true)
 end
   
 condition(cs) =
-    condition().filter(isa($cs) || isa_icd(source_concept_id, $cs))
+    condition().filter(isa(concept_id, $cs) || isa_icd(source_concept_id, $cs))
 
 define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     left_join($name => begin
