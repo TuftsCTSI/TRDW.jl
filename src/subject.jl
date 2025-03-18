@@ -105,7 +105,7 @@ funsql_assign_subject_ids(node) =
 function run(db, spec::MergeSubjectSpecification)
     merge_sql = FunSQL.render(db, @funsql($(spec.node).define_profile(soarian_mrn, epic_mrn)))
     for col in merge_sql.columns
-        if col.name == :subject_id then
+        if col.name == :subject_id
             @error "use assign_customer_subject_ids() for customer-provided subject ids"
         end
     end
