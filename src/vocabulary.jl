@@ -288,7 +288,7 @@ end
 funsql_isa(concept_id, concept_set::AbstractVector) =
     @funsql isa($concept_id, append(args=$concept_set))
 
-function funsql_isa_icd(concept_id, concept_set; with_icd9gem=false)
+function funsql_isa_icd(concept_id, concept_set; with_icd9gem=false, with_edg=true)
     concept_set = convert(FunSQL.SQLNode, concept_set)
     concept_set = @funsql($concept_set.concept_icd_descendants())
     if with_icd9gem
@@ -297,6 +297,16 @@ function funsql_isa_icd(concept_id, concept_set; with_icd9gem=false)
                 $concept_set,
                 $concept_set.concept_relatives("ICD10CM - ICD9CM rev gem"))
        end
+    end
+    if with_edg
+        concept_set = @funsql begin
+            concept_set => $concept_set
+            over(
+                append(
+                    from(concept_set),
+                    from(concept_set).concept_relatives("edg_current_icd9.code of"),
+                    from(concept_set).concept_relatives("edg_current_icd10.code of")))
+        end
     end
     return @funsql $concept_id in $concept_set.select(concept_id)
 end

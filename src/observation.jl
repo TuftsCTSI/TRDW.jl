@@ -21,7 +21,8 @@ observation() = begin
         omop.value_as_string,
         omop.value_as_concept_id,
         omop.qualifier_concept_id,
-        omop.unit_concept_id)
+        omop.unit_concept_id,
+        source_concept_id => omop.observation_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,

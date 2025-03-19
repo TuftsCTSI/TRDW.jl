@@ -21,7 +21,8 @@ device() = begin
         omop.unique_device_id,
         omop.production_id,
         omop.quantity,
-        omop.unit_concept_id)
+        omop.unit_concept_id,
+        source_concept_id => omop.device_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,

@@ -23,7 +23,8 @@ condition() = begin
         visit_occurrence_id => omop.visit_occurrence_id,
         # domain specific columns
         status_concept_id => omop.condition_status_concept_id,
-        omop.stop_reason)
+        omop.stop_reason,
+        source_concept_id => omop.condition_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,
@@ -48,14 +49,10 @@ condition() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    left_join(
-        icd_concept => concept().filter(in(vocabulary_id, "ICD9CM", "ICD10CM")),
-        icd_concept.concept_id == omop.condition_icd_concept_id,
-        optional = true)
 end
   
-condition(cs; with_icd9gem=false) =
-    condition().filter(isa($cs; with_icd9gem=$with_icd9gem))
+condition(cs) =
+    condition().filter(isa(concept_id, $cs) || isa_icd(source_concept_id, $cs))
 
 define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     left_join($name => begin
@@ -63,6 +60,28 @@ define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
         filter(relationship_id == "Has finding site")
     end, $name.concept_id_1 == $concept_id)
     define($name => $name.concept_id_2)
+end
+
+define_icd_code_set() = begin
+    left_join(
+        source_to_icd_concept => begin
+            from(concept)
+            left_join(
+                edg_current_icd10 => begin
+                    from(concept_relationship)
+                    filter(relationship_id == "Has edg_current_icd10.code")
+                end,
+                concept_id == edg_current_icd10.concept_id_1)
+            join(
+                icd_concept => begin
+                    from(concept)
+                    filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
+                end,
+                coalesce(edg_current_icd10.concept_id_2, concept_id) == icd_concept.concept_id)
+            group(concept_id)
+        end,
+        source_concept_id == source_to_icd_concept.concept_id)
+    define(icd_code_set => array_join(array_sort(source_to_icd_concept.collect_set(icd_concept.concept_code)), "; "), before = source_concept_id)
 end
 
 prefer_source_icdcm() =
