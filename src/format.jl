@@ -167,7 +167,7 @@ end
 function _format_style(df, fmt)
     return @htl """
     <style>
-    .trdw-format-scroll { max-height: 502px; overflow: auto; }
+    .trdw-format-scroll { max-height: 502px; overflow: auto; will-change: scroll-position; }
     .trdw-format > table { width: max-content; }
     .trdw-format > table > caption { padding: .2rem .5rem; }
     .trdw-format > table > thead > tr > th { vertical-align; baseline; }
