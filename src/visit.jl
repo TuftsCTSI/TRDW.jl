@@ -20,7 +20,7 @@ visit() = begin
         omop.care_site_id,
         omop.admitted_from_concept_id,
         omop.discharged_to_concept_id,
-        omop.preceding_visit_occurrence_id)
+        source_concept_id => omop.visit_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,

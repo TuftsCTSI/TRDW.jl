@@ -22,7 +22,8 @@ procedure() = begin
         visit_occurrence_id => omop.visit_occurrence_id,
         # domain specific columns
         omop.modifier_concept_id,
-        omop.quantity)
+        omop.quantity,
+        source_concept_id => omop.procedure_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,

@@ -25,7 +25,8 @@ drug() = begin
         omop.days_supply,
         omop.sig,
         omop.route_concept_id,
-        omop.lot_number)
+        omop.lot_number,
+        source_concept_id => omop.drug_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,

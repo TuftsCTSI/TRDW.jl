@@ -23,7 +23,8 @@ condition() = begin
         visit_occurrence_id => omop.visit_occurrence_id,
         # domain specific columns
         status_concept_id => omop.condition_status_concept_id,
-        omop.stop_reason)
+        omop.stop_reason,
+        source_concept_id => omop.condition_source_concept_id)
     join(
         person => person(),
         person_id == person.person_id,
@@ -48,14 +49,10 @@ condition() = begin
         visit => visit(),
         visit_occurrence_id == visit.occurrence_id,
         optional = true)
-    left_join(
-        icd_concept => concept().filter(in(vocabulary_id, "ICD9CM", "ICD10CM")),
-        icd_concept.concept_id == omop.condition_icd_concept_id,
-        optional = true)
 end
   
-condition(cs; with_icd9gem=false) =
-    condition().filter(isa($cs; with_icd9gem=$with_icd9gem))
+condition(cs) =
+    condition().filter(isa(concept_id, $cs) || isa_icd(source_concept_id, $cs))
 
 define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     left_join($name => begin
@@ -65,17 +62,29 @@ define_finding_site(concept_id=concept_id; name=finding_site_concept_id) = begin
     define($name => $name.concept_id_2)
 end
 
-prefer_source_icdcm() =
-    $(let frame = :_source_icdcm;
-        @funsql(begin
-            left_join($frame => begin
-                from(concept)
-                filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
-            end, omop.condition_icd_concept.concept_id == $frame.concept_id)
-            define(concept_id => coalesce($frame.concept_id, concept_id))
-            undefine($frame)
-        end)
-    end)
+define_icd_code_set() = begin
+    left_join(
+        source_to_icd_concept => begin
+            from(concept)
+            left_join(
+                edg_current_icd10 => begin
+                    from(concept_relationship)
+                    filter(relationship_id == "Has edg_current_icd10.code")
+                end,
+                concept_id == edg_current_icd10.concept_id_1)
+            join(
+                icd_concept => begin
+                    from(concept)
+                    filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
+                end,
+                coalesce(edg_current_icd10.concept_id_2, concept_id) == icd_concept.concept_id)
+            group(concept_id)
+        end,
+        source_concept_id == source_to_icd_concept.concept_id)
+    define(icd_code_set =>
+        array_join(array_sort(source_to_icd_concept.collect_set(icd_concept.concept_code)), " ");
+            before = source_concept_id)
+end
 
 crosswalk_from_icd9cm_to_icd10cm() =
     $(let frame = :_icd9cm_to_icd10cm;
@@ -105,12 +114,21 @@ truncate_icd_to_3char() =
         end)
     end)
 
-to_3char_icdcm(; with_icd9gem=false) = begin
-    prefer_source_icdcm()
-    $(with_icd9gem ?
-      @funsql(crosswalk_from_icd9cm_to_icd10cm()) :
-      @funsql(define()))
-    truncate_icd_to_3char()
+mapto_icd10cm() = begin
+    left_join(
+        icd_concept => begin
+            from(concept)
+            filter(in(vocabulary_id, "ICD9CM", "ICD10CM"))
+        end,
+        source_concept_id == icd_concept.concept_id)
+    define(concept_id => coalesce(icd_concept.concept_id, concept_id))
+    left_join(
+        edg_current_icd10 => begin
+            from(concept_relationship)
+            filter(relationship_id == "Has edg_current_icd10.code")
+        end,
+        source_concept_id == edg_current_icd10.concept_id_1)
+    define(concept_id => coalesce(edg_current_icd10.concept_id_2, concept_id))
 end
 
 snomed_top_ancestors(concept_id=concept_id;
@@ -163,29 +181,38 @@ to_snomed_intermediate_conditions() =
         #SNOMED("106147001", "Sensory nervous system finding"),
         SNOMED("406123005", "Viscus structure finding")])
 
-icd10cm_chapter_concept_sets() = concept_sets(
-    infectious_and_parasitic = ICD10CM(spec="A00-B99"),
-    neoplasm = ICD10CM(spec="C00-D49"),
-    blood_and_immune_disorder = ICD10CM(spec="D50-D89"),
-    endocrine_and_metabolic = ICD10CM(spec="E00-E90"),
-    mental_and_neurodevelopmental = ICD10CM(spec="F01-F99"),
-    nervous_system = ICD10CM(spec="G00-G99"),
-    eye_and_adnexa = ICD10CM(spec="H00-H59"),
-    ear_and_mastoid = ICD10CM(spec="H60-I95"),
-    circulatory_system = ICD10CM(spec="I00-I99"),
-    respiratory_system = ICD10CM(spec="J00-J99"),
-    digestive_system = ICD10CM(spec="K00-K95"),
-    skin_and_subcutaneous = ICD10CM(spec="L00-L99"),
-    musculoskeletal_and_connective = ICD10CM(spec="M00-M99"),
-    genitourinary_system = ICD10CM(spec="N00-N99"),
-    pregancy_birth_and_puerperium = ICD10CM(spec="O00-O99"),
-    perinatal_condition = ICD10CM(spec="P00-P96"),
-    congenital_abnormality = ICD10CM(spec="Q00-Q99"),
-    clinical_and_laboratory = ICD10CM(spec="R00-R99"),
-    external_consequence = ICD10CM(spec="S00-T98"),
-    special_purpose = ICD10CM(spec="U00-U99"),
-    external_morbidity = ICD10CM(spec="V00-Y99"),
-    health_status_and_service = ICD10CM(spec="Z00-Z99")
-)
+icd10cm_chapter() = from($(DataFrame([
+    ("A00", "B99", "Infectious and Parasitic"),
+    ("C00", "D49", "Neoplasm"),
+    ("D50", "D89", "Blood and Immune Disorder"),
+    ("E00", "E90", "Endocrine and Metabolic"),
+    ("F01", "F99", "Mental and Neurodevelopmental"),
+    ("G00", "G99", "Nervous System"),
+    ("H00", "H59", "Eye and Adnexa"),
+    ("H60", "I95", "Ear and Mastoid"),
+    ("I00", "I99", "Circulatory System"),
+    ("J00", "J99", "Respiratory System"),
+    ("K00", "K95", "Digestive System"),
+    ("L00", "L99", "Skin and Subcutaneous"),
+    ("M00", "M99", "Musculoskeletal and Connective"),
+    ("N00", "N99", "Genitourinary System"),
+    ("O00", "O99", "Pregancy Birth and Puerperium"),
+    ("P00", "P96", "Perinatal Condition"),
+    ("Q00", "Q99", "Congenital Abnormality"),
+    ("R00", "R99", "Clinical and Laboratory"),
+    ("S00", "T98", "External Consequence"),
+    ("U00", "U99", "Special Purpose"),
+    ("V00", "Y99", "External Morbidity"),
+    ("Z00", "Z99", "Health Status and Service")],
+    [:chapter_start, :chapter_ends, :chapter_name])))
+
+define_icd10cm_chapter_name() = begin
+    join(_concept => from(concept), _concept.concept_id == concept_id)
+    left_join(icd10cm_chapter => icd10cm_chapter(),
+        _concept.vocabulary_id == "ICD10CM" &&
+        _concept.concept_code >= icd10cm_chapter.chapter_start &&
+        substring(_concept.concept_code, 1, 3) <= icd10cm_chapter.chapter_ends)
+    define(icd10cm_chapter_name => icd10cm_chapter.chapter_name)
+end
 
 end
