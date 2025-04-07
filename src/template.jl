@@ -1,10 +1,9 @@
 function NotebookFooter()
-    config = configuration()
-    PROJECT_SLUG = config[:project_slug]
+    config = config_file()
+    IRB_CODE = config[:irb_code]
+    PROJECT_ID = config[:project_id]
     PROJECT_CODE = config[:project_code]
-    IRB = config[:irb_code]
-    # ISSUE_NUMBER = config[:issue_number]
-    PROJECT_STEM = config[:project_stem]
+    PROJECT_SLUG = config[:project_slug]
   @htl("""
   <div>
     <table style="width: 100%">
@@ -16,24 +15,25 @@ function NotebookFooter()
         Generated at $(Dates.now())
       </small>
     </td><td style="width: 28%; vertical-align: top; text-align: right;">
-    $(isnothing(PROJECT_CODE) ? "" : @htl("""Project#
-      $(isnothing(PROJECT_SLUG) ? @htl("""<span>$PROJECT_CODE</span>""") : @htl("""
-        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Project__c/$PROJECT_SLUG/view">$PROJECT_CODE</a>
-        """))
-      <br />"""))
-      $(isnothing(PROJECT_STEM) ? "" : @htl("""GitHub Repo <a href="https://github.com/TuftsCTSI/ResearchRequests/issues/tree/main/$PROJECT_STEM">$PROJECT_STEM</a>
-      <br />"""))
-    $(is_discovery() ? "" : @htl("<p>IRB Study# $(IRB)"))
+    $(isnothing(PROJECT_CODE) || isnothing(PROJECT_ID) ? "" :
+      @htl("""Project#
+        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Project__c/$PROJECT_ID/view">
+            $PROJECT_CODE</a><br /> """))
+    $(isnothing(IRB_CODE) ? "" :
+      @htl("<p>IRB Study# $(IRB_CODE)"))
+    $(isnothing(PROJECT_SLUG) ? "" :
+      @htl("""
+         <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/
+             $PROJECT_SLUG">$PROJECT_SLUG</a><br />"""))
   </div>
    """)
 end
 
 function NotebookHeader(TITLE=nothing)
-    config = configuration()
+    config = config_file()
     PROJECT_SLUG = config[:project_slug]
     PROJECT_CODE = config[:project_code]
-    TITLE = something(TITLE, config[:project_title])
-    NOTE = config[:project_title]
+    PROJECT_TITLE = config[:project_title]
     IRB = config[:irb_code]
     IRB_START_DATE = config[:irb_start_date]
     IRB_END_DATE = config[:irb_end_date]
@@ -51,26 +51,30 @@ function NotebookHeader(TITLE=nothing)
         """))"""))
      </div>
    </div>
-   $(isnothing(NOTE) ? "" :
-     @htl("""<p style="font-style: italic; font-size: 21px;">$NOTE</p>"""))
-   $(if is_discovery()
-        @htl("""
-            <p>
-                This cohort discovery is provided under IRB Protocol #11642,
-                <i>"Accelerating Clinical Trials - Multi-institutional cohort discovery"</i>,
-                permitting <i>"aggregate, obfuscated patient counts"</i>.
-                Counts below ten are indicated with the ≤ symbol.
-            </p>
-        """)
+   $(isnothing(PROJECT_TITLE) ? "" :
+     @htl("""<p style="font-style: italic; font-size: 21px;">$PROJECT_TITLE</p>"""))
+   $(if is_quality()
+         @htl("""<p>This is not human subject research. No IRB approval has been obtained.""")
+     elseif is_discovery()
+         @htl("""
+             <p>
+                 This cohort discovery is provided under IRB Protocol #11642,
+                 <i>"Accelerating Clinical Trials - Multi-institutional cohort discovery"</i>,
+                 permitting <i>"aggregate, obfuscated patient counts"</i>.
+                 Counts below ten are indicated with the ≤ symbol.
+                 Clinical data recorded between <b>$IRB_START_DATE</b> and <b>$IRB_END_DATE</b> are considered.
+             </p>
+         """)
      else
-        @htl("""
-            <p>IRB Study # $(IRB).
-            The IRB approved timeframe for this study is <b>$IRB_START_DATE</b> to <b>$IRB_END_DATE</b>.
-            <i>Data must be recorded during this timeframe to be considered.</i>
-            If this study should consider any data outside this timeframe, please contact the IRB Office.
-            </p>
-            """)
-     end)
+         timeframe = isnothing(IRB_START_DATE) || isnothing(IRB_END_DATE) ?
+             @htl("<b>The IRB date range for this project has not been configured.</b>") :
+             @htl("""<span>
+                 The IRB approved timeframe for this study is <b>$IRB_START_DATE</b> to <b>$IRB_END_DATE</b>.
+                 <i>Data must be recorded during this timeframe to be considered.</i>
+                 If this study should consider any data outside this timeframe, please contact the IRB Office.</p>
+                 </span>""")
+         @htl("<p>IRB Study # $(IRB). $timeframe</p>")
+   end)
    $(NotebookSidebar())
   """)
 
@@ -80,7 +84,7 @@ struct NotebookSidebar
 end
 
 function Base.show(io::IO, mime::MIME"text/html", ::NotebookSidebar)
-    config = configuration()
+    config = config_file()
     TITLE = config[:project_title]
     show(
         io,
