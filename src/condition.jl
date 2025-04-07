@@ -98,23 +98,30 @@ crosswalk_from_icd9cm_to_icd10cm() =
         end)
     end)
 
-truncate_icd_to_3char() =
-    $(let frame = :_icd_to_3char;
-        @funsql(begin
-            left_join($frame => begin
-                from(concept_relationship)
-                filter(relationship_id == "Is a")
-                join(icd_3_char => begin
-                    from(concept)
-                    filter(3 == length(concept_code))
-                end, concept_id_2 == icd_3_char.concept_id)
-            end, concept_id == $frame.concept_id_1)
-            define(concept_id => coalesce($frame.concept_id_2, concept_id))
-            undefine($frame)
-        end)
-    end)
+truncate_icd10cm_to_3char() = begin
+    left_join(related_icd10cm_3char => begin
+        from(concept_relationship)
+        filter(relationship_id == "Is a")
+        join(icd10cm_3char => begin
+            from(concept)
+            filter(in(vocabulary_id, "ICD10CM"))
+            filter(3 == length(concept_code))
+        end, concept_id_2 == icd10cm_3char.concept_id)
+    end, source_concept_id == related_icd10cm_3char.concept_id_1)
+    define(source_concept_id => coalesce(related_icd10cm_3char.concept_id_2, source_concept_id))
+end
 
 mapto_icd10cm() = begin
+    left_join(
+        edg_current_icd10 => begin
+            from(concept_relationship)
+            filter(relationship_id == "Has edg_current_icd10.code")
+        end,
+        source_concept_id == edg_current_icd10.concept_id_1)
+    define(source_concept_id => coalesce(edg_current_icd10.concept_id_2, source_concept_id))
+end
+
+prefer_source_icdcm() = begin
     left_join(
         icd_concept => begin
             from(concept)
@@ -122,13 +129,6 @@ mapto_icd10cm() = begin
         end,
         source_concept_id == icd_concept.concept_id)
     define(concept_id => coalesce(icd_concept.concept_id, concept_id))
-    left_join(
-        edg_current_icd10 => begin
-            from(concept_relationship)
-            filter(relationship_id == "Has edg_current_icd10.code")
-        end,
-        source_concept_id == edg_current_icd10.concept_id_1)
-    define(concept_id => coalesce(edg_current_icd10.concept_id_2, concept_id))
 end
 
 snomed_top_ancestors(concept_id=concept_id;
@@ -207,7 +207,7 @@ icd10cm_chapter() = from($(DataFrame([
     [:chapter_start, :chapter_ends, :chapter_name])))
 
 define_icd10cm_chapter_name() = begin
-    join(_concept => from(concept), _concept.concept_id == concept_id)
+    join(_concept => from(concept), _concept.concept_id == source_concept_id)
     left_join(icd10cm_chapter => icd10cm_chapter(),
         _concept.vocabulary_id == "ICD10CM" &&
         _concept.concept_code >= icd10cm_chapter.chapter_start &&
