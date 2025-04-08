@@ -3,12 +3,12 @@ flatten_csets(v::T) where T<:Vector{<:NamedTuple} = v
 flatten_csets(t::T) where T<:Tuple = [(x for x in n) for n in t]
 flatten_csets(t::T) where T<:Vector = [(x for x in n) for n in t]
 
-function define_csets_matches(csets; match_on=nothing)
+function define_csets_matches(csets; on=nothing)
     cols = Pair[]
     for cpairs in flatten_csets(csets)
         for (handle, concept_set) in pairs(cpairs)
             push!(cols, handle =>
-                  concept_matches(concept_set; match_on=match_on))
+                  concept_matches(concept_set; on=on))
         end
     end
     return @funsql(define($cols...))
@@ -99,9 +99,9 @@ function group_by_concept(name=nothing; roundup=true,
 end
 const funsql_group_by_concept = group_by_concept
 
-@funsql concept_set_pivot(match, match_on=nothing; roundup = true, group = []) = begin
+@funsql concept_set_pivot(match, on=nothing; roundup = true, group = []) = begin
     define($group...)
-    define_csets_matches($match; match_on=$match_on)
+    define_csets_matches($match; on=$on)
     group(person_id, $group...)
     define_csets_aggregates($match, "" => any(true))
     group($group...)
