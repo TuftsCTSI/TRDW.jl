@@ -68,7 +68,6 @@ end
 
 is_discovery() = config_file()[:irb_code] == DISCOVERY_IRB
 is_quality() = isnothing(config_file()[:irb_code])
-funsql_is_discovery = @funsql(select(:is_discovery => $(is_discovery())))
 funsql_config_file() = DataFrame(config_file())
 
 # We are only permitted to consider data expressly permitted by the
