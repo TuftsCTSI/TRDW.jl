@@ -31,6 +31,7 @@ end
 
 function NotebookHeader(TITLE=nothing)
     config = config_file()
+    PROJECT_ID = config[:project_id]
     PROJECT_SLUG = config[:project_slug]
     PROJECT_CODE = config[:project_code]
     PROJECT_TITLE = config[:project_title]
@@ -45,16 +46,16 @@ function NotebookHeader(TITLE=nothing)
      <div style="display: inline-block; width: 11%; text-align: right;
                  height: 100%; vertical-align: middle;">
         $(isnothing(PROJECT_CODE) ? "" : @htl("""Project #
-          $(isnothing(PROJECT_SLUG) ? @htl("""<span>$PROJECT_CODE</span>""") : @htl("""
+          $(isnothing(PROJECT_ID) ? @htl("""<span>$PROJECT_CODE</span>""") : @htl("""
             <a style="text-decoration: underline dotted;"
-               href="https://tuftsctsi.my.site.com/s/Project__c/$PROJECT_SLUG ">$PROJECT_CODE</a>
+               href="https://tuftsctsi.my.site.com/s/Project__c/$PROJECT_ID">$PROJECT_CODE</a>
         """))"""))
      </div>
    </div>
    $(isnothing(PROJECT_TITLE) ? "" :
      @htl("""<p style="font-style: italic; font-size: 21px;">$PROJECT_TITLE</p>"""))
    $(if is_quality()
-         @htl("""<p>This is not human subject research. No IRB approval has been obtained.""")
+         nothing
      elseif is_discovery()
          @htl("""
              <p>

@@ -6,6 +6,8 @@ const DISCOVERY_START = "2010-01-01"
 const DISCOVERY_SLUG = "005547_Harvey_TRDW_Guides"
 const DISCOVERY_ID = "a0n8Y00000Z6YtIQAV"
 const DISCOVERY_END = "2029-12-31"
+const QUALITY_PROJECT = "P-005627"
+const QUALITY_ID = "a0nan000001gvPVAAY"
 
 function config_file()
     source = isfile(CONFIG_FILE) ? JSON.parsefile(CONFIG_FILE) : Dict()
@@ -31,10 +33,6 @@ function config_file()
         retval[to] = get(source, from, nothing)
     end
 
-    # some of our files use `irb_id` rather than `irb_code`
-    retval[:irb_code] = isnothing(retval[:irb_code]) ?
-        get(source, "irb_id", nothing) : retval[:irb_code]
-
     # provide defaults for cohort discoveries
     if retval[:irb_code] == DISCOVERY_IRB || retval[:project_code] == DISCOVERY_PROJECT
         retval[:irb_code] = something(retval[:irb_code], DISCOVERY_IRB)
@@ -46,19 +44,24 @@ function config_file()
     end
 
     # give quality projects a broad date range
-    if isnothing(retval[:irb_code])
+    if isnothing(retval[:irb_code]) || retval[:irb_code] == DISCOVERY_IRB || retval[:project_code] == DISCOVERY_PROJECT
+        retval[:irb_code] = nothing
+        retval[:project_id] = something(retval[:project_id], QUALITY_ID)
+        retval[:project_code] = something(retval[:project_code], QUALITY_PROJECT)
         retval[:irb_start_date] = something(retval[:irb_start_date], DISCOVERY_START)
         retval[:irb_end_date] = something(retval[:irb_end_date], DISCOVERY_END)
     end
 
     # always have an IRB end date if there is a start date
-    retval[:irb_end_date] = isnothing(retval[:irb_end_date]) ?
-        retval[:irb_start_date] : retval[:irb_end_date]
+    retval[:irb_end_date] =
+        isnothing(retval[:irb_end_date]) ? retval[:irb_start_date] : retval[:irb_end_date]
 
-    # remove the "P-" prefix, if it was provided
-    project_code = retval[:project_code]
-    @assert startswith(project_code, "P-") && length(project_code) == 8
-    retval[:project_code] = project_code[3:end]
+    if !isnothing(retval[:project_code])
+        # remove the "P-" prefix, if it was provided
+        project_code = retval[:project_code]
+        @assert startswith(project_code, "P-") && length(project_code) == 8
+        retval[:project_code] = project_code[3:end]
+    end
 
     return retval
 end
