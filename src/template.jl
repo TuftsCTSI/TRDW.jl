@@ -35,6 +35,7 @@ function NotebookHeader(TITLE=nothing)
     PROJECT_SLUG = config[:project_slug]
     PROJECT_CODE = config[:project_code]
     PROJECT_TITLE = config[:project_title]
+    DESCRIPTION = config[:description]
     IRB = config[:irb_code]
     IRB_START_DATE = config[:irb_start_date]
     IRB_END_DATE = config[:irb_end_date]
@@ -52,8 +53,12 @@ function NotebookHeader(TITLE=nothing)
         """))"""))
      </div>
    </div>
+   <blockquote>
    $(isnothing(PROJECT_TITLE) ? "" :
-     @htl("""<p style="font-style: italic; font-size: 21px;">$PROJECT_TITLE</p>"""))
+     @htl("""<p style="font-variant: small-caps;">$PROJECT_TITLE</p>"""))
+   $(isnothing(DESCRIPTION) ? "" :
+     @htl("""<p>$DESCRIPTION</p>"""))
+   </blockquote>
    $(if is_quality()
          nothing
      elseif is_discovery()
@@ -74,7 +79,7 @@ function NotebookHeader(TITLE=nothing)
                  <i>Data must be recorded during this timeframe to be considered.</i>
                  If this study should consider any data outside this timeframe, please contact the IRB Office.</p>
                  </span>""")
-         @htl("<p>IRB Study # $(IRB). $timeframe</p>")
+         @htl("""<p>IRB Study # $(IRB). $timeframe</p>""")
    end)
    $(NotebookSidebar())
   """)
