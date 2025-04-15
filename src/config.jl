@@ -44,7 +44,7 @@ function config_file()
     end
 
     # give quality projects a broad date range
-    if isnothing(retval[:irb_code]) || retval[:irb_code] == DISCOVERY_IRB || retval[:project_code] == DISCOVERY_PROJECT
+    if isnothing(retval[:irb_code]) || retval[:project_code] == QUALITY_PROJECT
         retval[:irb_code] = nothing
         retval[:project_id] = something(retval[:project_id], QUALITY_ID)
         retval[:project_code] = something(retval[:project_code], QUALITY_PROJECT)
