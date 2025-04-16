@@ -6,6 +6,10 @@ person() = begin
         death => from(death),
         person_id == death.person_id,
         optional = true)
+    if_not_defined(pat_id,
+        define(pat_id =>
+            substring(person_source_value, 1, 1) == "Z" ?
+                person_source_value : missing))
     as(omop)
     define(
         person_id => omop.person_id,
@@ -25,7 +29,8 @@ person() = begin
         ethnicity_concept_id => omop.ethnicity_concept_id,
         location_id => omop.location_id,
         provider_id => omop.provider_id,
-        care_site_id => omop.care_site_id)
+        care_site_id => omop.care_site_id,
+        pat_id => omop.pat_id)
     join(
         gender_concept => concept(),
         gender_concept_id == gender_concept.concept_id,
