@@ -35,10 +35,28 @@ funsql_decode_c(name::Symbol, map::Pair...; default=nothing) =
 # TODO: move to ETL
 @funsql define_do_not_contact() = begin
     join(person=>person(), person.person_id == person_id)
-    left_join(do_not_contact => from(`patient_4`).filter(RSH_PREF_C == 2),
-        person.omop.person_source_value == do_not_contact.PAT_ID)
-    define(do_not_contact => isnotnull(do_not_contact.PAT_ID))
+    left_join(patient_4 => begin
+        from(`patient_4`)
+        filter(RSH_PREF_C == 2)
+    end, person.pat_id == patient_4.PAT_ID)
+    define(do_not_contact => isnotnull(patient_4.PAT_ID))
     with(`patient_4` =>
         from($(FunSQL.SQLTable(qualifiers = [:main, :epicclarity], name = :patient_4,
                                columns = [:PAT_ID, :RSH_PREF_C]))))
+    undefine(patient_4)
+end
+
+@funsql define_is_deceased() = begin
+    join(person=>person(), person.person_id == person_id)
+    left_join(death=>from(death), death.person_id == person_id)
+    left_join(patient_4 => begin
+        from(`patient_4`)
+        filter(PAT_LIVING_STAT_C != 1) # not Alive
+    end, person.pat_id == patient_4.PAT_ID)
+    define(is_deceased =>
+        isnotnull(death.person_id) ||
+        isnotnull(patient_4.PAT_ID))
+    with(`patient_4` =>
+        from($(FunSQL.SQLTable(qualifiers = [:main, :epicclarity], name = :patient_4,
+                               columns = [:PAT_ID, :PAT_LIVING_STAT_C]))))
 end
