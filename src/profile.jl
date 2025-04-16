@@ -1,127 +1,109 @@
 function funsql_define_age_at_extraction_or_death()
-    person = gensym()
     @funsql begin
-        join($person => person(), $person.person_id == person_id)
-        define(age_at_extraction_or_death=> age_at_extraction_or_death($person))
+        if_not_defined(_person,
+            join(_person => person(), _person.person_id == person_id))
+        define(age_at_extraction_or_death=> age_at_extraction_or_death(_person))
     end
 end
 
 function funsql_define_race()
-    person = gensym()
     @funsql begin
-        join($person => person(), $person.person_id == person_id)
+        if_not_defined(_person,
+            join(_person => person(), _person.person_id == person_id))
         define(
             race =>
-                $person.race_concept_id == 0 ?
-                ( $person.ethnicity_concept_id == 38003563 ?
+                _person.race_concept_id == 0 ?
+                ( _person.ethnicity_concept_id == 38003563 ?
                 "Unspecified (Hispanic)" :
                 "Unspecified") :
-                $person.race_concept.concept_name)
+                _person.race_concept.concept_name)
     end
 end
 
 function funsql_define_ethnicity()
-    person = gensym()
     @funsql begin
-        join($person => person(), $person.person_id == person_id)
+        if_not_defined(_person,
+            join(_person => person(), _person.person_id == person_id))
         define(
             ethnicity =>
-                $person.ethnicity_concept_id == 0 ?
+                _person.ethnicity_concept_id == 0 ?
                 "Unspecified" :
-                $person.ethnicity_concept.concept_name)
+                _person.ethnicity_concept.concept_name)
     end
 end
 
 function funsql_define_sex()
-    person = gensym()
     @funsql begin
-        join($person => person(), $person.person_id == person_id)
+        if_not_defined(_person,
+            join(_person => person(), _person.person_id == person_id))
         define(
             sex =>
-                $person.gender_concept_id == 0 ? "" :
-                $person.gender_concept.concept_code)
+                _person.gender_concept_id == 0 ? "" :
+                _person.gender_concept.concept_code)
     end
 end
 
 function funsql_define_birth_date(;name=:birth_date)
-    person = gensym()
     @funsql begin
-        join($person => from(person), $person.person_id == person_id)
-        define($name => date($person.birth_datetime))
+        if_not_defined(_person,
+            join(_person => person(), _person.person_id == person_id))
+        define($name => date(_person.birth_datetime))
     end
 end
 
 function funsql_define_birth_year(;name=:birth_year)
-    person = gensym()
     @funsql begin
-        join($person => from(person), $person.person_id == person_id)
-        define($name => $person.year_of_birth)
+        if_not_defined(_person,
+            join(_person => person(), _person.person_id == person_id))
+        define($name =>
+            if_defined_scalar(year_of_birth, year_of_birth,
+                              omop.year_of_birth))
     end
 end
 
 function funsql_define_death_date(;name=:death_date)
-    death = gensym()
     @funsql begin
-        left_join($death => from(death), $death.person_id == person_id)
-        define($name => $death.death_date)
-        undefine($death)
+        if_not_defined(_death,
+            left_join(_death => from(death), _death.person_id == person_id))
+        define($name => _death.death_date)
     end
 end
 
 function funsql_define_death_year(;name=:death_year)
-    death = gensym()
     @funsql begin
-        left_join($death => from(death), $death.person_id == person_id)
-        define($name => year($death.death_date))
-        undefine($death)
-    end
-end
-
-function funsql_define_pat_id(column_name=:pat_id)
-    person = gensym()
-    @funsql begin
-        left_join($person => begin
-            from(`trdw_epic.person`)
-        end, $person.person_id == person_id)
-        with(
-            `trdw_epic.person` =>
-                from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdw_epic],
-                                       name = :person,
-                                       columns = [:person_id, :person_source_value]))))
-        define($column_name => $person.person_source_value)
+        if_not_defined(_death,
+            left_join(_death => from(death), _death.person_id == person_id))
+        define($name => year(_death.death_date))
     end
 end
 
 function funsql_define_soarian_mrn()
-    person_map  = gensym()
     @funsql begin
-        left_join($person_map =>
+        left_join(_person_map =>
             from(`trdwlegacysoarian.omop_common_person_map`),
-            $person_map.person_id == person_id)
+            _person_map.person_id == person_id)
         with(
             `trdwlegacysoarian.omop_common_person_map` =>
                 from($(FunSQL.SQLTable(qualifiers = [:ctsi, :trdwlegacysoarian],
                                     name = :omop_common_person_map,
                                     columns = [:person_id, :mrn]))))
-        define(soarian_mrn => $person_map.mrn)
+        define(soarian_mrn => _person_map.mrn)
     end
 end
 
 function funsql_define_epic_mrn()
-    pat_id = gensym()
-    patient = gensym()
     @funsql begin
-        define_pat_id($pat_id)
-        left_join($patient => begin
+        if_not_defined(_person,
+            join(_person => person(), _person.person_id == person_id))
+        left_join(_patient => begin
             from(`epicclarity.patient`)
-        end, $patient.pat_id == $pat_id)
+        end, _patient.pat_id == _person.pat_id)
         with(
             `epicclarity.patient` =>
                 from($(FunSQL.SQLTable(qualifiers = [:main, :epicclarity],
                                        name = :patient,
                                        columns = [:pat_id, :pat_mrn_id]))))
-        define(epic_mrn => $patient.pat_mrn_id)
-        undefine($pat_id)
+        define(epic_mrn => _patient.pat_mrn_id)
     end
 end
 
@@ -196,7 +178,7 @@ function funsql_define_natural_mother_id(filter=true; name=:natural_mother_id)
             from(fact_relationship)
             filter(in(relationship_concept_id, 4326600, 4277283))
             define(person_id => fact_id_1)
-            join(p => from(person).filter(gender_concept_id ==8532),
+            join(p => person().filter(gender_concept_id ==8532),
                  p.person_id == fact_id_2)
         end, $filter)
         define($name => first($name.fact_id_2))
@@ -204,16 +186,32 @@ function funsql_define_natural_mother_id(filter=true; name=:natural_mother_id)
 end
 
 function funsql_define_profile(args...)
+    if length(args) == 0
+        args = [
+            :age_at_extraction_or_death,
+            :birth_date,
+            :birth_year,
+            :death_date,
+            :death_year,
+            :epic_mrn,
+            :ethnicity,
+            :never_smoker,
+            :preferred_language,
+            :race,
+            :sex,
+            :smoking,
+            :soarian_mrn,
+            :translator,
+        ]
+    end
     query = @funsql(define())
     for arg in args
         query = query |> begin
             arg == :birth_date ? funsql_define_birth_date() :
             arg == :birth_year ? funsql_define_birth_year() :
             arg == :age_at_extraction_or_death ? funsql_define_age_at_extraction_or_death() :
-            arg == :current_age ? funsql_define_age_at_extraction_or_death() : # current_age is deprecated, use age_at_extraction_or_death
             arg == :death_date ? funsql_define_death_date() :
             arg == :death_year ? funsql_define_death_year() :
-            arg == :pat_id ? funsql_define_pat_id() :
             arg == :epic_mrn ? funsql_define_epic_mrn() :
             arg == :ethnicity ? funsql_define_ethnicity() :
             arg == :never_smoker ? funsql_define_never_smoker() :
