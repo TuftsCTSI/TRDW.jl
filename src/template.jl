@@ -23,8 +23,9 @@ function NotebookFooter()
       @htl("<p>IRB Study# $(IRB_CODE)"))
     $(isnothing(PROJECT_SLUG) ? "" :
       @htl("""
-         <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/
-             $PROJECT_SLUG">$PROJECT_SLUG</a><br />"""))
+         <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
+             $PROJECT_SLUG
+         </a><br />"""))
   </div>
    """)
 end
