@@ -23,7 +23,7 @@ function config_file()
             :project_slug => "project_id",
             :project_code => "project_name",
             :project_title => "project_title",
-            :irb_code => "irb_code",
+            :irb_id => "irb_id",
             :irb_start_date => "irb_start_date",
             :irb_end_date => "irb_end_date",
             :pi_name => "pi_display_name",
@@ -34,8 +34,8 @@ function config_file()
     end
 
     # provide defaults for cohort discoveries
-    if retval[:irb_code] == DISCOVERY_IRB || retval[:project_code] == DISCOVERY_PROJECT
-        retval[:irb_code] = something(retval[:irb_code], DISCOVERY_IRB)
+    if retval[:irb_id] == DISCOVERY_IRB || retval[:project_code] == DISCOVERY_PROJECT
+        retval[:irb_id] = something(retval[:irb_id], DISCOVERY_IRB)
         retval[:project_id] = something(retval[:project_id], DISCOVERY_ID)
         retval[:project_slug] = something(retval[:project_slug], DISCOVERY_SLUG)
         retval[:project_code] = something(retval[:project_code], DISCOVERY_PROJECT)
@@ -44,8 +44,8 @@ function config_file()
     end
 
     # give quality projects a broad date range
-    if isnothing(retval[:irb_code]) || retval[:project_code] == QUALITY_PROJECT
-        retval[:irb_code] = nothing
+    if isnothing(retval[:irb_id]) || retval[:project_code] == QUALITY_PROJECT
+        retval[:irb_id] = nothing
         retval[:project_id] = something(retval[:project_id], QUALITY_ID)
         retval[:project_code] = something(retval[:project_code], QUALITY_PROJECT)
         retval[:irb_start_date] = something(retval[:irb_start_date], DISCOVERY_START)
@@ -66,8 +66,8 @@ function config_file()
     return retval
 end
 
-is_discovery() = config_file()[:irb_code] == DISCOVERY_IRB
-is_quality() = isnothing(config_file()[:irb_code])
+is_discovery() = config_file()[:irb_id] == DISCOVERY_IRB
+is_quality() = isnothing(config_file()[:irb_id])
 funsql_config_file() = DataFrame(config_file())
 
 # We are only permitted to consider data expressly permitted by the

@@ -1,6 +1,6 @@
 function NotebookFooter()
     config = config_file()
-    IRB_CODE = config[:irb_code]
+    IRB_ID = config[:irb_id]
     PROJECT_ID = config[:project_id]
     PROJECT_CODE = config[:project_code]
     PROJECT_SLUG = config[:project_slug]
@@ -19,8 +19,8 @@ function NotebookFooter()
       @htl("""Project#
         <a href="https://tuftsctsi.lightning.force.com/lightning/r/Project__c/$PROJECT_ID/view">
             $PROJECT_CODE</a><br /> """))
-    $(isnothing(IRB_CODE) ? "" :
-      @htl("<p>IRB Study# $(IRB_CODE)"))
+    $(isnothing(IRB_ID) ? "" :
+      @htl("<p>IRB Study# $(IRB_ID)"))
     $(isnothing(PROJECT_SLUG) ? "" :
       @htl("""
          <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
@@ -37,7 +37,7 @@ function NotebookHeader(TITLE=nothing)
     PROJECT_CODE = config[:project_code]
     PROJECT_TITLE = config[:project_title]
     DESCRIPTION = config[:description]
-    IRB = config[:irb_code]
+    IRB = config[:irb_id]
     IRB_START_DATE = config[:irb_start_date]
     IRB_END_DATE = config[:irb_end_date]
   @htl("""
