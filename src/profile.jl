@@ -57,7 +57,7 @@ function funsql_define_birth_year(;name=:birth_year)
             join(_person => person(), _person.person_id == person_id))
         define($name =>
             if_defined_scalar(year_of_birth, year_of_birth,
-                              omop.year_of_birth))
+                              _person.omop.year_of_birth))
     end
 end
 
