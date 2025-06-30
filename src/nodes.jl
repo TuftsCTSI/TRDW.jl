@@ -130,22 +130,23 @@ end
 
 mutable struct ExplainConceptIdNode <: FunSQL.AbstractSQLNode
     over::Union{FunSQL.SQLNode, Nothing}
+    replace::Bool
     args::Vector{FunSQL.SQLNode}
     label_map::FunSQL.OrderedDict{Symbol, Int}
 
-    function ExplainConceptIdNode(; over = nothing, args = [FunSQL.Get(:concept_name)], label_map = nothing)
+    function ExplainConceptIdNode(; replace = false, over = nothing, args = [FunSQL.Get(:concept_name)], label_map = nothing)
         if label_map !== nothing
-            new(over, args, label_map)
+            new(over, replace, args, label_map)
         else
-            n = new(over, args, FunSQL.OrderedDict{Symbol, Int}())
+            n = new(over, replace, args, FunSQL.OrderedDict{Symbol, Int}())
             FunSQL.populate_label_map!(n)
             n
         end
     end
 end
 
-ExplainConceptIdNode(args...; over = nothing) =
-    ExplainConceptIdNode(over = over, args = FunSQL.SQLNode[args...])
+ExplainConceptIdNode(args...; replace = false, over = nothing) =
+    ExplainConceptIdNode(replace = replace, over = over, args = FunSQL.SQLNode[args...])
 
 ExplainConceptId(args...; kws...) =
     ExplainConceptIdNode(args...; kws...) |> FunSQL.SQLNode
@@ -154,6 +155,9 @@ const funsql_explain_concept_id = ExplainConceptId
 
 function FunSQL.PrettyPrinting.quoteof(n::ExplainConceptIdNode, ctx::FunSQL.QuoteContext)
     ex = Expr(:call, nameof(ExplainConceptId), Any[FunSQL.quoteof(arg, ctx) for arg in n.args]...)
+    if n.replace
+        push!(ex.args, Expr(:kw, :replace, n.replace))
+    end
     if n.over !== nothing
         ex = Expr(:call, :|>, FunSQL.quoteof(n.over, ctx), ex)
     end
@@ -182,6 +186,9 @@ function FunSQL.resolve(n::ExplainConceptIdNode, ctx)
             q = q |> Undefine(names = dup_field_aliases)
         end
         q = q |> FunSQL.Define(args = defs, after = f)
+        if n.replace
+            q = q |> Undefine(f)
+        end
     end
     FunSQL.resolve(q, ctx)
 end

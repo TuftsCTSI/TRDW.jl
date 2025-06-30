@@ -1,6 +1,6 @@
 module TRDW
 
-export @connect, @query, Chain, Fun, Var, @concepts, @valuesets, OHDSI, user_project_schema, project_schema, is_discovery
+export @connect, @query, Chain, Fun, Var, OHDSI, user_project_schema, project_schema, is_discovery
 
 using CSV
 using DBInterface
@@ -89,5 +89,7 @@ FunSQL.showpath(io::IO, path::Vector{FunSQL.SQLNode}) = begin
         FunSQL.pprint(io, q)
     end
 end
+
+include("prime.jl")
 
 end
