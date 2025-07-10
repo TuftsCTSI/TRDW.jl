@@ -29,6 +29,117 @@ end
 
 export funsql_switch
 
+"""
+    @funsql join_first(joinee, on; order_by, left = false)
+    @funsql join_first(joinee; on, order_by, left = false)
+    @funsql left_join_first(joinee, on; order_by)
+    @funsql left_join_first(joinee; on, order_by)
+
+Join each input row to the first matching row from `joinee`, where the order
+of `joinee` rows is determined by the specified `order_by` list.  Unlike
+a standard `join()`, `join_first()` guarantees that the output cardinality
+does not increase.
+
+# Examples
+
+```julia
+@funsql begin
+    person()
+    left_join_first(
+        first_visit => visit(),
+        person_id == first_visit.person_id,
+        order_by = [first_visit.datetime])
+end
+```
+"""
+function join_first
+end
+
+@funsql join_first(joinee, on; order_by, left = false) =
+    join_first(joinee; on = $on, order_by = $order_by, left = $left)
+
+@funsql join_first(joinee; on, order_by, left = false) = begin
+    partition(order_by = [missing], name = join_first)
+    join($joinee, $on, left = $left)
+    partition(join_first.row_number(), order_by = $order_by, name = join_first)
+    filter(join_first.row_number() <= 1)
+    undefine(join_first)
+end
+
+export funsql_join_first
+
+@funsql left_join_first(joinee, on; order_by) =
+    join_first($joinee, on = $on, order_by = $order_by, left = true)
+
+@funsql left_join_first(joinee; on, order_by) =
+    join_first($joinee, on = $on, order_by = $order_by, left = true)
+
+export funsql_left_join_first
+
+"""
+    @funsql attach_first(joinee, on = true; by = [person_id], order_by)
+
+Join each input row to the first matching row from `joinee` that has the same
+`person_id` (or another key specified in `by`) and satisfies the optional
+`on` predicate.  The order of `joinee` rows is determined by the specified
+`order_by` list.  Unlike `join()`, `attach_first()` does not eliminate or
+duplicate input rows.
+
+# Examples
+
+```julia
+@funsql begin
+    person()
+    left_join_first(
+        first_visit => visit(),
+        person_id == first_visit.person_id,
+        order_by = [first_visit.datetime])
+end
+"""
+@funsql attach_first(joinee, on = true; name = $(FunSQL.label(convert(FunSQL.SQLNode, joinee))), by = [person_id], order_by) =
+    left_join_first($joinee, on = $on && and(args = $[@funsql($key == $name.$key) for key in by]), order_by = $order_by)
+
+export funsql_attach_first
+
+"""
+    @funsql attach_earliest(joinee, on = true; by = [person_id])
+
+Join each input row to the earliest matching row from `joinee` (determined by
+the `datetime` attribute) that has the same `person_id` (or another key
+specified in `by`) and satisfies the optional `on` predicate.
+
+# Examples
+
+```julia
+@funsql begin
+    person()
+    attach_earliest(first_visit => visit())
+end
+"""
+@funsql attach_earliest(joinee, on = true; name = $(FunSQL.label(convert(FunSQL.SQLNode, joinee))), by = [person_id], order_by = [$name.datetime.asc(nulls = last)]) =
+    attach_first($joinee, $on; by = $by, order_by = $order_by)
+
+export funsql_attach_earliest
+
+"""
+    @funsql attach_latest(joinee, on = true; by = [person_id])
+
+Join each input row to the latest matching row from `joinee` (determined by
+the `datetime` attribute) that has the same `person_id` (or another key
+specified in `by`) and satisfies the optional `on` predicate.
+
+# Examples
+
+```julia
+@funsql begin
+    person()
+    attach_latest(latest_visit => visit())
+end
+"""
+@funsql attach_latest(joinee, on = true; name = $(FunSQL.label(convert(FunSQL.SQLNode, joinee))), by = [person_id], order_by = [$name.datetime.desc(nulls = last)]) =
+    attach_first($joinee, $on; by = $by, order_by = $order_by)
+
+export funsql_attach_latest
 
 """
     @funsql concept()
