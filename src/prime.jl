@@ -394,7 +394,6 @@ For clarity, some `CARE_SITE` columns are renamed or omitted from the output.
 # Examples
 
 ```julia
-
 @funsql care_site(CareSite("Emergency Medicine"))
 ```
 """
@@ -454,6 +453,41 @@ export funsql_CareSite
 
 
 """
+    @funsql person()
+
+Return records from the `PERSON` table.  For clarity, some columns are renamed
+or omitted from the output.
+
+# Examples
+
+```julia
+@funsql begin
+    person()
+    filter(gender_concept_id in Male())
+    filter(birth_datetime >= "2000-01-01")
+end
+```
+"""
+@funsql person() = begin
+    from(person)
+    as(omop)
+    define(
+        omop.person_id,
+        omop.pat_id,
+        omop.mother_person_id,
+        omop.father_person_id,
+        omop.gender_concept_id,
+        omop.birth_datetime,
+        omop.death_datetime,
+        omop.death_datetime_problem_concept_id,
+        omop.provider_id,
+        omop.gender_source_concept_id)
+end
+
+export funsql_person
+
+
+"""
     @funsql Gender(code, name)
     @funsql Gender(code_or_name)
 
@@ -508,6 +542,34 @@ end
     concept(8532 #= FEMALE =#)
 
 export funsql_Female
+
+
+"""
+    @funsql observation_period()
+
+Return records from the `OBSERVATION_PERIOD` table.  For clarity, some columns
+are renamed or omitted from the output.
+
+# Examples
+
+```julia
+@funsql begin
+    person()
+    attach_earliest(observation_period => observation_period())
+end
+```
+"""
+@funsql observation_period() = begin
+    from(observation_period)
+    as(omop)
+    define(
+        omop.observation_period_id,
+        omop.person_id,
+        datetime => omop.observation_period_start_date,
+        end_datetime => omop.observation_period_end_date)
+end
+
+export funsql_observation_period
 
 
 # Reexport those TRDW symbols that have not been overriden here.
