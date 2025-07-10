@@ -261,6 +261,39 @@ export funsql_concept_descend
 
 
 """
+    @funsql concept_relate(relationship_id)
+
+For each input concept, emit related concepts as defined by the
+specified `relationship_id`.
+
+# Examples
+```julia
+@funsql begin
+    concept()
+    filter(vocabulary_id == "ICD10CM" && concept_code == "I10")
+    concept_relate("Maps to")
+end
+```
+"""
+@funsql concept_relate(relationship_id) = begin
+    as(base)
+    join(
+        concept_relationship => begin
+            from(concept_relationship)
+            filter(relationship_id == $relationship_id)
+        end,
+        base.concept_id == concept_relationship.concept_id_1)
+    join(
+        concept(),
+        concept_relationship.concept_id_2 == concept_id,
+        optional = true)
+    define(concept_id => concept_relationship.concept_id_2)
+end
+
+export funsql_concept_relate
+
+
+"""
     @funsql concept_include(concept_set)
 
 Add the given concept set to the input concept set.  With no input, return
