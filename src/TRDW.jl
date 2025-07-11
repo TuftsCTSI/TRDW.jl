@@ -52,6 +52,7 @@ include("profile.jl")
 include("ohdsi.jl")
 include("xlsx.jl")
 include("drawio.jl")
+include("figure.jl")
 include("etl.jl")
 include("ddl.jl")
 
