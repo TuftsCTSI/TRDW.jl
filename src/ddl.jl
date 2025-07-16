@@ -61,6 +61,24 @@ function drop_schema!(db, catalog, schema)
 end
 
 """
+    rename_schema!(db, catalog, old_schema => new_schema)
+
+Rename the schema using Databricks REST API.
+"""
+function rename_schema!(db, catalog, (old_schema, new_schema))
+    DATABRICKS_SERVER_HOSTNAME = ENV["DATABRICKS_SERVER_HOSTNAME"]
+    DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
+    full_name = "$(catalog).$(old_schema)"
+    body = JSON3.write((; new_name = new_schema))
+    HTTP.request(
+        "PATCH",
+        "https://$DATABRICKS_SERVER_HOSTNAME/api/2.1/unity-catalog/schemas/$(full_name)",
+        headers = ["Authorization" => "Bearer $DATABRICKS_ACCESS_TOKEN"],
+        body = body)
+end
+
+
+"""
     show_volumes(db, catalog, schema)
 
 Execute `SHOW VOLUMES` and return a vector of volume names.
