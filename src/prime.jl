@@ -474,6 +474,8 @@ end
     define(
         omop.person_id,
         omop.pat_id,
+        omop.mrn,
+        omop.legacy_tmc_mrn,
         omop.mother_person_id,
         omop.father_person_id,
         omop.gender_concept_id,
