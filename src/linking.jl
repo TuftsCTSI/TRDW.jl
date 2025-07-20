@@ -2,7 +2,7 @@
 
 This constructs an outer join that links via person and cohort date under the given name.
 """
-function join_via_cohort(pair::Pair{Symbol, FunSQL.SQLNode}, date_prefix=nothing;
+function join_via_cohort(pair::Pair{Symbol, FunSQL.SQLQuery}, date_prefix=nothing;
                          match=[], exclude=nothing,
                          match_prefix= nothing, match_source=nothing,
                          mandatory=false)
@@ -36,7 +36,7 @@ This constructs an inner join that continues the current frame with the joined
 query as filtered by person and cohort date. The carry parameter can be used to
 bring base columns into the new context.
 """
-function join_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
+function join_via_cohort(query::FunSQL.SQLQuery, date_prefix::Symbol;
                          match=nothing, exclude=nothing,
                          match_prefix= nothing, match_source=nothing,
                          carry=nothing)
@@ -68,7 +68,7 @@ end
 
 This constructs a correlated query that links via person and cohort date.
 """
-function correlate_via_cohort(query::FunSQL.SQLNode, date_prefix::Symbol;
+function correlate_via_cohort(query::FunSQL.SQLQuery, date_prefix::Symbol;
                               match=[], exclude=nothing, also=nothing,
                               match_prefix= nothing, match_source=nothing)
     match_prefix = something(match_prefix, date_prefix)
@@ -99,7 +99,7 @@ const funsql_correlate_via_cohort = correlate_via_cohort
 
 This constructs an outer join that links via person under the given name.
 """
-function join_via_person(pair::Pair{Symbol, FunSQL.SQLNode};
+function join_via_person(pair::Pair{Symbol, FunSQL.SQLQuery};
                          match=[], exclude=nothing,
                          match_prefix= nothing, match_source=nothing,
                          mandatory=false)
@@ -127,7 +127,7 @@ This constructs an inner join that continues the current frame with the joined
 query as filtered by person. The carry parameter can be used to bring base columns
 into the new context.
 """
-function join_via_person(query::FunSQL.SQLNode;
+function join_via_person(query::FunSQL.SQLQuery;
                          match=[], exclude=nothing,
                          match_prefix= nothing, match_source=nothing,
                          carry=[])
@@ -150,7 +150,7 @@ end
 
 This constructs a correlated query that links via person.
 """
-function correlate_via_person(query::FunSQL.SQLNode, date_prefix::Symbol;
+function correlate_via_person(query::FunSQL.SQLQuery, date_prefix::Symbol;
                               match=[], exclude=nothing,
                               match_prefix= nothing, match_source=nothing)
     return @funsql(begin

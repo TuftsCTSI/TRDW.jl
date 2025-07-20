@@ -6,11 +6,11 @@ macro export_funsql_fun_or_agg(exs...)
         is_agg = false
         if ex isa Union{Symbol, String}
             def = name = ex
-        elseif @dissect(ex, Expr(:vect, def::Union{Symbol, String}))
+        elseif @dissect(ex, Expr(:vect, (local def)::Union{Symbol, String}))
             is_agg = true
             name = def
-        elseif @dissect(ex, Expr(:(=), def::Union{Symbol, String}, name::Union{Symbol, String}))
-        elseif @dissect(ex, Expr(:(=), Expr(:vect, def::Union{Symbol, String}), name::Union{Symbol, String}))
+        elseif @dissect(ex, Expr(:(=), (local def)::Union{Symbol, String}, (local name)::Union{Symbol, String}))
+        elseif @dissect(ex, Expr(:(=), Expr(:vect, (local def)::Union{Symbol, String}), (local name)::Union{Symbol, String}))
             is_agg = true
         else
             error("invalid @export_funsql_fun_or_agg notation")
@@ -55,7 +55,6 @@ end
     aggregate,
     ai_generate_text, # Databricks
     ai_query, # Databricks
-    and,
     [any],
     [any_value],
     [approx_count_distinct],
@@ -385,7 +384,6 @@ end
     nvl,
     nvl2,
     octet_length,
-    or,
     overlay,
     parse_url,
 #    [percent_rank],

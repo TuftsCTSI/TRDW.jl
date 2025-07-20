@@ -37,7 +37,6 @@ include("nodes.jl")
 include("inventory.jl")
 include("spark.jl")
 include("helpers.jl")
-include("export.jl")
 include("vocabulary.jl")
 #include("valueset.jl")
 include("subject.jl")
@@ -81,16 +80,6 @@ funsql_export() =
     end
 
 funsql_export()
-
-global show_funsql_path = false
-
-FunSQL.showpath(io::IO, path::Vector{FunSQL.SQLNode}) = begin
-    if show_funsql_path && !isempty(path)
-        q = FunSQL.highlight(path)
-        println(io, " in:")
-        FunSQL.pprint(io, q)
-    end
-end
 
 include("prime.jl")
 

@@ -9,9 +9,6 @@ sqlname(db, schema::Symbol, table::Symbol) =
 sqlname(db, t::FunSQL.SQLTable) =
     FunSQL.render(db, FunSQL.ID(t.qualifiers, t.name))
 
-sqlname(db, node::FunSQL.SQLNode) =
-    sqlname(db, getfield(getfield(node, :core), :source))
-
 function create_table_if_not_exists(db, schema::Symbol, table::Symbol, spec...)
     schema_name_sql = sqlname(db, schema)
     name_sql = sqlname(db, schema, table)
@@ -28,7 +25,7 @@ end
 struct CreateTableSpecification
     schema_name::Symbol
     name::Symbol
-    node::FunSQL.SQLNode
+    query::FunSQL.SQLQuery
 end
 
 """
@@ -49,14 +46,14 @@ end
 ```
 
 """
-funsql_write_table((name, node)::Pair{<:Union{Symbol, AbstractString}, <:Any};
+funsql_write_table((name, query)::Pair{<:Union{Symbol, AbstractString}, <:Any};
                     schema::Union{Symbol, AbstractString} = user_project_schema()) =
-    CreateTableSpecification(Symbol(schema), Symbol(name), node)
+    CreateTableSpecification(Symbol(schema), Symbol(name), query)
 
 function run(db, spec::CreateTableSpecification)
     schema_name_sql = FunSQL.render(db, FunSQL.ID(spec.schema_name))
     name_sql = FunSQL.render(db, FunSQL.ID([spec.schema_name], spec.name))
-    sql = FunSQL.render(db, spec.node)
+    sql = FunSQL.render(db, spec.query)
     if false
         # TODO: requires FunSQL#metadata branch
         # t = FunSQL.SQLTable(qualifiers = [spec.schema_name], spec.name, columns = sql.columns)
@@ -690,15 +687,15 @@ const omop_catalog = FunSQL.SQLCatalog(
 
 struct WriteCSVSpecification
     prefix::String
-    node::FunSQL.SQLNode
+    query::FunSQL.SQLQuery
     skip::Bool
 end
 
-funsql_write_csv((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip = nothing) =
-    WriteCSVSpecification(string(prefix), node, something(skip, get(ENV, "CI", nothing) != "true"))
+funsql_write_csv((prefix, query)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip = nothing) =
+    WriteCSVSpecification(string(prefix), query, something(skip, get(ENV, "CI", nothing) != "true"))
 
 function run(db, spec::WriteCSVSpecification)
-    data = run(db, spec.node)
+    data = run(db, spec.query)
     dataframe = DataFrame(data)
     when =
         let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
@@ -749,7 +746,7 @@ end
 
 struct WriteXLSXSpecification
     prefix::String
-    node::FunSQL.SQLNode
+    query::FunSQL.SQLQuery
     skip::Bool
 end
 
@@ -762,8 +759,8 @@ For this to work, include this boilerplate in your notebook:
     JavaCall.assertroottask_or_goodenv()
 ```
 """
-funsql_write_encrypted_xlsx((prefix, node)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing) =
-    WriteXLSXSpecification(string(prefix), node, something(skip, get(ENV, "CI", nothing) != "true"))
+funsql_write_encrypted_xlsx((prefix, query)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing) =
+    WriteXLSXSpecification(string(prefix), query, something(skip, get(ENV, "CI", nothing) != "true"))
 
 function run(db, spec::WriteXLSXSpecification)
     @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_encrypt you need:
@@ -771,7 +768,7 @@ function run(db, spec::WriteXLSXSpecification)
       # then, after TRDW is imported
       JavaCall.isloaded() ? nothing : JavaCall.init()
     """
-    data = run(db, spec.node)
+    data = run(db, spec.query)
     dataframe = DataFrame(data)
     password = get_password()
     dataframe = DataFrame(data)
