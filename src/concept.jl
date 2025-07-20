@@ -202,7 +202,7 @@ truncate_to_concept_class(concept_class_id, relationship_id="Is a") =
         end)
     end)
 
-concept_cover(category::FunSQL.SQLNode; exclude=[]) = begin
+concept_cover(category::FunSQL.SQLQuery; exclude=[]) = begin
     as(base)
     left_join(
         begin
