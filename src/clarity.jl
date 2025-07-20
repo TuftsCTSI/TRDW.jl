@@ -21,7 +21,7 @@ funsql_define_zc_lookup(name; zc_table=nothing) = begin
     end)
 end
 
-function decode_nest!(name::Symbol, map::Vector, default)::FunSQL.SQLNode
+function decode_nest!(name::Symbol, map::Vector, default)::FunSQL.SQLQuery
     (key, val) = pop!(map)
     if length(map) > 0
         default = decode_nest!(name, map, default)

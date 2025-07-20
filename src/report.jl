@@ -27,7 +27,7 @@ end
 const funsql_define_csets_roundups = define_csets_roundups
 
 function set_aggregate_filter!(node, test, n_replacement = 0)
-    @assert node isa FunSQL.SQLNode
+    @assert node isa FunSQL.SQLQuery
     core = getfield(node, :core)
     if core isa FunSQL.AggregateNode
         core.filter = test
@@ -46,7 +46,7 @@ function define_csets_aggregates(labels::Vector, args::Pair...)
     for slot in labels
         test = @funsql($slot)
         for (handle, template) in args
-            @assert template isa FunSQL.SQLNode
+            @assert template isa FunSQL.SQLQuery
             node = deepcopy(template)
             n_replacement = set_aggregate_filter!(node, test)
             @assert n_replacement == 1
@@ -114,9 +114,9 @@ const funsql_group_by_concept = group_by_concept
         end) : @funsql(define()))
 end
 
-function funsql_unpivot(; args::Vector{FunSQL.SQLNode}, name::Symbol = :class, left::Bool = true)
+function funsql_unpivot(; args::Vector{FunSQL.SQLQuery}, name::Symbol = :class, left::Bool = true)
     labels = FunSQL.label.(args)
-    case_args = FunSQL.SQLNode[]
+    case_args = FunSQL.SQLQuery[]
     for (i, label) in enumerate(labels)
         push!(case_args, @funsql(_unpivot.index == $i), @funsql($(args[i])))
     end
@@ -131,10 +131,10 @@ function funsql_unpivot(; args::Vector{FunSQL.SQLNode}, name::Symbol = :class, l
 end
 
 funsql_unpivot(args...; name = :class, left = true) =
-    funsql_unpivot(args = FunSQL.SQLNode[args...], name = name, left = left)
+    funsql_unpivot(args = FunSQL.SQLQuery[args...], name = name, left = left)
 
 function funsql_unpivot(ncs::NamedConceptSets; name = :class, left = true)
-    args = FunSQL.SQLNode[]
+    args = FunSQL.SQLQuery[]
     for (k, r) in ncs.dict
         push!(args, k => funsql_isa(r))
     end

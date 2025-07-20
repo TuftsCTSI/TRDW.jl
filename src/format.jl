@@ -188,24 +188,24 @@ function _format_style(df, fmt)
     """
 end
 
-struct FormatNode
-    over::FunSQL.SQLNode
+struct FormatSQLQuery
+    query::FunSQL.SQLQuery
     fmt::SQLFormat
 
-    FormatNode(over, fmt) =
-        new(over, fmt)
+    FormatSQLQuery(query, fmt) =
+        new(query, fmt)
 end
 
-FormatNode(; kws...) =
-    FormatNode(FunSQL.Define(), SQLFormat(; kws...))
+FormatSQLQuery(; kws...) =
+    FormatSQLQuery(FunSQL.Define(), SQLFormat(; kws...))
 
-FormatNode(caption; kws...) =
-    FormatNode(; caption, kws...)
+FormatSQLQuery(caption; kws...) =
+    FormatSQLQuery(; caption, kws...)
 
-const funsql_format = FormatNode
+const funsql_format = FormatSQLQuery
 
-FunSQL.Chain(n, n′::FormatNode) =
-    FormatNode(FunSQL.Chain(n, n′.over), n′.fmt)
+FunSQL.Chain(q, q′::FormatSQLQuery) =
+    FormatSQLQuery(FunSQL.Chain(q, q′.query), q′.fmt)
 
-run(db, n::FormatNode) =
-    run(db, n.over; fmt = n.fmt)
+run(db, q::FormatSQLQuery) =
+    run(db, q.query; fmt = q.fmt)

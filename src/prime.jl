@@ -96,7 +96,7 @@ duplicate input rows.
         order_by = [first_visit.datetime])
 end
 """
-@funsql attach_first(joinee, on = true; name = $(FunSQL.label(convert(FunSQL.SQLNode, joinee))), by = [person_id], order_by) =
+@funsql attach_first(joinee, on = true; name = $(FunSQL.label(joinee)), by = [person_id], order_by) =
     left_join_first($joinee, on = $on && and(args = $[@funsql($key == $name.$key) for key in by]), order_by = $order_by)
 
 export funsql_attach_first
@@ -116,7 +116,7 @@ specified in `by`) and satisfies the optional `on` predicate.
     attach_earliest(first_visit => visit())
 end
 """
-@funsql attach_earliest(joinee, on = true; name = $(FunSQL.label(convert(FunSQL.SQLNode, joinee))), by = [person_id], order_by = [$name.datetime.asc(nulls = last)]) =
+@funsql attach_earliest(joinee, on = true; name = $(FunSQL.label(joinee)), by = [person_id], order_by = [$name.datetime.asc(nulls = last)]) =
     attach_first($joinee, $on; by = $by, order_by = $order_by)
 
 export funsql_attach_earliest
@@ -136,7 +136,7 @@ specified in `by`) and satisfies the optional `on` predicate.
     attach_latest(latest_visit => visit())
 end
 """
-@funsql attach_latest(joinee, on = true; name = $(FunSQL.label(convert(FunSQL.SQLNode, joinee))), by = [person_id], order_by = [$name.datetime.desc(nulls = last)]) =
+@funsql attach_latest(joinee, on = true; name = $(FunSQL.label(joinee)), by = [person_id], order_by = [$name.datetime.desc(nulls = last)]) =
     attach_first($joinee, $on; by = $by, order_by = $order_by)
 
 export funsql_attach_latest

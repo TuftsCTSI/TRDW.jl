@@ -96,14 +96,14 @@ function run(db, spec::TruncateSubjectSpecification)
 end
 
 struct MergeSubjectSpecification
-    node::FunSQL.SQLNode
+    query::FunSQL.SQLQuery
 end
 
-funsql_assign_subject_ids(node) =
-    MergeSubjectSpecification(@funsql($node.deduplicate(person_id)))
+funsql_assign_subject_ids(query) =
+    MergeSubjectSpecification(@funsql($query.deduplicate(person_id)))
 
 function run(db, spec::MergeSubjectSpecification)
-    merge_sql = FunSQL.render(db, @funsql($(spec.node).define_profile(soarian_mrn, epic_mrn)))
+    merge_sql = FunSQL.render(db, @funsql($(spec.query).define_profile(soarian_mrn, epic_mrn)))
     for col in merge_sql.columns
         if col.name == :subject_id
             @error "use assign_customer_subject_ids() for customer-provided subject ids"
@@ -122,7 +122,7 @@ function run(db, spec::MergeSubjectSpecification)
             VALUES (cohort.person_id, cohort.epic_mrn, cohort.soarian_mrn, current_timestamp())
     """
     DBInterface.execute(db, query)
-    only_person_ids = FunSQL.render(db, @funsql($(spec.node).select(person_id)))
+    only_person_ids = FunSQL.render(db, @funsql($(spec.query).select(person_id)))
     query = """
         UPDATE $subject_sql
         SET removed = current_timestamp()
@@ -139,15 +139,15 @@ function run(db, spec::MergeSubjectSpecification)
 end
 
 struct MergeCustomerSubjectSpecification
-    node::FunSQL.SQLNode
+    query::FunSQL.SQLQuery
     datatype::String
 end
 
-funsql_assign_customer_subject_ids(node; datatype="BIGINT") =
-    MergeCustomerSubjectSpecification(node, datatype)
+funsql_assign_customer_subject_ids(query; datatype="BIGINT") =
+    MergeCustomerSubjectSpecification(query, datatype)
 
 function run(db, spec::MergeCustomerSubjectSpecification)
-    sql = FunSQL.render(db, spec.node)
+    sql = FunSQL.render(db, spec.query)
     if false
         # TODO: requires FunSQL#metadata branch
         # check sql.columns for subject_id
