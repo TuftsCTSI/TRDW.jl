@@ -29,6 +29,7 @@ import Base.show
 
 include("config.jl")
 include("connect.jl")
+include("delta.jl")
 include("format.jl")
 include("result.jl")
 include("general.jl")
