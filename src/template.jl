@@ -1,10 +1,11 @@
-function NotebookFooter()
-
+function NotebookFooter(db=nothing)
     config = config_file()
     vocabulary_version = nothing
-    try
-        vocabulary_version = DataFrame(@query from(cdm_source).select(vocabulary_version))[1, 1]
-    catch e
+    if !isnothing(db)
+        try
+            vocabulary_version = DataFrame(run(db, @funsql from(cdm_source).select(vocabulary_version)))[1, 1]
+        catch e
+        end
     end
     VOCABULARY_VERSION = vocabulary_version
     IRB_ID = config[:irb_id]
