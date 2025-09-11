@@ -1,5 +1,12 @@
 function NotebookFooter()
+
     config = config_file()
+    vocabulary_version = nothing
+    try
+        vocabulary_version = DataFrame(@query from(cdm_source).select(vocabulary_version))[1, 1]
+    catch e
+    end
+    VOCABULARY_VERSION = vocabulary_version
     IRB_ID = config[:irb_id]
     PROJECT_ID = config[:project_id]
     PROJECT_CODE = config[:project_code]
@@ -21,11 +28,13 @@ function NotebookFooter()
             $PROJECT_CODE</a><br /> """))
     $(isnothing(IRB_ID) ? "" :
       @htl("<p>IRB Study# $(IRB_ID)"))
-    $(isnothing(PROJECT_SLUG) ? "" :
+      $(isnothing(PROJECT_SLUG) ? "" :
       @htl("""
-         <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
-             $PROJECT_SLUG
-         </a><br />"""))
+      <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
+      $PROJECT_SLUG
+      </a><br />"""))
+      $(isnothing(VOCABULARY_VERSION) ? "" :
+          @htl("OMOP Vocab Version: $(VOCABULARY_VERSION)"))
   </div>
    """)
 end
