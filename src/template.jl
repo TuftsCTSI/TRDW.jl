@@ -1,5 +1,22 @@
-function NotebookFooter()
+function NotebookFooter(db=nothing)
     config = config_file()
+    cdm_source = nothing
+    if !isnothing(db)
+        try
+            cdm_source = DataFrame(run(db, @funsql from(cdm_source)))
+        catch e
+        end
+    end
+    CDM_ETL_REFERENCE = !isnothing(cdm_source) ? cdm_source.cdm_etl_reference[1] : nothing
+    VOCABULARY_VERSION = !isnothing(cdm_source) ? cdm_source.vocabulary_version[1] : nothing
+    SNAPSHOT_SCHEMA = isnothing(cdm_source) ? nothing : "snapshot_schema" in names(cdm_source) ? cdm_source.snapshot_schema[1] : nothing
+    # Handle SQL TRDW (non-PRIME) CDM_SOURCE
+    if isnothing(SNAPSHOT_SCHEMA) && !isnothing(CDM_ETL_REFERENCE) && occursin(" → ", CDM_ETL_REFERENCE)
+      parts = split(CDM_ETL_REFERENCE, " → ")
+      if length(parts) == 2
+        CDM_ETL_REFERENCE, SNAPSHOT_SCHEMA = parts[1], parts[2]
+      end
+    end
     IRB_ID = config[:irb_id]
     PROJECT_ID = config[:project_id]
     PROJECT_CODE = config[:project_code]
@@ -21,11 +38,16 @@ function NotebookFooter()
             $PROJECT_CODE</a><br /> """))
     $(isnothing(IRB_ID) ? "" :
       @htl("<p>IRB Study# $(IRB_ID)"))
-    $(isnothing(PROJECT_SLUG) ? "" :
+      $(isnothing(PROJECT_SLUG) ? "" :
       @htl("""
-         <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
-             $PROJECT_SLUG
-         </a><br />"""))
+      <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
+      $PROJECT_SLUG
+      </a><br />"""))
+      $(isnothing(VOCABULARY_VERSION) ? "" :
+          @htl("OMOP Vocab Version: $(VOCABULARY_VERSION)<br />"))
+      $(isnothing(SNAPSHOT_SCHEMA) ? "" :
+          @htl("""TRDW Snapshot: <a href="$CDM_ETL_REFERENCE"> $SNAPSHOT_SCHEMA
+          </a><br />"""))
   </div>
    """)
 end
