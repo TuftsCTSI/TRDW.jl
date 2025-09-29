@@ -453,6 +453,84 @@ export funsql_CareSite
 
 
 """
+    @funsql provider()
+    @funsql provider(concept_set)
+
+Return records from the `PROVIDER` table:
+- Without arguments, return all records;
+- With a given concept set, return all matching records.
+
+For clarity, some `PROVIDER` columns are renamed or omitted from the output.
+
+# Examples
+
+```julia
+@funsql provider(Provider("Rheumatology"))
+```
+"""
+function funsql_provider
+end
+
+@funsql provider() = begin
+    from(provider)
+    as(omop)
+    define(
+        omop.provider_id,
+        omop.provider_name,
+        omop.npi,
+        omop.dea,
+        concept_id => omop.specialty_concept_id,
+        omop.care_site_id,
+        omop.gender_concept_id,
+        source_concept_id => omop.specialty_source_concept_id,
+        omop.gender_source_concept_id)
+end
+
+@funsql provider(concept_set) = begin
+    provider()
+    filter(concept_id in $concept_set)
+end
+
+export funsql_provider
+
+
+"""
+    @funsql Provider(code_or_name; descend = true)
+    @funsql Provider(code, name; descend = true)
+
+Generate a concept set for provider's type or specialty.
+
+Arguments should refer to a standard concept within the Provider domain, which
+includes provider types such as Physician or Registered Nurse and specialties
+such as Cardiology or Rheumatology.
+
+# Example
+
+```julia
+@funsql Nurse() =
+    Provider("Nurse")
+
+@funsql Rheumatologist() =
+    Provider("Rheumatology")
+```
+"""
+@funsql Provider(code_or_name, name = nothing; descend = true) =
+    concept_include(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    domain_id == "Provider" &&
+                        standard_concept == "S" &&
+                        concept_like($code_or_name, $name),
+                    $(:(Provider($code_or_name, $name; descend = $descend)))))
+            switch($descend, concept_descend())
+        end)
+
+export funsql_Provider
+
+
+"""
     @funsql person()
 
 Return records from the `PERSON` table.  For clarity, some columns are renamed
