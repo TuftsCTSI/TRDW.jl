@@ -554,6 +554,7 @@ end
         omop.pat_id,
         omop.mrn,
         omop.legacy_tmc_mrn,
+        omop.ma_death_id,
         omop.mother_person_id,
         omop.father_person_id,
         omop.gender_concept_id,
@@ -561,7 +562,8 @@ end
         omop.death_datetime,
         omop.death_datetime_problem_concept_id,
         omop.provider_id,
-        omop.gender_source_concept_id)
+        omop.gender_source_concept_id,
+        omop.death_cause_source_concept_id)
 end
 
 export funsql_person
