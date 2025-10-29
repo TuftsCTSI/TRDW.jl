@@ -132,3 +132,46 @@ function _foreign_key_name(source, source_columns, target, target_columns)
         "$(source_table) ($(join(string.(source_columns), ", "))) → $(target_table) ($(join(string.(target_columns), ", ")))"
     end
 end
+
+@funsql row_delta(table, keys = [$(Symbol("$(table)_id"))], previous_table = $(Symbol("previous_$(table)"))) = begin
+    current => from($table).define(is_present => true)
+    join(
+        previous => if_set($previous_table, from($previous_table), from($table).filter(false)).define(is_present => true),
+        and(args = $[@funsql(current.$key == previous.$key) for key in keys]),
+        left = true,
+        right = true)
+    frequency(state => is_null(previous.is_present) ? "added" : is_null(current.is_present) ? "dropped" : "retained")
+end
+
+function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_table = Symbol("previous_$(table)"))
+    function custom_resolve(n, ctx)
+        tail′ = FunSQL.resolve(ctx)
+        t = FunSQL.row_type(tail′)
+        curr_t = t.fields[:current]
+        prev_t = t.fields[:previous]
+        fields = collect(Base.keys(curr_t.fields))
+        qs = FunSQL.SQLQuery[]
+        for field in fields
+            if field in Base.keys(prev_t.fields)
+                push!(qs, @funsql(count_if(previous.$field !== current.$field)))
+            else
+                push!(qs, @funsql(count(current.$field)))
+            end
+        end
+        @funsql begin
+            $tail′
+            group()
+            cross_join(summary_case => from(explode(sequence(1, $(length(fields)))), columns = [index]))
+            define(column => $(_summary_switch(string.(fields))))
+            define(n_changed => $(_summary_switch(qs)))
+            define(pct_changed => floor(100 * n_changed / count(), 1))
+        end
+    end
+    @funsql begin
+        current => from($table)
+        join(
+            previous => if_set($previous_table, from($previous_table), from($table).filter(false)),
+            and(args = $[@funsql(current.$key == previous.$key) for key in keys]))
+        $(CustomResolve(custom_resolve))
+    end
+end
