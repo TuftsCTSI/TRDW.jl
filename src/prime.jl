@@ -579,9 +579,10 @@ export funsql_person
 Return all concepts representing patient sex.
 """
 @funsql Gender() =
-    concept(
-        8507 #= MALE =#,
-        8532 #= FEMALE =#)
+    concept_include(
+        concept(
+            8507 #= MALE =#,
+            8532 #= FEMALE =#))
 
 """
     @funsql Gender(code, name)
@@ -591,13 +592,15 @@ Return a concept representing patient sex.
 
 Arguments must refer to a concept from the standard OMOP *Gender* vocabulary.
 """
-@funsql Gender(code_or_name, name = nothing) = begin
-    concept()
-    filter(
-        assert_valid_concept(
-            vocabulary_id == "Gender" && concept_like($code_or_name, $name),
-            $(:(Gender($code_or_name, $name)))))
-end
+@funsql Gender(code_or_name, name = nothing) =
+    concept_include(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    vocabulary_id == "Gender" && concept_like($code_or_name, $name),
+                    $(:(Gender($code_or_name, $name)))))
+        end)
 
 export funsql_Gender
 
@@ -608,13 +611,14 @@ export funsql_Gender
 Return all concepts representing patient race per OMB standard.
 """
 @funsql Race() =
-    concept(
-        8515 #= Asian =#,
-        8516 #= Black or African American =#,
-        8527 #= White =#,
-        8557 #= Native Hawaiian or Other Pacific Islander =#,
-        8657 #= American Indian or Alaska Native =#,
-        1546847 #= More than one race =#)
+    concept_include(
+        concept(
+            8515 #= Asian =#,
+            8516 #= Black or African American =#,
+            8527 #= White =#,
+            8557 #= Native Hawaiian or Other Pacific Islander =#,
+            8657 #= American Indian or Alaska Native =#,
+            1546847 #= More than one race =#))
 
 """
     @funsql Race(code, name)
@@ -624,13 +628,15 @@ Return a concept representing patient race.
 
 Arguments must refer to a concept from the standard OMOP *Race* vocabulary.
 """
-@funsql Race(code_or_name, name = nothing) = begin
-    concept()
-    filter(
-        assert_valid_concept(
-            vocabulary_id == "Race" && concept_like($code_or_name, $name),
-            $(:(Race($code_or_name, $name)))))
-end
+@funsql Race(code_or_name, name = nothing) =
+    concept_include(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    vocabulary_id == "Race" && concept_like($code_or_name, $name),
+                    $(:(Race($code_or_name, $name)))))
+        end)
 
 export funsql_Race
 
@@ -641,9 +647,10 @@ export funsql_Race
 Return all concepts representing patient ethnicity per OMB standard.
 """
 @funsql Ethnicity() =
-    concept(
-        38003563 #= Hispanic or Latino =#,
-        38003564 #= Not Hispanic or Latino =#)
+    concept_include(
+        concept(
+            38003563 #= Hispanic or Latino =#,
+            38003564 #= Not Hispanic or Latino =#))
 
 """
     @funsql Ethnicity(code, name)
@@ -653,13 +660,15 @@ Return a concept representing patient ethnicity.
 
 Arguments must refer to a concept from the standard OMOP *Ethnicity* vocabulary.
 """
-@funsql Ethnicity(code_or_name, name = nothing) = begin
-    concept()
-    filter(
-        assert_valid_concept(
-            vocabulary_id == "Ethnicity" && concept_like($code_or_name, $name),
-            $(:(Ethnicity($code_or_name, $name)))))
-end
+@funsql Ethnicity(code_or_name, name = nothing) =
+    concept_include(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    vocabulary_id == "Ethnicity" && concept_like($code_or_name, $name),
+                    $(:(Ethnicity($code_or_name, $name)))))
+        end)
 
 export funsql_Ethnicity
 
