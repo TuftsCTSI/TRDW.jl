@@ -46,7 +46,7 @@ stratify_by_age(; roundup=$(is_discovery())) = begin
     select(n_person, age)
 end
 
-stratify_by_age(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+stratify_by_age(pair::Pair{Symbol, FunSQL.SQLQuery}; roundup) =
     $(pair[2]).stratify_by_age(; roundup=$roundup)
 
 stratify_by_race(; roundup=$(is_discovery())) = begin
@@ -65,7 +65,7 @@ stratify_by_race(; roundup=$(is_discovery())) = begin
     select(n_person, race_name)
 end
 
-stratify_by_race(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+stratify_by_race(pair::Pair{Symbol, FunSQL.SQLQuery}; roundup) =
     $(pair[2]).stratify_by_race(; roundup=$roundup)
 
 stratify_by_sex(; roundup=$(is_discovery())) = begin
@@ -79,7 +79,7 @@ stratify_by_sex(; roundup=$(is_discovery())) = begin
     select(n_person, sex_name)
 end
 
-stratify_by_sex(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+stratify_by_sex(pair::Pair{Symbol, FunSQL.SQLQuery}; roundup) =
     $(pair[2]).stratify_by_sex(; roundup=$roundup)
 
 stratify_by_ethnicity(; roundup=$(is_discovery())) = begin
@@ -96,7 +96,7 @@ stratify_by_ethnicity(; roundup=$(is_discovery())) = begin
     select(n_person, ethnicity_name)
 end
 
-stratify_by_ethnicity(pair::Pair{Symbol, FunSQL.SQLNode}; roundup) =
+stratify_by_ethnicity(pair::Pair{Symbol, FunSQL.SQLQuery}; roundup) =
     $(pair[2]).stratify_by_ethnicity(; roundup=$roundup)
 
 stratify_by_translator(; roundup=$(is_discovery())) = begin

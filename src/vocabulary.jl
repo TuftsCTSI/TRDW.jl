@@ -1,13 +1,13 @@
 struct NamedConceptSetsSpecification
-    dict::OrderedDict{Symbol, FunSQL.SQLNode}
+    dict::OrderedDict{Symbol, FunSQL.SQLQuery}
 end
 
 function funsql_concept_sets(; kws...)
-    dict = OrderedDict{Symbol, FunSQL.SQLNode}()
+    dict = OrderedDict{Symbol, FunSQL.SQLQuery}()
     for (k, v) in kws
         q = v isa AbstractVector ?
-            FunSQL.Append(args = FunSQL.SQLNode[v...]) :
-            convert(FunSQL.SQLNode, v)
+            FunSQL.Append(args = FunSQL.SQLQuery[v...]) :
+            convert(FunSQL.SQLQuery, v)
         dict[k] = q
     end
     NamedConceptSetsSpecification(dict)
@@ -40,7 +40,7 @@ Base.get(sets::NamedConceptSets, key::Symbol, default) =
 FunSQL.Chain(sets::NamedConceptSets, key::Symbol) =
     sets[key]
 
-Base.convert(type::Type{FunSQL.AbstractSQLNode}, sets::NamedConceptSets) =
+Base.convert(type::Type{FunSQL.SQLQuery}, sets::NamedConceptSets) =
     Base.convert(type, Base.convert(DataFrame, sets))
 
 function Base.show(io::IO, mime::MIME"text/html", sets::NamedConceptSets)
@@ -280,7 +280,7 @@ funsql_isa_strict(concept_id, concept_set::AbstractVector) =
     @funsql in($concept_id, append(args=$concept_set).select(concept_id))
 
 function funsql_isa(concept_id, concept_set)
-    concept_set = convert(FunSQL.SQLNode, concept_set)
+    concept_set = convert(FunSQL.SQLQuery, concept_set)
     concept_set = @funsql($concept_set.concept_descendants())
     return @funsql $concept_id in $concept_set.select(concept_id)
 end
@@ -289,7 +289,7 @@ funsql_isa(concept_id, concept_set::AbstractVector) =
     @funsql isa($concept_id, append(args=$concept_set))
 
 function funsql_isa_icd(concept_id, concept_set; with_icd9gem=false, with_edg=true)
-    concept_set = convert(FunSQL.SQLNode, concept_set)
+    concept_set = convert(FunSQL.SQLQuery, concept_set)
     concept_set = @funsql($concept_set.concept_icd_descendants())
     if with_icd9gem
         concept_set = @funsql begin
@@ -361,7 +361,7 @@ funsql_concept_matches(cs::Tuple{Any}; on = :concept_id) =
     funsql_concept_matches(cs[1], on = on)
 
 funsql_concept_matches(cs::Vector; on = :concept_id) =
-    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLNode[cs...]), on = on)
+    funsql_concept_matches(FunSQL.Append(args = FunSQL.SQLQuery[cs...]), on = on)
 
 function print_concepts(df; prefix="        ")
     df = DataFrame(df)

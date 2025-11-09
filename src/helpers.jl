@@ -92,7 +92,7 @@ end
 
 This function correlates by `person_id` upon the joined table, optionally filters.
 """
-function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
+function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLQuery}, predicate=true)
     (name, base) = pair
     partname = :_filter_with
     return @funsql(begin
@@ -105,14 +105,14 @@ function funsql_filter_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
     end)
 end
 
-funsql_filter_with(node::FunSQL.SQLNode) =
-    funsql_filter_with(:_filter_with_node => node)
+funsql_filter_with(query::FunSQL.SQLQuery) =
+    funsql_filter_with(:_filter_with_query => query)
 
 """ filter_without(pair, filter)
 
 This function correlates by `person_id` upon the joined table, optionally filters.
 """
-function funsql_filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
+function funsql_filter_without(pair::Pair{Symbol, FunSQL.SQLQuery}, predicate=true)
     (name, base) = pair
     return @funsql(begin
         left_join($name => $base, $name.person_id == person_id && $predicate)
@@ -121,14 +121,14 @@ function funsql_filter_without(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=tru
     end)
 end
 
-funsql_filter_without(node::FunSQL.SQLNode) =
-    funsql_filter_without(:_filter_without_node => node)
+funsql_filter_without(query::FunSQL.SQLQuery) =
+    funsql_filter_without(:_filter_without_query => query)
 
 """ group_with(pair, filter)
 
 This function correlates by `person_id` upon the joined table, as a group.
 """
-function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
+function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLQuery}, predicate=true;
         partname=nothing)
     (name, base) = pair
     return @funsql(begin
@@ -140,17 +140,17 @@ function funsql_group_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true;
     end)
 end
 
-function funsql_attach_earliest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; filter = true)
+function funsql_attach_earliest(pair::Pair{Symbol, FunSQL.SQLQuery}, predicate = true; filter = true)
     (name, base) = pair
     return funsql_attach_first(pair, predicate; filter, order_by = [@funsql $name.datetime.asc(nulls = last)])
 end
 
-function funsql_attach_latest(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; filter = true)
+function funsql_attach_latest(pair::Pair{Symbol, FunSQL.SQLQuery}, predicate = true; filter = true)
     (name, base) = pair
     return funsql_attach_first(pair, predicate; filter, order_by = [@funsql $name.datetime.desc(nulls = last)])
 end
 
-function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = true; order_by, filter = true)
+function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLQuery}, predicate = true; order_by, filter = true)
     (name, base) = pair
     partname = :_attach_first
     hasname = Symbol("has_$name")
@@ -164,44 +164,19 @@ function funsql_attach_first(pair::Pair{Symbol, FunSQL.SQLNode}, predicate = tru
     end
 end
 
-funsql_attach_first(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; order_by, filter = true) =
+funsql_attach_first(pairs::Vector{Pair{Symbol, FunSQL.SQLQuery}}; order_by, filter = true) =
     foldr(|>, [funsql_attach_first(pair; order_by, filter) for pair in pairs])
-funsql_attach_earliest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; filter = true) =
+funsql_attach_earliest(pairs::Vector{Pair{Symbol, FunSQL.SQLQuery}}; filter = true) =
     foldr(|>, [funsql_attach_earliest(pair; filter) for pair in pairs])
-funsql_attach_latest(pairs::Vector{Pair{Symbol, FunSQL.SQLNode}}; filter = true) =
+funsql_attach_latest(pairs::Vector{Pair{Symbol, FunSQL.SQLQuery}}; filter = true) =
     foldr(|>, [funsql_attach_latest(pair; filter) for pair in pairs])
 
-function funsql_join_with(pair::Pair{Symbol, FunSQL.SQLNode}, predicate=true)
+function funsql_join_with(pair::Pair{Symbol, FunSQL.SQLQuery}, predicate=true)
     (name, base) = pair
     return @funsql(join($name => $base, $name.person_id == person_id && $predicate))
 end
 
-""" castbool(v)
-
-This function permits us to use `!\$v` expressions within a notebook.
-"""
-function castbool(v::FunSQL.SQLNode)::Bool
-    v isa FunSQL.SQLNode ? v = getfield(v, :core) : nothing
-    if v isa FunSQL.FunctionNode && v.name == :not
-        if length(v.args) == 1
-            v = v.args[1]
-        end
-    end
-    v isa FunSQL.SQLNode ? v = getfield(v, :core) : nothing
-    if v isa FunSQL.LiteralNode
-        return !v.val
-    end
-    error("expecting !bool")
-end
-
-castbool(v::Bool) = v
-
-funsql_castbool = castbool
-
 function roundups(n; round=true)
-    if !isa(round, Bool)
-        round = castbool(round)
-    end
     return round ? @funsql(roundup($n)) : n
 end
 
