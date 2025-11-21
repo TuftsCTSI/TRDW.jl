@@ -776,6 +776,7 @@ function run(db, spec::WriteXLSXSpecification)
     password = get_password()
     dataframe = DataFrame(data)
     n_rows = size(dataframe)[1]
+    @assert n_rows <= 1048576 """The data contains more than 1048576 rows, which is the maximum for an Excel worksheet!"""
     when =
         let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
             t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
