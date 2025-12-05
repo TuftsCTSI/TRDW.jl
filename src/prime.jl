@@ -551,6 +551,7 @@ end
     as(omop)
     define(
         omop.person_id,
+        omop.tm_authorized,
         omop.pat_id,
         omop.mrn,
         omop.legacy_tmc_mrn,
