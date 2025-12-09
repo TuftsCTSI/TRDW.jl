@@ -173,11 +173,11 @@ end
 
 function query_macro(__module__, __source__, db, q)
     db = esc(db)
-    ex = FunSQL.transliterate(q, TRDW.FunSQL.TransliterateContext(__module__, __source__))
-    if ex isa Expr && ex.head in (:(=), :macrocall) ||
-        ex isa Expr && ex.head === :block && any(ex′ isa Expr && ex′.head in (:(=), :macrocall) for ex′ in ex.args)
-        return ex
+    ctx = FunSQL.TransliterateContext(__module__, __source__)
+    if FunSQL.transliterate_is_definition(q)
+        return FunSQL.transliterate_definition(q, ctx)
     end
+    ex = FunSQL.transliterate_toplevel(q, ctx)
     return quote
         TRDW.run($db, $ex)
     end
@@ -194,7 +194,7 @@ macro connect(args...)
 
         import TRDW: @query
         macro query(q)
-            return TRDW.query_macro(__module__, __source__, db, q)
+            esc(:(@query $db $q))
         end
         export @query
 
