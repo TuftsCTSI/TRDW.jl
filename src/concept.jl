@@ -2,7 +2,7 @@
 
 concept() = begin
     from(concept)
-    as(omop)
+    into(omop)
     define(
         omop.concept_id,
         omop.concept_name,

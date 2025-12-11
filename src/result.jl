@@ -21,7 +21,7 @@ Base.convert(::Type{FunSQL.SQLQuery}, df::DataFrame) =
     FunSQL.From(df)
 
 Base.convert(::Type{FunSQL.SQLQuery}, r::SQLResult) =
-    convert(FunSQL.SQQuery, ensure_result!(r))
+    convert(FunSQL.SQLQuery, ensure_result!(r))
 
 run(db, q) =
     run(db, convert(FunSQL.SQLQuery, q))

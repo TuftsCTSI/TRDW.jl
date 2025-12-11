@@ -10,8 +10,8 @@ end
 
 array_frequency(expr; name = $(FunSQL.label(expr))) = begin
     partition(name = all)
-    cross_join(from(explode_outer($expr), columns = [$name]))
-    group($name)
+    cross_join(explode => from(explode_outer($expr), columns = [$name]))
+    group(explode.$name)
     define(n => count())
     define(`%` => floor(100 * n / any_value(all.count()), 1))
     order(n.desc())
@@ -113,6 +113,10 @@ validate_foreign_key(source, source_columns, target) =
     validate_foreign_key($source, $source_columns, $target, $source_columns)
 
 end
+
+const funsql_tally = funsql_frequency
+
+const funsql_tally_array = funsql_array_frequency
 
 function _primary_key_name(source, columns)
     table = FunSQL.label(source)

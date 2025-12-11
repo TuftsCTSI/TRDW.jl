@@ -61,14 +61,16 @@ function FunSQL.resolve(n::UndefineNode, ctx)
         end
     end
     fields = FunSQL.FieldTypeMap()
+    private_fields = copy(t.private_fields)
     for (f, ft) in t.fields
         if f in keys(n.label_map)
+            delete!(private_fields, f)
             continue
         end
         fields[f] = ft
     end
     q′ = FunSQL.Padding(tail = tail′)
-    FunSQL.Resolved(FunSQL.RowType(fields, t.group), tail = q′)
+    FunSQL.Resolved(FunSQL.RowType(fields, t.group, private_fields), tail = q′)
 end
 
 mutable struct TryGetNode <: FunSQL.AbstractSQLNode
@@ -160,14 +162,15 @@ function FunSQL.resolve(n::ExplainConceptIdNode, ctx)
             left_join(
                 from(concept).define(args = $(n.args)).as($alias),
                 $f == $alias.concept_id,
-                optional = true)
+                optional = true,
+                private = true)
         end
         defs = [Symbol("$prefix$label") => @funsql($alias.$label) for label in keys(n.label_map)]
         dup_field_aliases = [first(def) for def in defs if haskey(t.fields, first(def))]
         if !isempty(dup_field_aliases)
             q = q |> Undefine(names = dup_field_aliases)
         end
-        q = q |> FunSQL.Define(args = defs, after = f)
+        q = q |> FunSQL.Define(args = defs, after = f, private = (f in t.private_fields))
         if n.replace
             q = q |> Undefine(f)
         end
@@ -180,19 +183,21 @@ mutable struct SummaryNode <: FunSQL.TabularNode
     type::Bool
     top_k::Int
     nested::Bool
+    private::Bool
     exact::Bool
 
-    SummaryNode(; names = Symbol[], type = true, top_k = 0, nested = false, exact = false) =
-        new(names, type, top_k, nested, exact)
+    SummaryNode(; names = Symbol[], type = true, top_k = 0, nested = false, private = false, exact = false) =
+        new(names, type, top_k, nested, private, exact)
 end
 
-SummaryNode(names...; type = true, top_k = 0, nested = false, exact = false) =
-    SummaryNode(names = Symbol[names...], type = type, top_k = top_k, nested = nested, exact = exact)
+SummaryNode(names...; type = true, top_k = 0, nested = false, private = false, exact = false) =
+    SummaryNode(names = Symbol[names...], type = type, top_k = top_k, nested = nested, private = private, exact = exact)
 
 const Summary = FunSQL.SQLQueryCtor{SummaryNode}(:Summary)
 
 const funsql_summary = Summary
 const funsql_density = Summary
+const funsql_summarize = Summary
 
 function FunSQL.PrettyPrinting.quoteof(n::SummaryNode, ctx::FunSQL.QuoteContext)
     ex = Expr(:call, :Summary, FunSQL.quoteof(n.names, ctx)...)
@@ -204,6 +209,9 @@ function FunSQL.PrettyPrinting.quoteof(n::SummaryNode, ctx::FunSQL.QuoteContext)
     end
     if n.nested
         push!(ex.args, Expr(:kw, :nested, n.nested))
+    end
+    if n.private
+        push!(ex.args, Expr(:kw, :private, n.private))
     end
     if n.exact
         push!(ex.args, Expr(:kw, :exact, n.exact))
@@ -224,7 +232,7 @@ function FunSQL.resolve(n::SummaryNode, ctx)
         end
     end
     names = isempty(n.names) ? Set(keys(t.fields)) : Set(n.names)
-    cases = _summary_cases(t, names, n.nested)
+    cases = _summary_cases(t, names, n.nested || n.private)
     if isempty(cases) && !n.nested
         cases = _summary_cases(t, names, true)
     end
@@ -255,20 +263,23 @@ function FunSQL.resolve(n::SummaryNode, ctx)
     q = @funsql begin
         $tail′
         group()
-        cross_join(summary_case => from(explode(sequence(1, $max_i)), columns = [index]))
+        cross_join(
+            summary_case => from(explode(sequence(1, $max_i)), columns = [index]),
+            private = true)
         define(args = $args)
     end
     FunSQL.resolve(q, ctx)
 end
 
-function _summary_cases(t, name_set, nested)
+function _summary_cases(t, name_set, private)
     cases = Tuple{String, FunSQL.SQLQuery}[]
     for (f, ft) in t.fields
         f in name_set || continue
+        !(f in t.private_fields) || private || continue
         if ft isa FunSQL.ScalarType
             push!(cases, (String(f), FunSQL.Get(f)))
-        elseif ft isa FunSQL.RowType && nested
-            subcases = _summary_cases(ft, Set(keys(ft.fields)), nested)
+        elseif ft isa FunSQL.RowType
+            subcases = _summary_cases(ft, Set(keys(ft.fields)), private)
             for (n, q) in subcases
                 push!(cases, ("$f.$n", FunSQL.Get(f) |> q))
             end
@@ -507,7 +518,7 @@ function resolve_concept_id(cat::FunSQL.SQLCatalog, n::AssertValidConceptNode)
     m !== nothing && m.concept_cache !== nothing || return
     (conn, dir) = m.concept_cache
     db = FunSQL.SQLConnection(conn, catalog = cat)
-    q = @funsql concept($(n.condition)).order(concept_id).limit(3)
+    q = @funsql concept().filter($(n.condition)).order(concept_id).limit(3)
     sql = FunSQL.render(db, q)
     key = bytes2hex(sha256(sql))
     filename = joinpath(dir, key * ".arrow")
