@@ -46,25 +46,16 @@ end
 ```
 
 """
-funsql_write_table((name, query)::Pair{<:Union{Symbol, AbstractString}, <:Any};
-                    schema::Union{Symbol, AbstractString} = user_project_schema()) =
+funsql_write_table(query,
+                   name = FunSQL.label(query),
+                   schema::Union{Symbol, AbstractString} = user_project_schema()) =
     CreateTableSpecification(Symbol(schema), Symbol(name), query)
 
 function run(db, spec::CreateTableSpecification)
     schema_name_sql = FunSQL.render(db, FunSQL.ID(spec.schema_name))
     name_sql = FunSQL.render(db, FunSQL.ID([spec.schema_name], spec.name))
     sql = FunSQL.render(db, spec.query)
-    if false
-        # TODO: requires FunSQL#metadata branch
-        # t = FunSQL.SQLTable(qualifiers = [spec.schema_name], spec.name, columns = sql.columns)
-    else
-        ref = Ref{Pair{FunSQL.SQLTable, FunSQL.SQLClause}}()
-        q = FunSQL.From(spec.name) |> FunSQL.WithExternal(spec.name => spec.node,
-                                                        qualifiers = [spec.schema_name],
-                                                        handler = (p -> ref[] = p))
-        FunSQL.render(db, q)
-        t, c = ref[]
-    end
+    t = FunSQL.SQLTable(qualifiers = [spec.schema_name], spec.name, columns = sql.table.columns)
     DBInterface.execute(db, "CREATE SCHEMA IF NOT EXISTS $(schema_name_sql)")
     DBInterface.execute(db, "GRANT ALL PRIVILEGES ON SCHEMA $(schema_name_sql) to CTSIStaff")
     DBInterface.execute(db, "CREATE OR REPLACE TABLE $(name_sql) AS\n$sql")
