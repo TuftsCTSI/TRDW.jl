@@ -408,7 +408,7 @@ Arguments must refer to a concept from the standard OMOP *Type Concept* vocabula
             filter(
                 assert_valid_concept(
                     vocabulary_id == "Type Concept" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Type_Concept($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -482,7 +482,7 @@ such as Cardiology or Rheumatology.
             filter(
                 assert_valid_concept(
                     domain_id == "Provider" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Provider($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -523,7 +523,7 @@ Arguments must refer to a concept from the standard OMOP *Gender* vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "Gender" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Gender($code_or_name, $name)))))
         end)
@@ -567,7 +567,7 @@ Arguments must refer to a concept from the standard OMOP *Race* vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "Race" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Race($code_or_name, $name)))))
         end)
@@ -607,7 +607,7 @@ Arguments must refer to a concept from the standard OMOP *Ethnicity* vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "Ethnicity" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Ethnicity($code_or_name, $name)))))
         end)
@@ -654,7 +654,7 @@ end
             filter(
                 assert_valid_concept(
                     vocabulary_id == "Visit" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Visit($code_or_name, $name)))))
         end)
@@ -684,7 +684,7 @@ Arguments should refer to a standard concept in the SNOMED vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "SNOMED" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(SNOMED($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -768,7 +768,7 @@ Arguments must refer to a concept from the standard OMOP *Condition Status* voca
             filter(
                 assert_valid_concept(
                     vocabulary_id == "Condition Status" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Type_Concept($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -801,7 +801,7 @@ Arguments must refer to a standard concept from the OMOP *RxNorm* and
             filter(
                 assert_valid_concept(
                     in(vocabulary_id, "RxNorm", "RxNorm Extension") &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(RxNorm($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -832,7 +832,7 @@ Arguments must refer to a standard concept from the OMOP *CVX* vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "CVX" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(CVX($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -862,7 +862,7 @@ Arguments should refer to a standard concept within the *Route* domain.
             filter(
                 assert_valid_concept(
                     domain_id == "Route" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Route($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -892,7 +892,7 @@ Arguments should refer to a standard concept within the *UCUM* vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "UCUM" &&
-                        standard_concept == "S" &&
+                        is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(UCUM($code_or_name, $name)))))
         end)
@@ -958,6 +958,36 @@ Arguments must refer to a concept from the OMOP *HCPCS* vocabulary.
         end)
 
 export funsql_HCPCS
+
+
+"""
+    @funsql LOINC(code, name, descend = true)
+    @funsql LOINC(code_or_name, descend = true)
+
+Return a concept set representing a clinical or laboratory observation.
+
+Arguments must refer to a standard concept from the OMOP *LOINC* vocabulary.
+
+# Examples
+
+```julia
+@funsql LOINC("Body mass index (BMI) [Ratio]")
+```
+"""
+@funsql LOINC(code_or_name, name = nothing; descend = true) =
+    include_concepts(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    vocabulary_id == "LOINC" &&
+                        is_not_null(standard_concept) &&
+                        matches_concept($code_or_name, $name),
+                    $(:(LOINC($code_or_name, $name; descend = $descend)))))
+            switch($descend, include_descendant_concepts())
+        end)
+
+export funsql_LOINC
 
 
 """
