@@ -778,12 +778,10 @@ export funsql_Condition_Status
 
 
 """
-    @funsql RxNorm(code, name, descend = true, concept_class_id = ["Ingredient", "Clinical Drug", "Clinical Pack"])
-    @funsql RxNorm(code_or_name, descend = true, concept_class_id = ["Ingredient", "Clinical Drug", "Clinical Pack"])
+    @funsql RxNorm(code, name, descend = true)
+    @funsql RxNorm(code_or_name, descend = true)
 
 Return a concept set representing a drug defined in the RxNorm vocabulary.
-By default, the concept set is restricted to RxNorm classes *Ingredient*,
-*Clinical Drug*, and *Clinical Pack*.
 
 Arguments must refer to a standard concept from the OMOP *RxNorm* and
 *RxNorm Extension* vocabularies.
@@ -794,7 +792,7 @@ Arguments must refer to a standard concept from the OMOP *RxNorm* and
 @funsql RxNorm("acetaminophen")
 ```
 """
-@funsql RxNorm(code_or_name, name = nothing; descend = true, concept_class_id = ["Ingredient", "Clinical Drug", "Clinical Pack"]) =
+@funsql RxNorm(code_or_name, name = nothing; descend = true) =
     include_concepts(
         begin
             concept()
@@ -805,7 +803,6 @@ Arguments must refer to a standard concept from the OMOP *RxNorm* and
                         matches_concept($code_or_name, $name),
                     $(:(RxNorm($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
-            filter(equals_or_in(concept_class_id, $concept_class_id))
         end)
 
 export funsql_RxNorm
