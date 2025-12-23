@@ -46,7 +46,7 @@ end
 ```
 
 """
-funsql_write_table(query,
+funsql_write_table(query;
                    name = FunSQL.label(query),
                    schema::Union{Symbol, AbstractString} = user_project_schema()) =
     CreateTableSpecification(Symbol(schema), Symbol(name), query)
