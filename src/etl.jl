@@ -238,7 +238,7 @@ function build_definition(catalog, ctx)
                 update!(etl_hash_ctx, codeunits(body_sql))
                 etl_hash = bytes2hex(digest!(etl_hash_ctx))
                 defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true, etl_hash = etl_hash, etl_time = etl_time)
-                table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.columns)
+                table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.table.columns)
                 tables[name] = table
             end
             push!(ctes, name => FunSQL.From(obj))
@@ -260,7 +260,7 @@ function build_definition(catalog, ctx)
                 reqs = sort!(collect(reqs))
                 name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, name))
                 body_sql = FunSQL.render(catalog, q)
-                @assert body_sql.columns !== nothing name
+                @assert body_sql.table.columns !== nothing name
                 etl_hash_ctx = SHA256_CTX()
                 for req in reqs
                     update!(etl_hash_ctx, codeunits(defs[req].etl_hash))
@@ -269,7 +269,7 @@ function build_definition(catalog, ctx)
                 update!(etl_hash_ctx, codeunits(body_sql))
                 etl_hash = bytes2hex(digest!(etl_hash_ctx))
                 defs[name_sql] = TableDefinition(name_sql, body_sql, is_view = true, reqs = reqs, etl_hash = etl_hash, etl_time = etl_time)
-                table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.columns)
+                table = FunSQL.SQLTable(qualifiers = qualifiers, name, columns = body_sql.table.columns)
                 tables[name] = table
             end
             push!(ctes, name => obj)
@@ -307,7 +307,7 @@ function build_definition(catalog, ctx)
             end
             name_sql = FunSQL.render(catalog, FunSQL.ID(qualifiers, snapshot_name))
             body_sql = FunSQL.render(catalog, q)
-            @assert body_sql.columns !== nothing name
+            @assert body_sql.table.columns !== nothing name
             etl_hash_ctx = SHA256_CTX()
             for req in reqs
                 update!(etl_hash_ctx, codeunits(defs[req].etl_hash))
@@ -316,7 +316,7 @@ function build_definition(catalog, ctx)
             update!(etl_hash_ctx, codeunits(body_sql))
             etl_hash = bytes2hex(digest!(etl_hash_ctx))
             defs[name_sql] = TableDefinition(name_sql, body_sql; reqs, is_aux, is_tmp, etl_hash, etl_time)
-            table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = body_sql.columns)
+            table = FunSQL.SQLTable(qualifiers = qualifiers, snapshot_name, columns = body_sql.table.columns)
             tables[snapshot_name] = table
             empty!(subs)
             push!(ctes, name => FunSQL.From(table))
