@@ -138,7 +138,8 @@ function _foreign_key_name(source, source_columns, target, target_columns)
 end
 
 @funsql row_delta(table, keys = [$(Symbol("$(table)_id"))], previous_table = $(Symbol("previous_$(table)"))) = begin
-    current => from($table).define(is_present => true)
+    from($table).define(is_present => true)
+    into(current)
     join(
         previous => if_set($previous_table, from($previous_table), from($table).filter(false)).define(is_present => true),
         and(args = $[@funsql(current.$key == previous.$key) for key in keys]),
@@ -165,14 +166,15 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
         @funsql begin
             $tail′
             group()
-            cross_join(summary_case => from(explode(sequence(1, $(length(fields)))), columns = [index]))
+            cross_join(summary_case => from(explode(sequence(1, $(length(fields)))), columns = [index]), private = true)
             define(column => $(_summary_switch(string.(fields))))
             define(n_changed => $(_summary_switch(qs)))
             define(pct_changed => floor(100 * n_changed / count(), 1))
         end
     end
     @funsql begin
-        current => from($table)
+        from($table)
+        into(current)
         join(
             previous => if_set($previous_table, from($previous_table), from($table).filter(false)),
             and(args = $[@funsql(current.$key == previous.$key) for key in keys]))
