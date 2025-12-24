@@ -39,6 +39,9 @@ end
 @funsql equals_or_in(l, r::AbstractVector) =
     in($l, $(r...))
 
+@funsql equals_or_in(l, r::Missing) =
+    is_null($l)
+
 @funsql equals_or_in(l, r::Nothing) =
     true
 
@@ -165,6 +168,23 @@ end
 end
 
 export funsql_include_descendant_concepts
+
+
+"""
+    @funsql exclude_descendant_concepts()
+
+Remove concepts that are descendants of other concepts in the input concept set.
+"""
+@funsql exclude_descendant_concepts() = begin
+    left_join(
+        concept_ancestor => from(concept_ancestor),
+        concept_id == concept_ancestor.ancestor_concept_id)
+    partition(concept_ancestor.descendant_concept_id, name = _exclude_descendant_concepts)
+    filter(!_exclude_descendant_concepts.any(concept_ancestor.ancestor_concept_id !== concept_ancestor.descendant_concept_id))
+    undefine(_exclude_descendant_concepts)
+end
+
+export funsql_exclude_descendant_concepts
 
 
 """
@@ -393,7 +413,7 @@ end
 
 Return a concept set representing a record provenance.
 
-Arguments must refer to a concept from the standard OMOP *Type Concept* vocabulary.
+Arguments must refer to a standard concept in the OMOP *Type Concept* vocabulary.
 
 # Examples
 
@@ -410,7 +430,7 @@ Arguments must refer to a concept from the standard OMOP *Type Concept* vocabula
                     vocabulary_id == "Type Concept" &&
                         is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
-                    $(:(Type_Concept($code_or_name, $name; descend = $descend)))))
+                    $(:(Provenance($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
         end)
 
@@ -508,7 +528,7 @@ Return all concepts representing patient sex.
 
 Return a concept representing patient sex.
 
-Arguments must refer to a concept from the standard OMOP *Gender* vocabulary.
+Arguments must refer to a standard concept in the OMOP *Gender* vocabulary.
 
 # Examples
 
@@ -552,7 +572,7 @@ Return all concepts representing patient race per OMB standard.
 
 Return a concept representing patient race.
 
-Arguments must refer to a concept from the standard OMOP *Race* vocabulary.
+Arguments must refer to a standard concept in the OMOP *Race* vocabulary.
 
 # Examples
 
@@ -592,7 +612,7 @@ Return all concepts representing patient ethnicity per OMB standard.
 
 Return a concept representing patient ethnicity.
 
-Arguments must refer to a concept from the standard OMOP *Ethnicity* vocabulary.
+Arguments must refer to a standard concept in the OMOP *Ethnicity* vocabulary.
 
 # Examples
 
@@ -636,7 +656,7 @@ Return all concepts representing the visit type in TRDW.
 
 Return a concept representing the visit type.
 
-Arguments must refer to a concept from the standard OMOP *Visit* vocabulary.
+Arguments must refer to a standard concept in the OMOP *Visit* vocabulary.
 
 # Examples
 
@@ -663,12 +683,12 @@ export funsql_Visit
 
 
 """
-    @funsql SNOMED(code_or_name; descend = true)
-    @funsql SNOMED(code, name; descend = true)
+    @funsql SNOMED(code_or_name; concept_class_id = nothing, descend = true)
+    @funsql SNOMED(code, name; concept_class_id = nothing, descend = true)
 
 Generate a SNOMED concept set.
 
-Arguments should refer to a standard concept in the SNOMED vocabulary.
+Arguments should refer to a valid concept in the OMOP *SNOMED* vocabulary.
 
 # Examples
 
@@ -677,16 +697,17 @@ Arguments should refer to a standard concept in the SNOMED vocabulary.
     SNOMED("59621000", "Essential hypertension")
 ```
 """
-@funsql SNOMED(code_or_name, name = nothing; descend = true) =
+@funsql SNOMED(code_or_name, name = nothing; concept_class_id = nothing, descend = true) =
     include_concepts(
         begin
             concept()
             filter(
                 assert_valid_concept(
                     vocabulary_id == "SNOMED" &&
-                        is_not_null(standard_concept) &&
+                        is_null(invalid_reason) &&
+                        equals_or_in(concept_class_id, $concept_class_id) &&
                         matches_concept($code_or_name, $name),
-                    $(:(SNOMED($code_or_name, $name; descend = $descend)))))
+                    $(:(SNOMED($code_or_name, $name; concept_class_id = $concept_class_id, descend = $descend)))))
             switch($descend, include_descendant_concepts())
         end)
 
@@ -699,7 +720,7 @@ export funsql_SNOMED
 
 Generate an ICD10CM concept set.
 
-Arguments should refer to a concept in the ICD10CM vocabulary.
+Arguments should refer to a valid concept in the OMOP *ICD10CM* vocabulary.
 
 # Examples
 
@@ -753,7 +774,7 @@ export funsql_ICD10CM
 
 Return a concept set representing the condition status.
 
-Arguments must refer to a concept from the standard OMOP *Condition Status* vocabulary.
+Arguments must refer to a standard concept in the OMOP *Condition Status* vocabulary.
 
 # Examples
 
@@ -783,8 +804,8 @@ export funsql_Condition_Status
 
 Return a concept set representing a drug defined in the RxNorm vocabulary.
 
-Arguments must refer to a standard concept from the OMOP *RxNorm* and
-*RxNorm Extension* vocabularies.
+Arguments must refer to a valid concept in the OMOP *RxNorm* or
+*RxNorm Extension* vocabulary.
 
 # Examples
 
@@ -799,7 +820,7 @@ Arguments must refer to a standard concept from the OMOP *RxNorm* and
             filter(
                 assert_valid_concept(
                     in(vocabulary_id, "RxNorm", "RxNorm Extension") &&
-                        is_not_null(standard_concept) &&
+                        is_null(invalid_reason) &&
                         matches_concept($code_or_name, $name),
                     $(:(RxNorm($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -814,7 +835,7 @@ export funsql_RxNorm
 
 Return a concept set representing a vaccine.
 
-Arguments must refer to a standard concept from the OMOP *CVX* vocabulary.
+Arguments must refer to a valid concept in the OMOP *CVX* vocabulary.
 
 # Examples
 
@@ -829,7 +850,7 @@ Arguments must refer to a standard concept from the OMOP *CVX* vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "CVX" &&
-                        is_not_null(standard_concept) &&
+                        is_null(invalid_reason) &&
                         matches_concept($code_or_name, $name),
                     $(:(CVX($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
@@ -874,7 +895,7 @@ export funsql_Route
 
 Generate a concept set representing a unit of measurement.
 
-Arguments should refer to a standard concept within the *UCUM* vocabulary.
+Arguments should refer to a standard concept in the *UCUM* vocabulary.
 
 # Examples
 
@@ -903,7 +924,7 @@ export funsql_UCUM
 
 Return a concept set representing a CPT4 procedure code.
 
-Arguments must refer to a concept from the OMOP *CPT4* vocabulary.
+Arguments must refer to a valid concept in the OMOP *CPT4* vocabulary.
 
 # Examples
 
@@ -933,7 +954,7 @@ export funsql_CPT4
 
 Return a concept set representing a HCPCS procedure code.
 
-Arguments must refer to a concept from the OMOP *HCPCS* vocabulary.
+Arguments must refer to a valid concept in the OMOP *HCPCS* vocabulary.
 
 # Examples
 
@@ -963,7 +984,7 @@ export funsql_HCPCS
 
 Return a concept set representing a clinical or laboratory observation.
 
-Arguments must refer to a standard concept from the OMOP *LOINC* vocabulary.
+Arguments must refer to a valid concept in the OMOP *LOINC* vocabulary.
 
 # Examples
 
@@ -978,7 +999,7 @@ Arguments must refer to a standard concept from the OMOP *LOINC* vocabulary.
             filter(
                 assert_valid_concept(
                     vocabulary_id == "LOINC" &&
-                        is_not_null(standard_concept) &&
+                        is_null(invalid_reason) &&
                         matches_concept($code_or_name, $name),
                     $(:(LOINC($code_or_name, $name; descend = $descend)))))
             switch($descend, include_descendant_concepts())
