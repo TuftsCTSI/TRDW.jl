@@ -945,6 +945,29 @@ Arguments must refer to a valid concept in the OMOP *CPT4* vocabulary.
             switch($descend, include_descendant_concepts())
         end)
 
+"""
+    @funsql CPT4(; spec, descend = true)
+
+Generate a CPT4 concept set from the specification string.
+
+The `spec` string is a comma-separated list of CPT4 codes (e.g. 17311)
+or code ranges (e.g., 11600-11646).
+
+# Examples
+
+```julia
+@funsql Excision_Of_Malignant_Lesion() =
+    CPT4(spec = "11600-11646")
+```
+"""
+@funsql CPT4(; spec, descend = true) =
+    include_concepts(
+        begin
+            concept()
+            filter(concept_spec_to_predicate(CPT4, $spec, vocabulary_id == "CPT4" && is_null(invalid_reason)))
+            switch($descend, include_descendant_concepts())
+        end)
+
 export funsql_CPT4
 
 
