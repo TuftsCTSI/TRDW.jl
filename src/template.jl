@@ -789,6 +789,109 @@ function Base.show(io::IO, mime::MIME"text/html", ::DownloadList)
         """)
 end
 
+struct LogList
+end
+
+function Base.show(io::IO, mime::MIME"text/html", ::LogList)
+    show(
+        io,
+        mime,
+        @htl """
+        <style>
+          .trdw-log-list {
+            font-family: var(--system-ui-font-stack);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 1rem;
+            color: var(--pluto-output-color);
+            background-color: var(--main-bg-color);
+            --main-bg-color: #fafafa;
+            --pluto-output-color: hsl(0, 0%, 36%);
+            --pluto-output-h-color: hsl(0, 0%, 21%);
+            --sidebar-li-active-bg: rgb(235, 235, 235);
+          }
+
+          @media (prefers-color-scheme: dark) {
+            .trdw-log-list {
+              --main-bg-color: #303030;
+              --pluto-output-color: hsl(0, 0%, 90%);
+              --pluto-output-h-color: hsl(0, 0%, 97%);
+              --sidebar-li-active-bg: rgb(82, 82, 82);
+            }
+          }
+
+          .trdw-log-list a {
+            font-size: .8rem;
+            text-decoration: none;
+            color: var(--accent-color);
+          }
+        </style>
+
+        <nav class="trdw-log-list">
+          <section><p>Loading build log&hellip;</p></section>
+          <script>
+            const disableFetch = !window.pluto_disable_ui
+            const navNode = currentScript.closest("nav")
+            const currentTag = window.location.pathname.match(/([^/]*)\\/[^/]*\$/)[1]
+
+            const fetchLogs = async () => {
+              try {
+                if (disableFetch) {
+                  throw(Error("In development, build log is not available"))
+                }
+                const response = await fetch("logs.json")
+                if (!response.ok) {
+                  throw(Error(response.statusText))
+                }
+                const json = await response.json()
+                const logs = json.logs
+                if (logs.length == 0) {
+                  throw(Error("Build log is empty"))
+                }
+                return [logs, null]
+              }
+              catch (err) {
+                return [[], err]
+              }
+            }
+
+            const [logs, logsError] = await fetchLogs()
+
+            const makeLinks = () => {
+              let links = []
+              for (const log of logs) {
+                const aNode = document.createElement("a")
+                aNode.href = log.url
+                aNode.append(html`<b>\${log.title}</b>`)
+                if (log.msg) {
+                  aNode.append(html`<span>: <i>\${log.msg}</i></span>`)
+                }
+                links.push(
+                  html`
+                    <pluto-log-dot-positioner class="\${log.level}">
+                      <pluto-log-icon></pluto-log-icon>
+                      <pluto-log-dot class="\${log.level}">\${aNode}</pluto-log-dot>
+                    </pluto-log-dot-positioner>`)
+              }
+              return links
+            }
+
+            const sectionNode = document.createElement("section")
+            const links = makeLinks()
+            if (links.length > 0) {
+              sectionNode.append(html`<pluto-logs-container><pluto-logs>\${links}</pluto-logs></pluto-logs-container>`)
+            }
+            if (logsError) {
+              const pNode = document.createElement("p")
+              pNode.innerText = logsError.message
+              sectionNode.append(pNode)
+            }
+            navNode.querySelector("section").replaceWith(sectionNode)
+          </script>
+        </nav>
+        """)
+end
+
 struct VersionList
 end
 
@@ -907,6 +1010,9 @@ function Base.show(io::IO, mime::MIME"text/html", ::VersionList)
                 aNode.innerText = aNode.title = formatTag(version.tag)
                 if (version.tag == currentTag) {
                   aNode.classList.add("trdw-version-list-current")
+                }
+                if (version.failed) {
+                  aNode.append(html`&nbsp;&#x1F534;`)
                 }
                 const description = version.commit?.subject
                 if (description) {
