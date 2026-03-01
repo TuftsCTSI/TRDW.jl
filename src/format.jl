@@ -20,11 +20,13 @@ struct SQLFormat
     group_by::Union{Symbol, Nothing}
     group_limit::Union{Int, Nothing}
     roundup::Union{Vector{Symbol}, Nothing}
+    assert::Union{Symbol, Nothing}
+    assert_level::Union{Symbol, Nothing}
     hide_null_cols::Bool
     scroll::Bool
 
-    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing, hide_null_cols = false, scroll = true) =
-        new(caption, limit, group_by, group_limit, roundup, hide_null_cols, scroll)
+    SQLFormat(; caption = nothing, limit = 1000, group_by = nothing, group_limit = nothing, roundup = nothing, assert = nothing, assert_level = nothing, hide_null_cols = false, scroll = true) =
+        new(caption, limit, group_by, group_limit, roundup, assert, assert_level, hide_null_cols, scroll)
 end
 
 function _format(df, fmt)
@@ -96,6 +98,26 @@ function _format_thead(df, fmt)
 end
 
 function _format_tbody(df, fmt)
+    if fmt.assert !== nothing
+        fmt.assert in propertynames(df) || throw(DomainError(fmt.assert, "missing assert column"))
+        fmt.assert_level === nothing || fmt.assert_level in (:debug, :info, :warn, :error) || throw(DomainError(fmt.assert_level, "invalid assert level"))
+        fails = count(x -> x === false, df[!, fmt.assert])
+        if fails > 0
+            msg = "assertion failed for $(fails) row$(fails > 1 ? "s" : "")"
+            if fmt.caption !== nothing
+                msg = "$(fmt.caption): $msg"
+            end
+            if fmt.assert_level === :debug
+                @debug msg
+            elseif fmt.assert_level === :info
+                @info msg
+            elseif fmt.assert_level === :warn || fmt.assert_level === nothing
+                @warn msg
+            elseif fmt.assert_level === :error
+                @error msg
+            end
+        end
+    end
     (h, w) = size(df)
     if h == 0
         if fmt.group_by === nothing
@@ -178,8 +200,12 @@ function _format_row(df, i, fmt)
         <tr><th class="trdw-vdots">⋮</td>$(w > 0 ? @htl("""<td colspan="$w"></td>""") : "")</tr>
         """
     end
+    class = ""
+    if fmt.assert !== nothing && df[i, fmt.assert] === false
+        class = "trdw-$(something(fmt.assert_level, "warn"))"
+    end
     return @htl """
-    <tr tabindex="-1"><th scope="row">$i</th>$([_format_cell(df[i, j], fmt) for j = 1:w])</tr>
+    <tr class=$class tabindex="-1"><th scope="row">$i</th>$([_format_cell(df[i, j], fmt) for j = 1:w])</tr>
     """
 end
 
@@ -216,6 +242,9 @@ function _format_style(df, fmt)
     .trdw-format > table > tbody > tr > th:first-child { position: sticky; left: -10px; background: var(--main-bg-color); background-clip: padding-box; }
     .trdw-format > table > tbody > tr > th.trdw-group { top: 24px; text-align: left; z-index: 2; }
     .trdw-format > table > tbody > tr > th.trdw-group > div { display: inline-block; position: sticky; left: 0; }
+    .trdw-format > table > tbody > tr.trdw-debug, .trdw-format > table > tbody > tr.trdw-debug > th { background: var(--pluto-logs-debug-color); color: var(--pluto-logs-debug-accent-color); }
+    .trdw-format > table > tbody > tr.trdw-warn, .trdw-format > table > tbody > tr.trdw-warn > th { background: var(--pluto-logs-warn-color); color: var(--pluto-logs-warn-accent-color); }
+    .trdw-format > table > tbody > tr.trdw-error, .trdw-format > table > tbody > tr.trdw-error > th { background: var(--pluto-logs-danger-color); color: var(--pluto-logs-danger-accent-color); }
     </style>
     """
 end
