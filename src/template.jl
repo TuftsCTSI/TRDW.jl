@@ -825,6 +825,12 @@ function Base.show(io::IO, mime::MIME"text/html", ::LogList)
             text-decoration: none;
             color: var(--accent-color);
           }
+
+          .trdw-log-list > section > p {
+            padding: 0;
+            margin: 0.5em 10px;
+            font-style: italic;
+          }
         </style>
 
         <nav class="trdw-log-list">
