@@ -70,7 +70,7 @@ function _format_tbody(df, fmt)
     if fmt.assert !== nothing
         fmt.assert in propertynames(df) || throw(DomainError(fmt.assert, "missing assert column"))
         fmt.assert_level === nothing || fmt.assert_level in (:debug, :info, :warn, :error) || throw(DomainError(fmt.assert_level, "invalid assert level"))
-        fails = count(x -> x === false, df[!, fmt.assert])
+        fails = count(x -> x !== true, df[!, fmt.assert])
         if fails > 0
             msg = "assertion failed for $(fails) row$(fails > 1 ? "s" : "")"
             if fmt.caption !== nothing
