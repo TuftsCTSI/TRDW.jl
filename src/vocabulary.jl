@@ -234,10 +234,10 @@ condition_status_isa(name::AbstractString) =
 end
 
 function funsql_ICD10CM(; spec)
-    spec = strip(replace(uppercase(spec), r"[\s,]+" => " "))
+    spec = strip(replace(uppercase(spec), r"[\s]" => ""))
     predicate = []
     negations = []
-    for chunk in split(spec, " ")
+    for chunk in split(spec, ",")
         if startswith(chunk, "-")
             push!(negations,
                 @funsql(startswith(concept_code, $chunk)))
