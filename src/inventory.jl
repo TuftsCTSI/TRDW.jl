@@ -69,7 +69,8 @@ validate_primary_key(sources::Vector, columns) =
     append(args = $[@funsql(validate_primary_key($source, $columns)) for source in sources])
 
 validate_foreign_key(source::FunSQL.SQLQuery, source_columns::Vector{Symbol}, target::FunSQL.SQLQuery, target_columns::Vector{Symbol}) = begin
-    source => $source.group($(source_columns...)).define(is_present => true)
+    $source.group($(source_columns...)).define(is_present => true)
+    into(source)
     join(
         target => $target.group($(target_columns...)).define(is_present => true),
         on = and(args = $[@funsql(source.$source_column == target.$target_column) for (source_column, target_column) in zip(source_columns, target_columns)]),
