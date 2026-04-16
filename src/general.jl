@@ -65,6 +65,29 @@ function run(db, spec::CreateTableSpecification)
     return t
 end
 
+struct TempTableSpecification
+    name::Symbol
+    query::FunSQL.SQLQuery
+end
+
+"""
+@query temp_table(table_name => table_content())
+
+Create or replace a temporary table using the data from the query.
+"""
+funsql_temp_table(query; name = FunSQL.label(query)) =
+    TempTableSpecification(name, query)
+
+function run(db, spec::TempTableSpecification)
+    name_sql = FunSQL.render(db, FunSQL.ID(spec.name))
+    sql = FunSQL.render(db, spec.query)
+    t = FunSQL.SQLTable(spec.name, columns = sql.table.columns)
+    DBInterface.execute(db, "DROP TEMP TABLE IF EXISTS $(name_sql)")
+    DBInterface.execute(db, "CREATE TEMP TABLE $(name_sql) AS\n$sql")
+    ODBC.clear!(db.raw)
+    return t
+end
+
 function describe_all(db)
     tables = Pair{Symbol, Any}[]
     for name in sort(collect(keys(db.catalog)))
