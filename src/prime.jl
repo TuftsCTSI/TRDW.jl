@@ -830,6 +830,36 @@ export funsql_RxNorm
 
 
 """
+    @funsql ATC(code, name, descend = true)
+    @funsql ATC(code_or_name, descend = true)
+
+Return a concept set representing a drug defined using the ATC classification.
+
+Arguments must refer to a valid concept in the OMOP *ATC* vocabulary.
+
+# Examples
+
+```julia
+@funsql ATC("A10BJ", "Glucagon-like peptide-1 (GLP-1) analogues")
+```
+"""
+@funsql ATC(code_or_name, name = nothing; descend = true) =
+    include_concepts(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    in(vocabulary_id, "ATC") &&
+                        is_null(invalid_reason) &&
+                        matches_concept($code_or_name, $name),
+                    $(:(ATC($code_or_name, $name; descend = $descend)))))
+            switch($descend, include_descendant_concepts())
+        end)
+
+export funsql_ATC
+
+
+"""
     @funsql CVX(code, name, descend = true)
     @funsql CVX(code_or_name, descend = true)
 
