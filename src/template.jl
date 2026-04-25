@@ -21,6 +21,10 @@ function NotebookFooter(db=nothing)
     PROJECT_ID = config[:project_id]
     PROJECT_CODE = config[:project_code]
     PROJECT_SLUG = config[:project_slug]
+
+	trdw_prime = "ctsi.$(last(DBInterface.execute(connect_to_databricks(), "SHOW SCHEMAS IN ctsi LIKE 'trdw_prime_20*';") |> DataFrame)[1])"
+	trdw_green = "ctsi.$(last(DBInterface.execute(connect_to_databricks(), "SHOW SCHEMAS IN ctsi LIKE 'trdw_green_20*';") |> DataFrame)[1])"
+	trdw_legacy = "ctsi.$(last(DBInterface.execute(connect_to_databricks(), "SHOW SCHEMAS IN ctsi LIKE 'trdw_20*';") |> DataFrame)[1])"
   @htl("""
   <div>
     <table style="width: 100%">
@@ -29,10 +33,8 @@ function NotebookFooter(db=nothing)
         Produced by <a href="https://www.tuftsctsi.org/">
         Tufts Clinical and Translational Science Institute (CTSI) Informatics.</a><br/>
         Cite NIH CTSA Award UM1TR004398 when using Tufts CTSI resources.<br/>
-        Generated at $(Dates.now())
-      </small>
-    </td><td style="width: 28%; vertical-align: top; text-align: right;">
-    $(isnothing(PROJECT_CODE) || isnothing(PROJECT_ID) ? "" :
+		<br/>
+	   $(isnothing(PROJECT_CODE) || isnothing(PROJECT_ID) ? "" :
       @htl("""Project#
         <a href="https://tuftsctsi.lightning.force.com/lightning/r/Project__c/$PROJECT_ID/view">
             $PROJECT_CODE</a><br /> """))
@@ -42,12 +44,19 @@ function NotebookFooter(db=nothing)
       @htl("""
       <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
       $PROJECT_SLUG
-      </a><br />"""))
+      </a>"""))
+      </small>
+    </td><td style="width: 33%; vertical-align: top; text-align: left;">
+	   <small>
+
       $(isnothing(VOCABULARY_VERSION) ? "" :
           @htl("OMOP Vocab Version: $(VOCABULARY_VERSION)<br />"))
-      $(isnothing(SNAPSHOT_SCHEMA) ? "" :
-          @htl("""TRDW Snapshot: <a href="$CDM_ETL_REFERENCE"> $SNAPSHOT_SCHEMA
-          </a><br />"""))
+	   Prime: $(trdw_prime)<br />
+	   Green: $(trdw_green)<br />
+	   Legacy: $(trdw_legacy)<br />
+	   <br/>
+	   Generated at $(Dates.now())<br/>
+	   </small>
   </div>
    """)
 end
