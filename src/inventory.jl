@@ -8,7 +8,7 @@ frequency(args...) = begin
     order(n.desc())
 end
 
-array_frequency(expr; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))) = begin
+array_frequency(expr; name = $(FunSQL.label(expr))) = begin
     partition(name = all)
     cross_join(from(explode_outer($expr), columns = [$name]))
     group($name)
@@ -17,7 +17,7 @@ array_frequency(expr; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))) = b
     order(n.desc())
 end
 
-histogram(expr, bins = 20; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))) = begin
+histogram(expr, bins = 20; name = $(FunSQL.label(expr))) = begin
     define(value => $expr)
     group()
     as(source)
@@ -34,7 +34,7 @@ histogram(expr, bins = 20; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))
     order($name)
 end
 
-percentiles(expr, qs = [0, 0.025, 0.25, 2.5, 25, 50, 75, 97.5, 99.75, 99.975, 100]; name = $(FunSQL.label(convert(FunSQL.SQLNode, expr)))) = begin
+percentiles(expr, qs = [0, 0.025, 0.25, 2.5, 25, 50, 75, 97.5, 99.75, 99.975, 100]; name = $(FunSQL.label(expr))) = begin
     group()
     cross_join(pcts => from($(i = eachindex(qs), q = qs)))
     define(
@@ -42,7 +42,7 @@ percentiles(expr, qs = [0, 0.025, 0.25, 2.5, 25, 50, 75, 97.5, 99.75, 99.975, 10
         $name => `[]`(percentile($expr, array(args = $(qs ./ 100))), pcts.i - 1))
 end
 
-validate_primary_key(source::FunSQL.SQLNode, columns::Vector{Symbol}) = begin
+validate_primary_key(source::FunSQL.SQLQuery, columns::Vector{Symbol}) = begin
     $source
     group($(columns...))
     define(key_is_not_null => and(args = $[@funsql(is_not_null($column)) for column in columns]))
@@ -62,13 +62,13 @@ end
 validate_primary_key(table::Symbol, columns::Vector{Symbol}) =
     validate_primary_key(from($table), $columns)
 
-validate_primary_key(source::Union{FunSQL.SQLNode, Symbol}, column::Symbol) =
+validate_primary_key(source::Union{FunSQL.SQLQuery, Symbol}, column::Symbol) =
     validate_primary_key($source, [$column])
 
 validate_primary_key(sources::Vector, columns) =
     append(args = $[@funsql(validate_primary_key($source, $columns)) for source in sources])
 
-validate_foreign_key(source::FunSQL.SQLNode, source_columns::Vector{Symbol}, target::FunSQL.SQLNode, target_columns::Vector{Symbol}) = begin
+validate_foreign_key(source::FunSQL.SQLQuery, source_columns::Vector{Symbol}, target::FunSQL.SQLQuery, target_columns::Vector{Symbol}) = begin
     source => $source.group($(source_columns...)).define(is_present => true)
     join(
         target => $target.group($(target_columns...)).define(is_present => true),
@@ -97,13 +97,13 @@ validate_foreign_key(source::FunSQL.SQLNode, source_columns::Vector{Symbol}, tar
     define(pct_tgt_linked => floor(100 * n_tgt_linked / n_tgt, 1), after = n_tgt_linked)
 end
 
-validate_foreign_key(source::Union{FunSQL.SQLNode, Symbol}, source_column::Symbol, target::Union{FunSQL.SQLNode, Symbol}, target_column::Symbol) =
+validate_foreign_key(source::Union{FunSQL.SQLQuery, Symbol}, source_column::Symbol, target::Union{FunSQL.SQLQuery, Symbol}, target_column::Symbol) =
     validate_foreign_key($source, [$source_column], $target, [$target_column])
 
-validate_foreign_key(source::Union{FunSQL.SQLNode, Symbol}, source_columns::Vector{Symbol}, target_table::Symbol, target_columns::Vector{Symbol}) =
+validate_foreign_key(source::Union{FunSQL.SQLQuery, Symbol}, source_columns::Vector{Symbol}, target_table::Symbol, target_columns::Vector{Symbol}) =
     validate_foreign_key($source, $source_columns, from($target_table), $target_columns)
 
-validate_foreign_key(source_table::Symbol, source_columns::Vector{Symbol}, target::FunSQL.SQLNode, target_columns::Vector{Symbol}) =
+validate_foreign_key(source_table::Symbol, source_columns::Vector{Symbol}, target::FunSQL.SQLQuery, target_columns::Vector{Symbol}) =
     validate_foreign_key(from($source_table), $source_columns, $target, $target_columns)
 
 validate_foreign_key(sources::Vector, source_columns, target, target_columns) =
@@ -130,5 +130,48 @@ function _foreign_key_name(source, source_columns, target, target_columns)
         "$(source_table).$(source_columns[1]) → $(target_table).$(target_columns[1])"
     else
         "$(source_table) ($(join(string.(source_columns), ", "))) → $(target_table) ($(join(string.(target_columns), ", ")))"
+    end
+end
+
+@funsql row_delta(table, keys = [$(Symbol("$(table)_id"))], previous_table = $(Symbol("previous_$(table)"))) = begin
+    current => from($table).define(is_present => true)
+    join(
+        previous => if_set($previous_table, from($previous_table), from($table).filter(false)).define(is_present => true),
+        and(args = $[@funsql(current.$key == previous.$key) for key in keys]),
+        left = true,
+        right = true)
+    frequency(state => is_null(previous.is_present) ? "added" : is_null(current.is_present) ? "dropped" : "retained")
+end
+
+function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_table = Symbol("previous_$(table)"))
+    function custom_resolve(n, ctx)
+        tail′ = FunSQL.resolve(ctx)
+        t = FunSQL.row_type(tail′)
+        curr_t = t.fields[:current]
+        prev_t = t.fields[:previous]
+        fields = collect(Base.keys(curr_t.fields))
+        qs = FunSQL.SQLQuery[]
+        for field in fields
+            if field in Base.keys(prev_t.fields)
+                push!(qs, @funsql(count_if(previous.$field !== current.$field)))
+            else
+                push!(qs, @funsql(count(current.$field)))
+            end
+        end
+        @funsql begin
+            $tail′
+            group()
+            cross_join(summary_case => from(explode(sequence(1, $(length(fields)))), columns = [index]))
+            define(column => $(_summary_switch(string.(fields))))
+            define(n_changed => $(_summary_switch(qs)))
+            define(pct_changed => floor(100 * n_changed / count(), 1))
+        end
+    end
+    @funsql begin
+        current => from($table)
+        join(
+            previous => if_set($previous_table, from($previous_table), from($table).filter(false)),
+            and(args = $[@funsql(current.$key == previous.$key) for key in keys]))
+        $(CustomResolve(custom_resolve))
     end
 end

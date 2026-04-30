@@ -17,20 +17,20 @@ Base.show(io::IO, r::SQLResult) =
 Base.show(io::IO, mime::MIME"text/html", r::SQLResult) =
     Base.show(io, mime, _format(ensure_result!(r), r.fmt))
 
-Base.convert(::Type{FunSQL.AbstractSQLNode}, df::DataFrame) =
+Base.convert(::Type{FunSQL.SQLQuery}, df::DataFrame) =
     FunSQL.From(df)
 
-Base.convert(::Type{FunSQL.AbstractSQLNode}, r::SQLResult) =
-    convert(FunSQL.SQLNode, ensure_result!(r))
+Base.convert(::Type{FunSQL.SQLQuery}, r::SQLResult) =
+    convert(FunSQL.SQQuery, ensure_result!(r))
 
 run(db, q) =
-    run(db, convert(FunSQL.SQLNode, q))
+    run(db, convert(FunSQL.SQLQuery, q))
 
 function run(db, sql::AbstractString; fmt = SQLFormat())
     SQLResult(db, sql, fmt)
 end
 
-function run(db, q::FunSQL.SQLNode; fmt = SQLFormat())
+function run(db, q::FunSQL.SQLQuery; fmt = SQLFormat())
     sql = FunSQL.render(db, q)
     SQLResult(db, sql, fmt)
 end

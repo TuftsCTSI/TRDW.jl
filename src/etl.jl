@@ -5,11 +5,14 @@ HashArrayMappedTries.HashState(key::Symbol) =
 abstract type AbstractTransform end
 
 struct SetTransform <: AbstractTransform
-    defs::Vector{Pair{Symbol, FunSQL.SQLNode}}
+    defs::Vector{Pair{Symbol, FunSQL.SQLQuery}}
 end
 
 funsql_set(defs::Pair...) =
-    SetTransform(Pair{Symbol, FunSQL.SQLNode}[defs...])
+    SetTransform(Pair{Symbol, FunSQL.SQLQuery}[defs...])
+
+var"funsql_:="(name, query) =
+    SetTransform([Pair{Symbol, FunSQL.SQLQuery}(name, query)])
 
 struct SnapshotTransform <: AbstractTransform
     names::Vector{Symbol}
@@ -68,7 +71,7 @@ struct SQLSnapshot
     name::Symbol
 end
 
-const TransformEntry = Tuple{Union{FunSQL.SQLTable, FunSQL.SQLNode, SQLSnapshot}, Int}
+const TransformEntry = Tuple{Union{FunSQL.SQLTable, FunSQL.SQLQuery, SQLSnapshot}, Int}
 const TransformSchema = HAMT{Symbol, Int}
 
 struct TransformContext
@@ -193,7 +196,7 @@ function build_definition(catalog, ctx)
         !haskey(deps_map, key) || continue
         (obj, version) = ctx.entries[index]
         deps = Set{Tuple{Int, Symbol}}()
-        if obj isa FunSQL.SQLNode
+        if obj isa FunSQL.SQLQuery
             schema = ctx.schemas[version]
             for dep_name in dependencies(obj, schema)
                 haskey(schema, dep_name) || error(dep_name)
@@ -219,7 +222,7 @@ function build_definition(catalog, ctx)
     schema_name_sql = FunSQL.render(catalog, FunSQL.ID(ctx.name))
     defs = OrderedDict{String, TableDefinition}()
     qualifiers = [ctx.name]
-    ctes = FunSQL.SQLNode[]
+    ctes = FunSQL.SQLQuery[]
     subs_map = Dict{Int, Set{Int}}()
     sub_to_req = Dict{Int, String}()
     for key in sort!(collect(keys(deps_map)))
@@ -240,7 +243,7 @@ function build_definition(catalog, ctx)
             end
             push!(ctes, name => FunSQL.From(obj))
             push!(subs, lastindex(ctes))
-        elseif obj isa FunSQL.SQLNode
+        elseif obj isa FunSQL.SQLQuery
             for (dep_index, _) in deps_map[key]
                 union!(subs, subs_map[dep_index])
             end
@@ -248,7 +251,7 @@ function build_definition(catalog, ctx)
                 q = obj
                 reqs = Set{String}()
                 for k in sort(collect(subs), rev = true)
-                    q = FunSQL.With(ctes[k], over = q)
+                    q = FunSQL.With(ctes[k], tail = q)
                     req = get(sub_to_req, k, nothing)
                     if req !== nothing
                         push!(reqs, req)
@@ -278,7 +281,7 @@ function build_definition(catalog, ctx)
             q = FunSQL.From(obj.name)
             reqs = Set{String}()
             for k in sort(collect(subs), rev = true)
-                q = FunSQL.With(ctes[k], over = q)
+                q = FunSQL.With(ctes[k], tail = q)
                 req = get(sub_to_req, k, nothing)
                 if req !== nothing
                     push!(reqs, req)
@@ -325,31 +328,31 @@ function build_definition(catalog, ctx)
     SchemaDefinition(schema_name_sql, defs)
 end
 
-function dependencies(n::FunSQL.SQLNode, schema)
+function dependencies(q::FunSQL.SQLQuery, schema)
     free = Set{Symbol}()
     bound = Set{Symbol}()
-    dependencies!(n, schema, free, bound)
+    dependencies!(q, schema, free, bound)
     sort!(collect(free))
 end
 
-function dependencies!(n::FunSQL.SQLNode, schema, free, bound)
-    dependencies!(n[], schema, free, bound)
+function dependencies!(q::FunSQL.SQLQuery, schema, free, bound)
+    dependencies!(q.head, q.tail, schema, free, bound)
 end
 
-function dependencies!(ns::Vector{FunSQL.SQLNode}, schema, free, bound)
-    for n in ns
-        dependencies!(n, schema, free, bound)
+function dependencies!(qs::Vector{FunSQL.SQLQuery}, schema, free, bound)
+    for q in qs
+        dependencies!(q, schema, free, bound)
     end
 end
 
 dependencies!(::Nothing, schema, free, bound) =
     nothing
 
-@generated function dependencies!(n::FunSQL.AbstractSQLNode, schema, free, bound)
-    exs = Expr[]
+@generated function dependencies!(n::FunSQL.AbstractSQLNode, tail, schema, free, bound)
+    exs = Expr[quote dependencies!(tail, schema, free, bound) end]
     for f in fieldnames(n)
         t = fieldtype(n, f)
-        if t === FunSQL.SQLNode || t === Union{FunSQL.SQLNode, Nothing} || t === Vector{FunSQL.SQLNode}
+        if t === FunSQL.SQLQuery || t === Union{FunSQL.SQLQuery, Nothing} || t === Vector{FunSQL.SQLQuery}
             ex = quote
                 dependencies!(n.$(f), schema, free, bound)
             end
@@ -360,36 +363,40 @@ dependencies!(::Nothing, schema, free, bound) =
     Expr(:block, exs...)
 end
 
-function dependencies!(n::FunSQL.FromNode, schema, free, bound)
+function dependencies!(n::FunSQL.FromNode, tail, schema, free, bound)
+    dependencies!(tail, schema, free, bound)
     source = n.source
     if source isa Symbol && source ∉ bound
         push!(free, source)
     elseif source isa FunSQL.FunctionSource
-        dependencies!(source.node, schema, free, bound)
+        dependencies!(source.query, schema, free, bound)
     end
 end
 
-function dependencies!(n::Union{FunSQL.WithNode, FunSQL.WithExternalNode}, schema, free, bound)
+function dependencies!(n::Union{FunSQL.WithNode, FunSQL.WithExternalNode}, tail, schema, free, bound)
     dependencies!(n.args, schema, free, bound)
     names = Symbol[name for name in keys(n.label_map) if name ∉ bound]
     for name in names
         push!(bound, name)
     end
-    dependencies!(n.over, schema, free, bound)
+    dependencies!(tail, schema, free, bound)
     for name in names
         pop!(bound, name)
     end
 end
 
-function dependencies!(n::FunSQL.OverNode, schema, free, bound)
-    dependencies!(FunSQL.With(over = n.arg, args = n.over !== nothing ? FunSQL.SQLNode[n.over] : FunSQL.SQLNode[]), schema, free, bound)
+function dependencies!(n::FunSQL.OverNode, tail, schema, free, bound)
+    dependencies!(FunSQL.With(tail = n.arg, args = tail !== nothing ? FunSQL.SQLQuery[tail] : FunSQL.SQLQuery[]), schema, free, bound)
 end
 
-function dependencies!(n::IfSetNode, schema, free, bound)
-    over = n.over
-    node = haskey(schema, n.name) ? n.node : n.else_node
-    node = node !== nothing && over !== nothing ? over |> node : node !== nothing ? node : over
-    dependencies!(node, schema, free, bound)
+function dependencies!(n::FunSQL.FunSQLMacroNode, tail, schema, free, bound)
+    dependencies!(tail !== nothing ? tail |> n.query : n.query, schema, free, bound)
+end
+
+function dependencies!(n::IfSetNode, tail, schema, free, bound)
+    query = haskey(schema, n.name) ? n.query : n.else_query
+    query = query !== nothing && tail !== nothing ? tail |> query : query !== nothing ? query : tail
+    dependencies!(query, schema, free, bound)
 end
 
 struct CreateSchemaSpecification
