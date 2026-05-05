@@ -1,5 +1,7 @@
 function NotebookFooter(db=nothing)
     config = config_file()
+    PROJECT_CODE = get(config, :project_code, "---")
+
     cdm_source = nothing
     if !isnothing(db)
         try
@@ -7,58 +9,29 @@ function NotebookFooter(db=nothing)
         catch e
         end
     end
-    CDM_ETL_REFERENCE = !isnothing(cdm_source) ? cdm_source.cdm_etl_reference[1] : nothing
-    VOCABULARY_VERSION = !isnothing(cdm_source) ? cdm_source.vocabulary_version[1] : nothing
-    SNAPSHOT_SCHEMA = isnothing(cdm_source) ? nothing : "snapshot_schema" in names(cdm_source) ? cdm_source.snapshot_schema[1] : nothing
-    # Handle SQL TRDW (non-PRIME) CDM_SOURCE
-    if isnothing(SNAPSHOT_SCHEMA) && !isnothing(CDM_ETL_REFERENCE) && occursin(" → ", CDM_ETL_REFERENCE)
-      parts = split(CDM_ETL_REFERENCE, " → ")
-      if length(parts) == 2
-        CDM_ETL_REFERENCE, SNAPSHOT_SCHEMA = parts[1], parts[2]
-      end
-    end
-    IRB_ID = config[:irb_id]
-    PROJECT_ID = config[:project_id]
-    PROJECT_CODE = config[:project_code]
-    PROJECT_SLUG = config[:project_slug]
+    VOCABULARY_VERSION = !isnothing(cdm_source) ? cdm_source.vocabulary_version[1] : "---"
+    SNAPSHOT_SCHEMA = !isnothing(cdm_source) ? cdm_source.snapshot_schema[1] : "---"
 
-	trdw_prime = "ctsi.$(last(DBInterface.execute(connect_to_databricks(), "SHOW SCHEMAS IN ctsi LIKE 'trdw_prime_20*';") |> DataFrame)[1])"
-	trdw_green = "ctsi.$(last(DBInterface.execute(connect_to_databricks(), "SHOW SCHEMAS IN ctsi LIKE 'trdw_green_20*';") |> DataFrame)[1])"
-	trdw_legacy = "ctsi.$(last(DBInterface.execute(connect_to_databricks(), "SHOW SCHEMAS IN ctsi LIKE 'trdw_20*';") |> DataFrame)[1])"
-  @htl("""
-  <div>
+    @htl("""
+    <div>
     <table style="width: 100%">
     <tr><td style="width: 72; vertical-align: top">
-      <small>
+        <small>
         Produced by <a href="https://www.tuftsctsi.org/">
         Tufts Clinical and Translational Science Institute (CTSI) Informatics.</a><br/>
         Cite NIH CTSA Award UM1TR004398 when using Tufts CTSI resources.<br/>
-		<br/>
-	   $(isnothing(PROJECT_CODE) || isnothing(PROJECT_ID) ? "" :
-      @htl("""Project#
-        <a href="https://tuftsctsi.lightning.force.com/lightning/r/Project__c/$PROJECT_ID/view">
-            $PROJECT_CODE</a><br /> """))
-    $(isnothing(IRB_ID) ? "" :
-      @htl("<p>IRB Study# $(IRB_ID)"))
-      $(isnothing(PROJECT_SLUG) ? "" :
-      @htl("""
-      <a href="https://github.com/TuftsCTSI/ResearchRequests/tree/main/$PROJECT_SLUG/">
-      $PROJECT_SLUG
-      </a>"""))
-      </small>
+        <br/>
+        Project# $PROJECT_CODE
+        </small>
     </td><td style="width: 33%; vertical-align: top; text-align: left;">
-	   <small>
-
-      $(isnothing(VOCABULARY_VERSION) ? "" :
-          @htl("OMOP Vocab Version: $(VOCABULARY_VERSION)<br />"))
-	   Prime: $(trdw_prime)<br />
-	   Green: $(trdw_green)<br />
-	   Legacy: $(trdw_legacy)<br />
-	   <br/>
-	   Generated at $(Dates.now())<br/>
-	   </small>
-  </div>
-   """)
+        <small>
+        OMOP Vocab Version: $(VOCABULARY_VERSION)<br/>
+        Latest: $(SNAPSHOT_SCHEMA)<br/>
+        <br/>
+        Generated at $(Dates.now())
+        </small>
+    </div>
+    """)
 end
 
 function NotebookHeader(TITLE=nothing)
