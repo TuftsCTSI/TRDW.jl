@@ -408,6 +408,38 @@ end
 
 
 """
+    @funsql Concept(vocabulary_id, code_or_name; concept_class_id = nothing, descend = true)
+    @funsql Concept(vocabulary_id, code, name; concept_class_id = nothing, descend = true)
+
+Generate a concept set from a selected vocabulary.
+
+Arguments should identify a unique valid concept in a given OMOP vocabulary.
+
+# Examples
+
+```julia
+@funsql Grade() =
+    Concept("NAACCR", "Grade", concept_class_id = "NAACCR Variable")
+```
+"""
+@funsql Concept(vocabulary_id, code_or_name, name = nothing; concept_class_id = nothing, descend = true) =
+    include_concepts(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    equals_or_in(vocabulary_id, $vocabulary_id) &&
+                        is_null(invalid_reason) &&
+                        equals_or_in(concept_class_id, $concept_class_id) &&
+                        matches_concept($code_or_name, $name),
+                    $(:(Concept($vocabulary_id, $code_or_name, $name; concept_class_id = $concept_class_id, descend = $descend)))))
+            switch($descend, include_descendant_concepts())
+        end)
+
+export funsql_Concept
+
+
+"""
     @funsql Provenance(code, name, descend = true)
     @funsql Provenance(code_or_name, descend = true)
 
