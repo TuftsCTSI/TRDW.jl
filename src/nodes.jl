@@ -181,17 +181,18 @@ end
 mutable struct SummaryNode <: FunSQL.TabularNode
     names::Vector{Symbol}
     type::Bool
+    extrema::Bool
     top_k::Int
     nested::Bool
     private::Bool
     exact::Bool
 
-    SummaryNode(; names = Symbol[], type = true, top_k = 0, nested = false, private = false, exact = false) =
-        new(names, type, top_k, nested, private, exact)
+    SummaryNode(; names = Symbol[], type = true, extrema = false, top_k = 0, nested = false, private = false, exact = false) =
+        new(names, type, extrema, top_k, nested, private, exact)
 end
 
-SummaryNode(names...; type = true, top_k = 0, nested = false, private = false, exact = false) =
-    SummaryNode(names = Symbol[names...], type = type, top_k = top_k, nested = nested, private = private, exact = exact)
+SummaryNode(names...; type = true, extrema = false, top_k = 0, nested = false, private = false, exact = false) =
+    SummaryNode(names = Symbol[names...], type = type, extrema = extrema, top_k = top_k, nested = nested, private = private, exact = exact)
 
 const Summary = FunSQL.SQLQueryCtor{SummaryNode}(:Summary)
 
@@ -203,6 +204,9 @@ function FunSQL.PrettyPrinting.quoteof(n::SummaryNode, ctx::FunSQL.QuoteContext)
     ex = Expr(:call, :Summary, FunSQL.quoteof(n.names, ctx)...)
     if n.type
         push!(ex.args, Expr(:kw, :type, n.type))
+    end
+    if n.extrema
+        push!(ex.args, Expr(:kw, :extrema, n.extrema))
     end
     if n.top_k > 0
         push!(ex.args, Expr(:kw, :top_k, n.top_k))
@@ -251,6 +255,12 @@ function FunSQL.resolve(n::SummaryNode, ctx)
         push!(args, :ndv => _summary_switch(map(col -> @funsql(count_distinct($col)), cols)))
     else
         push!(args, :approx_ndv => _summary_switch(map(col -> @funsql(approx_count_distinct($col)), cols)))
+    end
+    if n.extrema
+        push!(
+            args,
+            :min => _summary_switch(map(col -> @funsql(string(min($col))), cols)),
+            :max => _summary_switch(map(col -> @funsql(string(max($col))), cols)))
     end
     if n.top_k > 0
         for i = 1:n.top_k
