@@ -21,6 +21,12 @@ roundup(n) =  $n < 10 ? "<10" : $n
 
 collect_to_string(v) = array_join(array_sort(array_distinct(collect_list($v))), "; ")
 
+collect_list_ordered(value; by = line) =
+    agg(`(array_sort(collect_list(named_struct("by", ?, "value", ?))).value)`, $by, $value)
+
+collect_set_ordered(value; by = line) =
+    agg(`(array_distinct(array_sort(collect_list(named_struct("by", ?, "value", ?))).value))`, $by, $value)
+
 deduplicate(keys...; order_by=[]) = begin
     partition($(keys...), order_by = [$([keys..., order_by...]...)], name = deduplicate)
     filter(deduplicate.row_number() <= 1)
