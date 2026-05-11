@@ -1,12 +1,3 @@
-module Prime
-
-
-using ..TRDW: TRDW
-export TRDW
-
-using FunSQL
-
-
 """
     @funsql switch(test::Bool, q, [else_q])
 
@@ -1515,10 +1506,12 @@ export funsql_care_site
 """
     @funsql provider()
     @funsql provider(concept_set)
+    @funsql provider(name_or_npi::String)
 
 Return records from the `PROVIDER` table:
 - Without arguments, return all records;
 - With a given concept set, return all matching records.
+- With a provider name or an NPI number, return the specified provider.
 
 For clarity, some `PROVIDER` columns are renamed or omitted from the output.
 
@@ -1547,6 +1540,11 @@ end
 @funsql provider(concept_set) = begin
     provider()
     filter(concept_id in $concept_set)
+end
+
+@funsql provider(name_or_npi::String) = begin
+    provider()
+    filter(provider_name == $name_or_npi || npi == $name_or_npi)
 end
 
 export funsql_provider
@@ -2003,19 +2001,3 @@ end
 end
 
 export funsql_observation
-
-
-# Reexport those TRDW symbols that have not been overriden here.
-
-_reexport() =
-    for name in names(TRDW)
-        !(name in names(@__MODULE__)) || continue
-        @eval begin
-            using ..TRDW: $name
-            export $name
-        end
-    end
-
-_reexport()
-
-end
