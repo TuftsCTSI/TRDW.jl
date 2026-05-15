@@ -169,7 +169,8 @@ Remove concepts that are descendants of other concepts in the input concept set.
 @funsql exclude_descendant_concepts() = begin
     left_join(
         concept_ancestor => from(concept_ancestor),
-        concept_id == concept_ancestor.ancestor_concept_id)
+        concept_id == concept_ancestor.ancestor_concept_id,
+        private = true)
     partition(concept_ancestor.descendant_concept_id, name = _exclude_descendant_concepts)
     filter(!_exclude_descendant_concepts.any(concept_ancestor.ancestor_concept_id !== concept_ancestor.descendant_concept_id))
     undefine(_exclude_descendant_concepts)
@@ -213,6 +214,25 @@ end
 end
 
 export funsql_include_prefix_descendant_concepts
+
+
+"""
+    @funsql exclude_prefix_descendant_concepts()
+
+Remove concepts that are descendants of other concepts in the input concept set;
+find descendant concepts using prefix-based matching.
+"""
+@funsql exclude_prefix_descendant_concepts() = begin
+    join(
+        descendant_concept => concept(),
+        vocabulary_id == descendant_concept.vocabulary_id && startswith(descendant_concept.concept_code, concept_code),
+        private = true)
+    partition(descendant_concept.concept_id, name = _exclude_descendant_concepts)
+    filter(!_exclude_descendant_concepts.any(concept_id != descendant_concept.concept_id))
+    undefine(_exclude_descendant_concepts)
+end
+
+export funsql_exclude_prefix_descendant_concepts
 
 
 """
