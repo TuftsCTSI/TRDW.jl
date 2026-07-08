@@ -9,12 +9,16 @@ function connect_to_databricks(; catalog = nothing, schema = nothing, allowed_lo
 
     DATABRICKS_DRIVERS = [
         "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
-        "/Library/simba/spark/lib/libsparkodbc_sb64-universal.dylib"
+        "/Library/simba/spark/lib/libsparkodbc_sb64-universal.dylib",
+        "C:\\Program Files\\Simba Spark ODBC Driver\\lib\\SparkODBC_sb64.dll",
     ]
     if !any(isfile, DATABRICKS_DRIVERS)
         error("Cannot find Databricks ODBC driver")
     end
     driver = DATABRICKS_DRIVERS[findfirst(isfile, DATABRICKS_DRIVERS)]
+    if Sys.iswindows()
+        driver = "Simba Spark ODBC Driver"
+    end
 
     catalog = something(catalog, DATABRICKS_CATALOG)
 
