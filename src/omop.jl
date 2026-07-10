@@ -1075,6 +1075,36 @@ export funsql_HCPCS
 
 
 """
+    @funsql ICD10PCS(code, name, descend = true)
+    @funsql ICD10PCS(code_or_name, descend = true)
+
+Return a concept set representing an ICD10PCS procedure code.
+
+Arguments must refer to a valid concept in the OMOP *ICD10PCS* vocabulary.
+
+# Examples
+
+```julia
+@funsql ICD10PCS("021", "Heart and Great Vessels, Bypass")
+```
+"""
+@funsql ICD10PCS(code_or_name, name = nothing; descend = true) =
+    include_concepts(
+        begin
+            concept()
+            filter(
+                assert_valid_concept(
+                    vocabulary_id == "ICD10PCS" &&
+                        is_null(invalid_reason) &&
+                        matches_concept($code_or_name, $name),
+                    $(:(ICD10PCS($code_or_name, $name; descend = $descend)))))
+            switch($descend, include_descendant_concepts())
+        end)
+
+export funsql_ICD10PCS
+
+
+"""
     @funsql LOINC(code, name, descend = true)
     @funsql LOINC(code_or_name, descend = true)
 
