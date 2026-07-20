@@ -808,3 +808,72 @@ function run(db, spec::WriteXLSXSpecification)
         """)
     end
 end
+
+struct WriteXLSXWorkbookSpecification
+    prefix::String
+    sheets::Vector{Pair{String, FunSQL.SQLQuery}}
+    encrypt::Bool
+    skip::Bool
+end
+
+""" @query write_xlsx_workbook("prefix", :sheet1 => query1(), :sheet2 => query2())
+
+Write multiple query results as sheets in a single unencrypted XLSX workbook.
+The file is written to `download/<prefix>_<timestamp>.xlsx`.
+"""
+funsql_write_xlsx_workbook(prefix::Union{Symbol, AbstractString}, sheets::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
+    WriteXLSXWorkbookSpecification(
+        string(prefix),
+        [string(k) => v for (k, v) in sheets],
+        false,
+        something(skip, get(ENV, "CI", nothing) != "true"))
+
+""" @query write_encrypted_xlsx_workbook("prefix", :sheet1 => query1(), :sheet2 => query2())
+
+Write multiple query results as sheets in a single encrypted XLSX workbook.
+Requires JavaCall boilerplate (same as `write_encrypted_xlsx`).
+"""
+funsql_write_encrypted_xlsx_workbook(prefix::Union{Symbol, AbstractString}, sheets::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
+    WriteXLSXWorkbookSpecification(
+        string(prefix),
+        [string(k) => v for (k, v) in sheets],
+        true,
+        something(skip, get(ENV, "CI", nothing) != "true"))
+
+function run(db, spec::WriteXLSXWorkbookSpecification)
+    @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_xlsx_workbook you need:
+      import JavaCall
+      # then, after TRDW is imported
+      JavaCall.isloaded() ? nothing : JavaCall.init()
+    """
+    dataframes = Pair{String, DataFrame}[]
+    total_rows = 0
+    for (name, query) in spec.sheets
+        data = run(db, query)
+        df = DataFrame(data)
+        total_rows += size(df, 1)
+        push!(dataframes, name => df)
+    end
+    password = spec.encrypt ? get_password() : nothing
+    when =
+        let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
+            t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
+        end
+    suffix = Dates.format(when, "yyyymmddtHHMM")
+    filename = "download/$(spec.prefix)_$(suffix).xlsx"
+    n_sheets = length(dataframes)
+    if spec.skip
+        @htl("<p>Not writing $n_sheets sheets ($total_rows rows) to $filename: not production schema</p>")
+    elseif spec.encrypt && (isnothing(password) || password == "")
+        @htl("<p>Not writing $n_sheets sheets ($total_rows rows) to $filename: password not available</p>")
+    else
+        mkpath(dirname(filename))
+        TRDW.XLSX.write(filename, dataframes; password)
+        if spec.encrypt && !is_production_schema_prefix()
+            @info "password for $filename is $password"
+        end
+        @htl("""
+            <p>$n_sheets sheets ($total_rows rows) written. Download <a href="$filename">$filename</a>.</p>
+        """)
+    end
+end
