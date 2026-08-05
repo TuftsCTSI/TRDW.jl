@@ -760,7 +760,8 @@ end
 
 struct WriteXLSXSpecification
     prefix::String
-    query::FunSQL.SQLQuery
+    sheets::Vector{Pair{String, FunSQL.SQLQuery}}
+    encrypt::Bool
     skip::Bool
 end
 
@@ -774,47 +775,11 @@ For this to work, include this boilerplate in your notebook:
 ```
 """
 funsql_write_encrypted_xlsx((prefix, query)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing) =
-    WriteXLSXSpecification(string(prefix), query, something(skip, get(ENV, "CI", nothing) != "true"))
-
-function run(db, spec::WriteXLSXSpecification)
-    @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_encrypt you need:
-      import JavaCall
-      # then, after TRDW is imported
-      JavaCall.isloaded() ? nothing : JavaCall.init()
-    """
-    data = run(db, spec.query)
-    dataframe = DataFrame(data)
-    password = get_password()
-    dataframe = DataFrame(data)
-    n_rows = size(dataframe)[1]
-    when =
-        let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
-            t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
-        end
-    suffix = Dates.format(when, "yyyymmddtHHMM")
-    filename = "download/$(spec.prefix)_$(suffix).xlsx"
-    if spec.skip
-        @htl("<p>Not writing $n_rows rows to $filename: not production schema</p>")
-    elseif isnothing(password) || password == ""
-        @htl("<p>Not writing $n_rows rows to $filename: password not available</p>")
-    else
-        mkpath(dirname(filename))
-        TRDW.XLSX.write(filename, dataframe; password)
-        if !is_production_schema_prefix()
-            @info "password for $filename is $password"
-        end
-        @htl("""
-            <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
-        """)
-    end
-end
-
-struct WriteXLSXWorkbookSpecification
-    prefix::String
-    sheets::Vector{Pair{String, FunSQL.SQLQuery}}
-    encrypt::Bool
-    skip::Bool
-end
+    WriteXLSXSpecification(
+        string(prefix),
+        ["Sheet1" => query],
+        true,
+        something(skip, get(ENV, "CI", nothing) != "true"))
 
 """ @query write_xlsx_workbook("prefix", :sheet1 => query1(), :sheet2 => query2())
 
@@ -822,7 +787,7 @@ Write multiple query results as sheets in a single unencrypted XLSX workbook.
 The file is written to `download/<prefix>_<timestamp>.xlsx`.
 """
 funsql_write_xlsx_workbook(prefix::Union{Symbol, AbstractString}, sheets::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    WriteXLSXWorkbookSpecification(
+    WriteXLSXSpecification(
         string(prefix),
         [string(k) => v for (k, v) in sheets],
         false,
@@ -834,14 +799,14 @@ Write multiple query results as sheets in a single encrypted XLSX workbook.
 Requires JavaCall boilerplate (same as `write_encrypted_xlsx`).
 """
 funsql_write_encrypted_xlsx_workbook(prefix::Union{Symbol, AbstractString}, sheets::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    WriteXLSXWorkbookSpecification(
+    WriteXLSXSpecification(
         string(prefix),
         [string(k) => v for (k, v) in sheets],
         true,
         something(skip, get(ENV, "CI", nothing) != "true"))
 
-function run(db, spec::WriteXLSXWorkbookSpecification)
-    @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_xlsx_workbook you need:
+function run(db, spec::WriteXLSXSpecification)
+    @assert length(methods(TRDW.XLSX.write)) > 0 """To use XLSX writing you need:
       import JavaCall
       # then, after TRDW is imported
       JavaCall.isloaded() ? nothing : JavaCall.init()
@@ -862,10 +827,11 @@ function run(db, spec::WriteXLSXWorkbookSpecification)
     suffix = Dates.format(when, "yyyymmddtHHMM")
     filename = "download/$(spec.prefix)_$(suffix).xlsx"
     n_sheets = length(dataframes)
+    summary = n_sheets == 1 ? "$total_rows rows" : "$n_sheets sheets ($total_rows rows)"
     if spec.skip
-        @htl("<p>Not writing $n_sheets sheets ($total_rows rows) to $filename: not production schema</p>")
+        @htl("<p>Not writing $summary to $filename: not production schema</p>")
     elseif spec.encrypt && (isnothing(password) || password == "")
-        @htl("<p>Not writing $n_sheets sheets ($total_rows rows) to $filename: password not available</p>")
+        @htl("<p>Not writing $summary to $filename: password not available</p>")
     else
         mkpath(dirname(filename))
         TRDW.XLSX.write(filename, dataframes; password)
@@ -873,7 +839,7 @@ function run(db, spec::WriteXLSXWorkbookSpecification)
             @info "password for $filename is $password"
         end
         @htl("""
-            <p>$n_sheets sheets ($total_rows rows) written. Download <a href="$filename">$filename</a>.</p>
+            <p>$summary written. Download <a href="$filename">$filename</a>.</p>
         """)
     end
 end
