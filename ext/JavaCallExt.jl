@@ -18,6 +18,7 @@ const EncryptionMode = @jimport org.apache.poi.poifs.crypt.EncryptionMode
 const Encryptor = @jimport org.apache.poi.poifs.crypt.Encryptor
 const File = @jimport java.io.File
 const FileOutputStream = @jimport java.io.FileOutputStream
+const InputStream = @jimport java.io.InputStream
 const LocalDateTime = @jimport java.time.LocalDateTime
 const OPCPackage = @jimport org.apache.poi.openxml4j.opc.OPCPackage
 const OutputStream = @jimport java.io.OutputStream
@@ -122,7 +123,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
                 bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
                 input_stream = ByteArrayInputStream((Vector{jbyte},), bytes)
-                package = jcall(OPCPackage, "open", OPCPackage, (JavaCall.JInputStream,), input_stream)
+                package = jcall(OPCPackage, "open", OPCPackage, (InputStream,), input_stream)
                 try
                     encrypted_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
                     try
