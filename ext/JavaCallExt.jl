@@ -37,7 +37,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         date_format = jcall(creation_helper, "createDataFormat", DataFormat, ())
         date_format_idx = jcall(date_format, "getFormat", jshort, (JString,), "yyyy-mm-dd")
         datetime_format = jcall(creation_helper, "createDataFormat", DataFormat, ())
-        datetime_format_idx = jcall(datetime_format, "getFormat", jshort, (JString,), "yyyy-mm-ddThh:mm:ss")
+        datetime_format_idx = jcall(datetime_format, "getFormat", jshort, (JString,), "yyyy-mm-ddTHH:mm:ss")
         date_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
         jcall(date_cell_style, "setDataFormat", Nothing, (jshort,), date_format_idx)
         datetime_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
