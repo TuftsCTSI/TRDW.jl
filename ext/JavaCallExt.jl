@@ -63,19 +63,25 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         for (sheet_name, table) in sheets
             validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
-            for (i, t) in enumerate(Tables.schema(table).types)
-                t !== nothing || continue
-                t = Base.nonmissingtype(t)
-                if t <: Dates.Date
-                    jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
-                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, 11 * 256)
-                elseif t <: Dates.DateTime
-                    jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
-                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, 20 * 256)
+            cols = Tables.columnnames(table)
+            types = Tables.schema(table).types
+            for (i, (c, t)) in enumerate(zip(cols, types))
+                type_width = 0
+                if t !== nothing
+                    nt = Base.nonmissingtype(t)
+                    if nt <: Dates.Date
+                        jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
+                        type_width = 11
+                    elseif nt <: Dates.DateTime
+                        jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
+                        type_width = 20
+                    end
                 end
+                w = max(type_width, length(string(c)) + 2)
+                jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, w * 256)
             end
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
-            for (i, c) in enumerate(Tables.columnnames(table))
+            for (i, c) in enumerate(cols)
                 cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
                 jcall(cell, "setCellValue", Nothing, (JString,), string(c))
             end
