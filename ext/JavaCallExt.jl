@@ -64,6 +64,8 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 for (i, val) in enumerate(vals)
                     cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
                     if val === missing
+                    elseif val isa Bool
+                        jcall(cell, "setCellValue", Nothing, (jboolean,), val)
                     elseif val isa Dates.Date
                         datetime = jcall(LocalDateTime, "of", LocalDateTime, (jint, jint, jint, jint, jint), year(val), month(val), day(val), 0, 0)
                         jcall(cell, "setCellValue", Nothing, (LocalDateTime,), datetime)
