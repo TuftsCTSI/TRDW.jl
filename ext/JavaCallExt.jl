@@ -8,6 +8,8 @@ using Pkg.Artifacts
 using Tables
 using Dates
 
+const ByteArrayInputStream = @jimport java.io.ByteArrayInputStream
+const ByteArrayOutputStream = @jimport java.io.ByteArrayOutputStream
 const CellStyle = @jimport org.apache.poi.ss.usermodel.CellStyle
 const CreationHelper = @jimport org.apache.poi.ss.usermodel.CreationHelper
 const DataFormat = @jimport org.apache.poi.ss.usermodel.DataFormat
@@ -97,42 +99,51 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 end
             end
         end
-        file_output_stream = FileOutputStream((JString,), file)
-        try
-            jcall(workbook, "write", Nothing, (OutputStream,), file_output_stream)
-        finally
-            jcall(file_output_stream, "close", Nothing, ())
+        if password !== nothing
+            buffer = ByteArrayOutputStream(())
+            try
+                jcall(workbook, "write", Nothing, (OutputStream,), buffer)
+            finally
+                jcall(buffer, "close", Nothing, ())
+            end
+            filesystem = POIFSFileSystem(())
+            try
+                agile_encryption_mode = jfield(EncryptionMode, "agile", EncryptionMode)
+                encryption_info = EncryptionInfo((EncryptionMode,), agile_encryption_mode)
+                encryptor = jcall(encryption_info, "getEncryptor", Encryptor, ())
+                jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
+                bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
+                input_stream = ByteArrayInputStream((Vector{jbyte},), bytes)
+                package = jcall(OPCPackage, "open", OPCPackage, (JavaCall.JInputStream,), input_stream)
+                try
+                    encrypted_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
+                    try
+                        jcall(package, "save", Nothing, (OutputStream,), encrypted_stream)
+                    finally
+                        jcall(encrypted_stream, "close", Nothing, ())
+                    end
+                finally
+                    jcall(package, "close", Nothing, ())
+                end
+                file_output_stream = FileOutputStream((JString,), file)
+                try
+                    jcall(filesystem, "writeFilesystem", Nothing, (OutputStream,), file_output_stream)
+                finally
+                    jcall(file_output_stream, "close", Nothing, ())
+                end
+            finally
+                jcall(filesystem, "close", Nothing, ())
+            end
+        else
+            file_output_stream = FileOutputStream((JString,), file)
+            try
+                jcall(workbook, "write", Nothing, (OutputStream,), file_output_stream)
+            finally
+                jcall(file_output_stream, "close", Nothing, ())
+            end
         end
     finally
         jcall(workbook, "dispose", jboolean, ())
-    end
-    password !== nothing || return
-    filesystem = POIFSFileSystem(())
-    try
-        agile_encryption_mode = jfield(EncryptionMode, "agile", EncryptionMode)
-        encryption_info = EncryptionInfo((EncryptionMode,), agile_encryption_mode)
-        encryptor = jcall(encryption_info, "getEncryptor", Encryptor, ())
-        jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
-        read_write_package_access = jfield(PackageAccess, "READ_WRITE", PackageAccess)
-        package = jcall(OPCPackage, "open", OPCPackage, (JString, PackageAccess), file, read_write_package_access)
-        try
-            encrypted_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
-            try
-                jcall(package, "save", Nothing, (OutputStream,), encrypted_stream)
-            finally
-                jcall(encrypted_stream, "close", Nothing, ())
-            end
-        finally
-            jcall(package, "close", Nothing, ())
-        end
-        file_output_stream = FileOutputStream((JString,), file)
-        try
-            jcall(filesystem, "writeFilesystem", Nothing, (OutputStream,), file_output_stream)
-        finally
-            jcall(file_output_stream, "close", Nothing, ())
-        end
-    finally
-        jcall(filesystem, "close", Nothing, ())
     end
     nothing
 end
@@ -225,3 +236,4 @@ function __init__()
 end
 
 end
+
