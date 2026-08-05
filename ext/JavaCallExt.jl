@@ -68,8 +68,10 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 t = Base.nonmissingtype(t)
                 if t <: Dates.Date
                     jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
+                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, 11 * 256)
                 elseif t <: Dates.DateTime
                     jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
+                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, 20 * 256)
                 end
             end
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
