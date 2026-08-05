@@ -26,6 +26,22 @@ const SXSSFRow = @jimport org.apache.poi.xssf.streaming.SXSSFRow
 const SXSSFSheet = @jimport org.apache.poi.xssf.streaming.SXSSFSheet
 const SXSSFWorkbook = @jimport org.apache.poi.xssf.streaming.SXSSFWorkbook
 
+const INVALID_SHEET_NAME_CHARS = r"[\[\]:*?/\\%]"
+const MAX_SHEET_NAME_LENGTH = 31
+
+function validate_sheet_name(name::AbstractString)
+    isempty(name) &&
+        throw(ArgumentError("Sheet name cannot be empty"))
+    length(name) > MAX_SHEET_NAME_LENGTH &&
+        throw(ArgumentError("Sheet name exceeds 31 characters: $(repr(name))"))
+    m = match(INVALID_SHEET_NAME_CHARS, name)
+    m !== nothing &&
+        throw(ArgumentError("Sheet name contains invalid character '$(m.match)': $(repr(name))"))
+    (startswith(name, "'") || endswith(name, "'")) &&
+        throw(ArgumentError("Sheet name cannot start or end with apostrophe: $(repr(name))"))
+    name
+end
+
 function TRDW.XLSX.write(file, table; password = nothing)
     TRDW.XLSX.write(file, ["Sheet1" => table]; password)
 end
@@ -43,6 +59,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         datetime_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
         jcall(datetime_cell_style, "setDataFormat", Nothing, (jshort,), datetime_format_idx)
         for (sheet_name, table) in sheets
+            validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
             for (i, t) in enumerate(Tables.schema(table).types)
                 t !== nothing || continue
