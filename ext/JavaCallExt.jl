@@ -79,27 +79,42 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             end
         end
         file_output_stream = FileOutputStream((JString,), file)
-        jcall(workbook, "write", Nothing, (OutputStream,), file_output_stream)
-        jcall(file_output_stream, "close", Nothing, ())
+        try
+            jcall(workbook, "write", Nothing, (OutputStream,), file_output_stream)
+        finally
+            jcall(file_output_stream, "close", Nothing, ())
+        end
     finally
         jcall(workbook, "dispose", jboolean, ())
     end
     password !== nothing || return
     filesystem = POIFSFileSystem(())
-    agile_encryption_mode = jfield(EncryptionMode, "agile", EncryptionMode)
-    encryption_info = EncryptionInfo((EncryptionMode,), agile_encryption_mode)
-    encryptor = jcall(encryption_info, "getEncryptor", Encryptor, ())
-    jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
-    read_write_package_access = jfield(PackageAccess, "READ_WRITE", PackageAccess)
-    package = jcall(OPCPackage, "open", OPCPackage, (JString, PackageAccess), file, read_write_package_access)
-    encrypted_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
-    jcall(package, "save", Nothing, (OutputStream,), encrypted_stream)
-    jcall(encrypted_stream, "close", Nothing, ())
-    jcall(package, "close", Nothing, ())
-    file_output_stream = FileOutputStream((JString,), file)
-    jcall(filesystem, "writeFilesystem", Nothing, (OutputStream,), file_output_stream)
-    jcall(file_output_stream, "close", Nothing, ())
-    jcall(filesystem, "close", Nothing, ())
+    try
+        agile_encryption_mode = jfield(EncryptionMode, "agile", EncryptionMode)
+        encryption_info = EncryptionInfo((EncryptionMode,), agile_encryption_mode)
+        encryptor = jcall(encryption_info, "getEncryptor", Encryptor, ())
+        jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
+        read_write_package_access = jfield(PackageAccess, "READ_WRITE", PackageAccess)
+        package = jcall(OPCPackage, "open", OPCPackage, (JString, PackageAccess), file, read_write_package_access)
+        try
+            encrypted_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
+            try
+                jcall(package, "save", Nothing, (OutputStream,), encrypted_stream)
+            finally
+                jcall(encrypted_stream, "close", Nothing, ())
+            end
+        finally
+            jcall(package, "close", Nothing, ())
+        end
+        file_output_stream = FileOutputStream((JString,), file)
+        try
+            jcall(filesystem, "writeFilesystem", Nothing, (OutputStream,), file_output_stream)
+        finally
+            jcall(file_output_stream, "close", Nothing, ())
+        end
+    finally
+        jcall(filesystem, "close", Nothing, ())
+    end
     nothing
 end
 
