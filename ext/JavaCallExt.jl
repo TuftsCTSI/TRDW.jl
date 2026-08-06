@@ -31,6 +31,8 @@ const SXSSFWorkbook = @jimport org.apache.poi.xssf.streaming.SXSSFWorkbook
 
 const INVALID_SHEET_NAME_CHARS = r"[\[\]:*?/\\%]"
 const MAX_SHEET_NAME_LENGTH = 31
+const MAX_COL_WIDTH = 12800
+const FALLBACK_COL_WIDTH = 2560
 
 function validate_sheet_name(name::AbstractString)
     isempty(name) &&
@@ -64,22 +66,18 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         for (sheet_name, table) in sheets
             validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
+            jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
             cols = Tables.columnnames(table)
             types = Tables.schema(table).types
-            for (i, (c, t)) in enumerate(zip(cols, types))
-                type_width = 0
+            for (i, t) in enumerate(types)
                 if t !== nothing
                     nt = Base.nonmissingtype(t)
                     if nt <: Dates.Date
                         jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
-                        type_width = 11
                     elseif nt <: Dates.DateTime
                         jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
-                        type_width = 20
                     end
                 end
-                w = max(type_width, length(string(c)) + 2)
-                jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, w * 256)
             end
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
             for (i, c) in enumerate(cols)
@@ -105,6 +103,13 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     else
                         jcall(cell, "setCellValue", Nothing, (JString,), string(val))
                     end
+                end
+            end
+            for i in 0:(length(cols) - 1)
+                jcall(sheet, "autoSizeColumn", Nothing, (jint,), i)
+                w = jcall(sheet, "getColumnWidth", jint, (jint,), i)
+                if w > MAX_COL_WIDTH
+                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i, FALLBACK_COL_WIDTH)
                 end
             end
         end
@@ -245,4 +250,3 @@ function __init__()
 end
 
 end
-
