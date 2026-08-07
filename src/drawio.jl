@@ -147,7 +147,7 @@ function Base.show(io::IO, mime::MIME"text/html", drawio::DrawIO)
             else if (msg.event == "export") {
               const prefix = "data:image/svg+xml;base64,"
               console.assert(msg.data.startsWith(prefix))
-              const svg = atob(msg.data.slice(prefix.length))
+              const svg = new TextDecoder().decode(Uint8Array.from(atob(msg.data.slice(prefix.length)), (m) => m.codePointAt(0)))
               save(svg)
               cellNode._internal_pluto_actions.set_and_run_multiple([cellNode.getAttribute("id")])
               removeFrameNode()
