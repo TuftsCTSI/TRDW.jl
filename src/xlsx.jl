@@ -108,7 +108,7 @@ function get_password()
     end
     pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
     if isfile(pwfile)
-        password = strip(read(open(pwfile), String))
+        password = strip(read(pwfile, String))
         @assert length(password) > 10
     else
         password = make_password()
