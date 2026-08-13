@@ -98,7 +98,7 @@ funsql_write_encrypted_xlsx(::Union{Symbol, AbstractString}, args...; skip=nothi
     throw(ArgumentError("write_encrypted_xlsx requires named sheet pairs.\nUsage: write_encrypted_xlsx(\"filename\", \"Sheet 1\" => query_1(), \"Sheet 2\" => query_2())"))
 
 function make_password()
-    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwzyz0123456789"
+    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz0123456789"
     return join(rand(valid_characters, 13))
 end
 
