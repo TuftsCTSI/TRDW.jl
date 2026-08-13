@@ -765,6 +765,33 @@ struct WriteXLSXSpecification
     skip::Bool
 end
 
+""" @query write_xlsx("filename", "Sheet 1" => query_1(), "Sheet 2" => query_2())
+
+Write multiple query results as sheets in a single unencrypted XLSX workbook.
+The file is written to `download/<filename>_<timestamp>.xlsx`.
+"""
+funsql_write_xlsx(file::Union{Symbol, AbstractString}, sheet1::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
+    WriteXLSXSpecification(string(file), [string(k) => v for (k, v) in (sheet1, rest...)], false, something(skip, get(ENV, "CI", nothing) != "true"))
+
+""" @query write_xlsx("File and sheet name" => query())
+
+Legacy single-pair form. Filename and sheet name are both set to the pair key.
+"""
+function funsql_write_xlsx((name_and_query)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing)
+    @info "No filename provided; using sheet name as filename"
+    name = string(first(name_and_query))
+    query = last(name_and_query)
+    WriteXLSXSpecification(name, [name => query], false, something(skip, get(ENV, "CI", nothing) != "true"))
+end
+
+funsql_write_xlsx(first_sheet::Pair{<:Union{Symbol, AbstractString}, <:Any}, second_sheet::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
+    throw(ArgumentError("Multiple sheets require a filename as the first argument.\nUsage: write_xlsx(\"filename\", \"Sheet 1\" => query_1(), \"Sheet 2\" => query_2())"))
+
+funsql_write_xlsx(file::Union{Symbol, AbstractString}, args...; skip=nothing) =
+    throw(ArgumentError("write_xlsx requires named sheet pairs.\nUsage: write_xlsx(\"filename\", \"Sheet 1\" => query_1(), \"Sheet 2\" => query_2())"))
+
+const funsql_write_xlsx_workbook = funsql_write_xlsx
+
 """ @query write_encrypted_xlsx(prefix => content())
 
 For this to work, include this boilerplate in your notebook:
@@ -775,23 +802,7 @@ For this to work, include this boilerplate in your notebook:
 ```
 """
 funsql_write_encrypted_xlsx((prefix, query)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing) =
-    WriteXLSXSpecification(
-        string(prefix),
-        ["Sheet1" => query],
-        true,
-        something(skip, get(ENV, "CI", nothing) != "true"))
-
-""" @query write_xlsx_workbook("prefix", :sheet1 => query1(), :sheet2 => query2())
-
-Write multiple query results as sheets in a single unencrypted XLSX workbook.
-The file is written to `download/<prefix>_<timestamp>.xlsx`.
-"""
-funsql_write_xlsx_workbook(prefix::Union{Symbol, AbstractString}, sheets::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    WriteXLSXSpecification(
-        string(prefix),
-        [string(k) => v for (k, v) in sheets],
-        false,
-        something(skip, get(ENV, "CI", nothing) != "true"))
+    WriteXLSXSpecification(string(prefix), ["Sheet1" => query], true, something(skip, get(ENV, "CI", nothing) != "true"))
 
 """ @query write_encrypted_xlsx_workbook("prefix", :sheet1 => query1(), :sheet2 => query2())
 
@@ -799,11 +810,7 @@ Write multiple query results as sheets in a single encrypted XLSX workbook.
 Requires JavaCall boilerplate (same as `write_encrypted_xlsx`).
 """
 funsql_write_encrypted_xlsx_workbook(prefix::Union{Symbol, AbstractString}, sheets::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    WriteXLSXSpecification(
-        string(prefix),
-        [string(k) => v for (k, v) in sheets],
-        true,
-        something(skip, get(ENV, "CI", nothing) != "true"))
+    WriteXLSXSpecification(string(prefix), [string(k) => v for (k, v) in sheets], true, something(skip, get(ENV, "CI", nothing) != "true"))
 
 function run(db, spec::WriteXLSXSpecification)
     @assert length(methods(TRDW.XLSX.write)) > 0 """To use XLSX writing you need:
@@ -827,6 +834,8 @@ function run(db, spec::WriteXLSXSpecification)
     suffix = Dates.format(when, "yyyymmddtHHMM")
     filename = "download/$(spec.prefix)_$(suffix).xlsx"
     n_sheets = length(dataframes)
+    sheet_names = join(["\"" * first(p) * "\"" for p in dataframes], ", ")
+    @info "Writing $filename with sheets: $sheet_names"
     summary = n_sheets == 1 ? "$total_rows rows" : "$n_sheets sheets ($total_rows rows)"
     if spec.skip
         @htl("<p>Not writing $summary to $filename: not production schema</p>")
@@ -843,3 +852,4 @@ function run(db, spec::WriteXLSXSpecification)
         """)
     end
 end
+
