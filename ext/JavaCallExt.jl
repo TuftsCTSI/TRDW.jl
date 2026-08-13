@@ -31,8 +31,6 @@ const SXSSFWorkbook = @jimport org.apache.poi.xssf.streaming.SXSSFWorkbook
 
 const INVALID_SHEET_NAME_CHARS = r"[\[\]:*?/\\%]"
 const MAX_SHEET_NAME_LENGTH = 31
-const MAX_COL_WIDTH = 12800
-const FALLBACK_COL_WIDTH = 2560
 
 function validate_sheet_name(name::AbstractString)
     isempty(name) &&
@@ -47,6 +45,9 @@ function validate_sheet_name(name::AbstractString)
     name
 end
 
+sanitize_for_xlsx(s::AbstractString) =
+    replace(s, r"[\x00-\x08\x0B\x0C\x0E-\x1F]" => " ")
+
 function TRDW.XLSX.write(file, table; password = nothing)
     TRDW.XLSX.write(file, ["Sheet1" => table]; password)
 end
@@ -58,26 +59,32 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         date_format = jcall(creation_helper, "createDataFormat", DataFormat, ())
         date_format_idx = jcall(date_format, "getFormat", jshort, (JString,), "yyyy-mm-dd")
         datetime_format = jcall(creation_helper, "createDataFormat", DataFormat, ())
-        datetime_format_idx = jcall(datetime_format, "getFormat", jshort, (JString,), "yyyy-mm-ddTHH:mm:ss")
+        datetime_format_idx = jcall(datetime_format, "getFormat", jshort, (JString,), "yyyy-mm-dd hh:mm:ss")
         date_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
         jcall(date_cell_style, "setDataFormat", Nothing, (jshort,), date_format_idx)
         datetime_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
         jcall(datetime_cell_style, "setDataFormat", Nothing, (jshort,), datetime_format_idx)
+        wrap_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
+        jcall(wrap_cell_style, "setWrapText", Nothing, (jboolean,), true)
         for (sheet_name, table) in sheets
             validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
-            jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
             cols = Tables.columnnames(table)
             types = Tables.schema(table).types
-            for (i, t) in enumerate(types)
+            for (i, (c, t)) in enumerate(zip(cols, types))
+                type_width = 0
                 if t !== nothing
                     nt = Base.nonmissingtype(t)
                     if nt <: Dates.Date
                         jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
+                        type_width = 11
                     elseif nt <: Dates.DateTime
                         jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
+                        type_width = 20
                     end
                 end
+                w = max(type_width, length(string(c)) + 2)
+                jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, w * 256)
             end
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
             for (i, c) in enumerate(cols)
@@ -101,15 +108,12 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     elseif val isa Number
                         jcall(cell, "setCellValue", Nothing, (jdouble,), val)
                     else
-                        jcall(cell, "setCellValue", Nothing, (JString,), string(val))
+                        str = sanitize_for_xlsx(string(val))
+                        if contains(str, '\n')
+                            jcall(cell, "setCellStyle", Nothing, (CellStyle,), wrap_cell_style)
+                        end
+                        jcall(cell, "setCellValue", Nothing, (JString,), str)
                     end
-                end
-            end
-            for i in 0:(length(cols) - 1)
-                jcall(sheet, "autoSizeColumn", Nothing, (jint,), i)
-                w = jcall(sheet, "getColumnWidth", jint, (jint,), i)
-                if w > MAX_COL_WIDTH
-                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i, FALLBACK_COL_WIDTH)
                 end
             end
         end
@@ -171,75 +175,40 @@ const SqlSplit = @jimport org.ohdsi.sql.SqlSplit
 
 function TRDW.OHDSI.cohort_definition_to_md(str)
     mr = MarkdownRender(())
-    jcall(
-        mr,
-        "renderCohort",
-        JString,
-        (JString,),
-        str) |> Markdown.parse
+    jcall(mr, "renderCohort", JString, (JString,), str) |> Markdown.parse
 end
 
 function TRDW.OHDSI.concept_set_list_definition_to_md(str)
     mr = MarkdownRender(())
-    jcall(
-        mr,
-        "renderConceptSetList",
-        JString,
-        (JString,),
-        str) |> Markdown.parse
+    jcall(mr, "renderConceptSetList", JString, (JString,), str) |> Markdown.parse
 end
 
 function TRDW.OHDSI.concept_set_definition_to_md(str)
     mr = MarkdownRender(())
-    jcall(
-        mr,
-        "renderConceptSet",
-        JString,
-        (JString,),
-        str) |> Markdown.parse
+    jcall(mr, "renderConceptSet", JString, (JString,), str) |> Markdown.parse
 end
 
 function TRDW.OHDSI.cohort_definition_to_sql_template(str)
     builder = CohortExpressionQueryBuilder(())
-    jcall(
-        builder,
-        "buildExpressionQuery",
-        JString,
-        (JString, BuildExpressionQueryOptions),
-        str,
-        nothing)
+    jcall(builder, "buildExpressionQuery", JString, (JString, BuildExpressionQueryOptions), str, nothing)
 end
 
 function TRDW.OHDSI.render_sql(template, params = (;))
-    jcall(
-        SqlRender,
-        "renderSql",
-        JString,
-        (JString, Vector{JString}, Vector{JString}),
+    jcall(SqlRender, "renderSql", JString, (JString, Vector{JString}, Vector{JString}),
         template,
         collect(String, string.(keys(params))),
         collect(String, string.(values(params))))
 end
 
 function TRDW.OHDSI.translate_sql(sql; dialect = "spark", session_id = nothing, temp_emulation_schema = nothing)
-    jcall(
-        SqlTranslate,
-        "translateSql",
-        JString,
-        (JString, JString, JString, JString),
-        sql,
-        dialect,
+    jcall(SqlTranslate, "translateSql", JString, (JString, JString, JString, JString),
+        sql, dialect,
         session_id !== nothing ? string(session_id) : nothing,
         temp_emulation_schema !== nothing ? string(temp_emulation_schema) : nothing)
 end
 
 function TRDW.OHDSI.split_sql(sql)
-    v = jcall(
-        SqlSplit,
-        "splitSql",
-        Vector{JString},
-        (JString,),
-        sql)
+    v = jcall(SqlSplit, "splitSql", Vector{JString}, (JString,), sql)
     map(JavaCall.unsafe_string, v)
 end
 
