@@ -66,6 +66,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         jcall(datetime_cell_style, "setDataFormat", Nothing, (jshort,), datetime_format_idx)
         wrap_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
         jcall(wrap_cell_style, "setWrapText", Nothing, (jboolean,), true)
+        had_control_chars = false
         for (sheet_name, table) in sheets
             validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
@@ -108,7 +109,9 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     elseif val isa Number
                         jcall(cell, "setCellValue", Nothing, (jdouble,), val)
                     else
-                        str = sanitize_for_xlsx(string(val))
+                        raw = string(val)
+                        str = sanitize_for_xlsx(raw)
+                        had_control_chars = had_control_chars || str !== raw
                         if contains(str, '\n')
                             jcall(cell, "setCellStyle", Nothing, (CellStyle,), wrap_cell_style)
                         end
@@ -116,6 +119,9 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     end
                 end
             end
+        end
+        if had_control_chars
+            @warn "Control characters were replaced with spaces"
         end
         if password !== nothing
             buffer = ByteArrayOutputStream(())
