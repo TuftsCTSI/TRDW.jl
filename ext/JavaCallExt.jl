@@ -46,7 +46,7 @@ function validate_sheet_name(name::AbstractString)
 end
 
 sanitize_for_xlsx(s::AbstractString) =
-    replace(s, r"[\x00-\x08\x0B\x0C\x0E-\x1F]" => " ")
+    map(c -> c in '\x00':'\x08' || c == '\x0b' || c == '\x0c' || c in '\x0e':'\x1f' ? ' ' : c, s)
 
 function TRDW.XLSX.write(file, table; password = nothing)
     TRDW.XLSX.write(file, ["Sheet1" => table]; password)
