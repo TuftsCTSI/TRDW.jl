@@ -778,8 +778,8 @@ funsql_write_xlsx(file::Union{Symbol, AbstractString}, sheet1::Pair{<:Union{Symb
 Legacy single-pair form. Filename and sheet name are both set to the pair key.
 """
 function funsql_write_xlsx((name_and_query)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing)
-    @info "No filename provided; using sheet name as filename"
     name = string(first(name_and_query))
+    @info "No filename provided; using \"$name\" as filename"
     query = last(name_and_query)
     WriteXLSXSpecification(name, [name => query], false, something(skip, get(ENV, "CI", nothing) != "true"))
 end
@@ -834,8 +834,6 @@ function run(db, spec::WriteXLSXSpecification)
     suffix = Dates.format(when, "yyyymmddtHHMM")
     filename = "download/$(spec.prefix)_$(suffix).xlsx"
     n_sheets = length(dataframes)
-    sheet_names = join(["\"" * first(p) * "\"" for p in dataframes], ", ")
-    @info "Writing $filename with sheets: $sheet_names"
     summary = n_sheets == 1 ? "$total_rows rows" : "$n_sheets sheets ($total_rows rows)"
     if spec.skip
         @htl("<p>Not writing $summary to $filename: not production schema</p>")
