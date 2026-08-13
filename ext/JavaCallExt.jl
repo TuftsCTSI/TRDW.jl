@@ -29,25 +29,6 @@ const SXSSFRow = @jimport org.apache.poi.xssf.streaming.SXSSFRow
 const SXSSFSheet = @jimport org.apache.poi.xssf.streaming.SXSSFSheet
 const SXSSFWorkbook = @jimport org.apache.poi.xssf.streaming.SXSSFWorkbook
 
-const INVALID_SHEET_NAME_CHARS = r"[\[\]:*?/\\%]"
-const MAX_SHEET_NAME_LENGTH = 31
-
-function validate_sheet_name(name::AbstractString)
-    isempty(name) &&
-        throw(ArgumentError("Sheet name cannot be empty"))
-    length(name) > MAX_SHEET_NAME_LENGTH &&
-        throw(ArgumentError("Sheet name exceeds 31 characters: $(repr(name))"))
-    m = match(INVALID_SHEET_NAME_CHARS, name)
-    m !== nothing &&
-        throw(ArgumentError("Sheet name contains invalid character '$(m.match)': $(repr(name))"))
-    (startswith(name, "'") || endswith(name, "'")) &&
-        throw(ArgumentError("Sheet name cannot start or end with apostrophe: $(repr(name))"))
-    name
-end
-
-sanitize_for_xlsx(s::AbstractString) =
-    map(c -> c in '\x00':'\x08' || c == '\x0b' || c == '\x0c' || c in '\x0e':'\x1f' ? ' ' : c, s)
-
 function TRDW.XLSX.write(file, table; password = nothing)
     TRDW.XLSX.write(file, ["Sheet1" => table]; password)
 end
@@ -68,21 +49,20 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         jcall(wrap_cell_style, "setWrapText", Nothing, (jboolean,), true)
         had_control_chars = false
         for (sheet_name, table) in sheets
-            validate_sheet_name(sheet_name)
+            TRDW.XLSX.validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
             cols = Tables.columnnames(table)
             types = Tables.schema(table).types
             for (i, (c, t)) in enumerate(zip(cols, types))
-                type_width = 0
-                if t !== nothing
-                    nt = Base.nonmissingtype(t)
-                    if nt <: Dates.Date
-                        jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
-                        type_width = 11
-                    elseif nt <: Dates.DateTime
-                        jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
-                        type_width = 20
-                    end
+                nt = Base.nonmissingtype(t)
+                type_width = if nt <: Dates.Date
+                    jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
+                    11
+                elseif nt <: Dates.DateTime
+                    jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
+                    20
+                else
+                    0
                 end
                 w = max(type_width, length(string(c)) + 2)
                 jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, w * 256)
@@ -94,8 +74,8 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             end
             for (k, r) in enumerate(Tables.rows(table))
                 row = jcall(sheet, "createRow", SXSSFRow, (jint,), k)
-                vals = Any[Tables.getcolumn(r, c) for c in Tables.columnnames(r)]
-                for (i, val) in enumerate(vals)
+                for (i, c) in enumerate(Tables.columnnames(r))
+                    val = Tables.getcolumn(r, c)
                     cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
                     if val === missing
                     elseif val isa Bool
@@ -110,7 +90,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                         jcall(cell, "setCellValue", Nothing, (jdouble,), val)
                     else
                         raw = string(val)
-                        str = sanitize_for_xlsx(raw)
+                        str = TRDW.XLSX.sanitize_for_xlsx(raw)
                         had_control_chars = had_control_chars || str !== raw
                         if contains(str, '\n')
                             jcall(cell, "setCellStyle", Nothing, (CellStyle,), wrap_cell_style)
