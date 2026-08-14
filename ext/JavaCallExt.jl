@@ -65,7 +65,8 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
             for (i, c) in enumerate(cols)
                 cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
-                jcall(cell, "setCellValue", Nothing, (JString,), string(c))
+                header = TRDW.XLSX.sanitize_for_xlsx(TRDW.XLSX.decode_funsql_label(string(c)))
+                jcall(cell, "setCellValue", Nothing, (JString,), header)
             end
             for (k, r) in enumerate(Tables.rows(table))
                 row = jcall(sheet, "createRow", SXSSFRow, (jint,), k)
@@ -96,6 +97,10 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             end
             for i in 1:length(cols)
                 jcall(sheet, "autoSizeColumn", Nothing, (jint,), i-1)
+                width = jcall(sheet, "getColumnWidth", jint, (jint,), i-1)
+                if width > TRDW.XLSX.MAX_COLUMN_WIDTH
+                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, TRDW.XLSX.DEFAULT_COLUMN_WIDTH)
+                end
             end
         end
         if had_control_chars
@@ -203,3 +208,4 @@ function __init__()
 end
 
 end #module JavaCallExt
+

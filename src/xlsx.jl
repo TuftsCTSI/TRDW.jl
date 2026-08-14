@@ -11,7 +11,41 @@ The multi-sheet form accepts a vector of `name => table` pairs.
 function write
 end
 
+"""Characters that FunSQL percent-encodes in column labels.
+Period (`.`) is the qualifier separator; percent (`%`) is the escape character.
+Column headers from FunSQL queries contain `%2E` for period and `%25` for percent,
+and must be decoded for display via `decode_funsql_label`."""
+const FUNSQL_ENCODED_CHARS = ('.', '%')
+
+"""Maximum Unicode codepoint that JavaCall can correctly convert to a Java String.
+Characters above this threshold (supplementary plane, U+10000 and above) require
+UTF-16 surrogate pairs, which JavaCall's JNI string conversion does not handle.
+Such characters are silently corrupted (e.g., U+1F7E2 appears as U+00F0)."""
+const JAVACALL_MAX_CODEPOINT = 0xFFFF
+
+"""Maximum characters in an Excel cell. Values exceeding this limit are silently
+truncated when the file is opened in Excel."""
+const EXCEL_MAX_CELL_LENGTH = 32767
+
+"""Column auto-size threshold in Apache POI units (1/256th of a character width).
+Columns wider than this after auto-sizing are set to DEFAULT_COLUMN_WIDTH instead."""
+const MAX_COLUMN_WIDTH = 70 * 256
+
+"""Fallback column width (POI units) applied when auto-sized width exceeds
+MAX_COLUMN_WIDTH. The visible narrowing signals that content is truncated."""
+const DEFAULT_COLUMN_WIDTH = 50 * 256
+
+"""XML control character ranges invalid in OOXML cell content.
+Includes C0 controls (U+0000..U+0008, U+000B, U+000C, U+000E..U+001F)
+but excludes tab (U+0009), newline (U+000A), and carriage return (U+000D)
+which are valid in XML text nodes. Referenced by `sanitize_for_xlsx`."""
+const XML_INVALID_CONTROL_CHARS = ('\x00':'\x08', '\x0b':'\x0b', '\x0c':'\x0c', '\x0e':'\x1f')
+
+"""Characters invalid in Excel sheet names. Combines the OOXML specification
+(brackets, colon, star, question, slashes) with percent, which is restricted
+because sheet names may be used as filename prefixes in download URLs."""
 const INVALID_SHEET_NAME_CHARS = r"[\[\]:*?/\\%]"
+
 const MAX_SHEET_NAME_LENGTH = 31
 
 function validate_sheet_name(name::AbstractString)
@@ -24,9 +58,61 @@ function validate_sheet_name(name::AbstractString)
         throw(ArgumentError("Sheet name contains invalid character '$(m.match)': $(repr(name))"))
     (startswith(name, "'") || endswith(name, "'")) &&
         throw(ArgumentError("Sheet name cannot start or end with apostrophe: $(repr(name))"))
+    check_javacall_compatible(name; context = "sheet name \"$name\"")
     name
 end
 
+"""
+    decode_funsql_label(s) -> String
+
+Decode FunSQL percent-encoded column labels for display.
+Converts `%2E` to `.`, `%25` to `%`, and any other valid `%XX` hex sequence.
+Invalid sequences (non-hex digits, incomplete, trailing `%`) pass through unchanged.
+"""
+decode_funsql_label(s::AbstractString) =
+    replace(s, r"%([0-9A-Fa-f]{2})" => m -> Char(parse(UInt8, m[2:3], base=16)))
+
+"""
+    check_javacall_compatible(s; context) -> s
+
+Verify that all characters in `s` have codepoints within the Basic Multilingual Plane
+(at or below U+FFFF). Throws `ArgumentError` with the provided context if a
+supplementary plane character is found.
+"""
+function check_javacall_compatible(s::AbstractString; context::AbstractString)
+    for c in s
+        if codepoint(c) > JAVACALL_MAX_CODEPOINT
+            throw(ArgumentError(
+                "Character '$(c)' (U+$(uppercase(string(codepoint(c), base=16, pad=5)))) " *
+                "in $context cannot be encoded by JavaCall " *
+                "(supplementary plane characters above U+FFFF are not supported)"))
+        end
+    end
+    s
+end
+
+"""
+    check_cell_length(s; context) -> s
+
+Verify that `s` does not exceed Excel's maximum cell length of $EXCEL_MAX_CELL_LENGTH
+characters. Throws `ArgumentError` with the provided context if exceeded.
+"""
+function check_cell_length(s::AbstractString; context::AbstractString)
+    n = length(s)
+    if n > EXCEL_MAX_CELL_LENGTH
+        throw(ArgumentError(
+            "Cell value in $context exceeds Excel's maximum length " *
+            "of $EXCEL_MAX_CELL_LENGTH characters (actual: $n)"))
+    end
+    s
+end
+
+"""
+    sanitize_for_xlsx(s) -> String
+
+Replace XML-invalid control characters with spaces.
+Preserves tab (U+0009), newline (U+000A), and carriage return (U+000D).
+"""
 sanitize_for_xlsx(s::AbstractString) =
     map(c -> c in '\x00':'\x08' || c == '\x0b' || c == '\x0c' || c in '\x0e':'\x1f' ? ' ' : c, s)
 
@@ -108,12 +194,28 @@ function get_password()
     return password
 end
 
+function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFrame}})
+    for (name, df) in dataframes
+        XLSX.validate_sheet_name(name)
+        for c in Tables.columnnames(df)
+            header = XLSX.decode_funsql_label(string(c))
+            XLSX.check_javacall_compatible(header; context = "column header \"$(string(c))\"")
+        end
+        for (k, r) in enumerate(Tables.rows(df))
+            for c in Tables.columnnames(r)
+                val = Tables.getcolumn(r, c)
+                if !ismissing(val) && !(val isa Bool) && !(val isa Dates.Date) && !(val isa Dates.DateTime) && !(val isa Number)
+                    s = string(val)
+                    ctx = "column \"$(string(c))\", row $k"
+                    XLSX.check_javacall_compatible(s; context = ctx)
+                    XLSX.check_cell_length(s; context = ctx)
+                end
+            end
+        end
+    end
+end
+
 function run(db, spec::WriteXLSXSpecification)
-    @assert length(methods(TRDW.XLSX.write)) > 0 """To use XLSX writing you need:
-      import JavaCall
-      # then, after TRDW is imported
-      JavaCall.isloaded() ? nothing : JavaCall.init()
-    """
     dataframes = Pair{String, DataFrame}[]
     total_rows = 0
     for (name, query) in spec.sheets
@@ -122,6 +224,7 @@ function run(db, spec::WriteXLSXSpecification)
         total_rows += size(df, 1)
         push!(dataframes, name => df)
     end
+    _validate_xlsx_content(dataframes)
     password = spec.encrypt ? get_password() : nothing
     when =
         let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
@@ -136,6 +239,11 @@ function run(db, spec::WriteXLSXSpecification)
     elseif spec.encrypt && (isnothing(password) || password == "")
         @htl("<p>Not writing $summary to $filename: password not available</p>")
     else
+        @assert length(methods(TRDW.XLSX.write)) > 0 """To use XLSX writing you need:
+          import JavaCall
+          # then, after TRDW is imported
+          JavaCall.isloaded() ? nothing : JavaCall.init()
+        """
         mkpath(dirname(filename))
         assert_new_file(filename)
         TRDW.XLSX.write(filename, dataframes; password)
