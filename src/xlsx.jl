@@ -43,11 +43,25 @@ _xlsx_spec(file, sheets; encrypt, skip) =
     WriteXLSXSpecification(string(file), [string(k) => v for (k, v) in sheets],
         encrypt, something(skip, get(ENV, "CI", nothing) != "true"))
 
-""" @query write_xlsx("filename", "Sheet 1" => query_1(), "Sheet 2" => query_2())
-    @query write_xlsx("name" => query())
+function _xlsx_dispatch(encrypt::Bool, file::Union{Symbol, AbstractString}, sheet1::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing)
+    _xlsx_spec(file, (sheet1, rest...); encrypt, skip)
+end
+
+function _xlsx_dispatch(encrypt::Bool, sheet1::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing)
+    name = string(first(sheet1))
+    @info "No filename provided; using \"$name\" as filename"
+    _xlsx_spec(name, (sheet1, rest...); encrypt, skip)
+end
+
+function _xlsx_dispatch(::Bool, ::Union{Symbol, AbstractString}, args...; skip=nothing)
+    throw(ArgumentError("Arguments after the filename must be \"Name\" => query() pairs."))
+end
+
+"""
+    @query write_xlsx("filename", "Sheet 1" => query_1(), "Sheet 2" => query_2())
 
 Write query results to an unencrypted XLSX workbook.
-The single-pair form uses the pair key as both filename and sheet name.
+When the filename is omitted, it defaults to the first sheet name.
 
 Requires JavaCall boilerplate in your notebook:
 
@@ -55,26 +69,13 @@ Requires JavaCall boilerplate in your notebook:
     JavaCall.isloaded() ? nothing : JavaCall.init()
     JavaCall.assertroottask_or_goodenv()
 """
-funsql_write_xlsx(file::Union{Symbol, AbstractString}, sheet1::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    _xlsx_spec(file, (sheet1, rest...); encrypt=false, skip)
+funsql_write_xlsx(args...; skip=nothing) = _xlsx_dispatch(false, args...; skip)
 
-function funsql_write_xlsx((p)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing)
-    name = string(first(p))
-    @info "No filename provided; using \"$name\" as filename"
-    _xlsx_spec(name, (name => last(p),); encrypt=false, skip)
-end
-
-funsql_write_xlsx(::Pair{<:Union{Symbol, AbstractString}, <:Any}, ::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    throw(ArgumentError("Multiple sheets require a filename as the first argument.\nUsage: write_xlsx(\"filename\", \"Sheet 1\" => query_1(), \"Sheet 2\" => query_2())"))
-
-funsql_write_xlsx(::Union{Symbol, AbstractString}, args...; skip=nothing) =
-    throw(ArgumentError("write_xlsx requires named sheet pairs.\nUsage: write_xlsx(\"filename\", \"Sheet 1\" => query_1(), \"Sheet 2\" => query_2())"))
-
-""" @query write_encrypted_xlsx("filename", "Sheet 1" => query_1(), "Sheet 2" => query_2())
-    @query write_encrypted_xlsx("name" => query())
+"""
+    @query write_encrypted_xlsx("filename", "Sheet 1" => query_1(), "Sheet 2" => query_2())
 
 Write query results to a password-protected XLSX workbook.
-The single-pair form uses the pair key as both filename and sheet name.
+When the filename is omitted, it defaults to the first sheet name.
 
 Requires JavaCall boilerplate in your notebook:
 
@@ -82,20 +83,7 @@ Requires JavaCall boilerplate in your notebook:
     JavaCall.isloaded() ? nothing : JavaCall.init()
     JavaCall.assertroottask_or_goodenv()
 """
-funsql_write_encrypted_xlsx(file::Union{Symbol, AbstractString}, sheet1::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    _xlsx_spec(file, (sheet1, rest...); encrypt=true, skip)
-
-function funsql_write_encrypted_xlsx((p)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing)
-    name = string(first(p))
-    @info "No filename provided; using \"$name\" as filename"
-    _xlsx_spec(name, (name => last(p),); encrypt=true, skip)
-end
-
-funsql_write_encrypted_xlsx(::Pair{<:Union{Symbol, AbstractString}, <:Any}, ::Pair{<:Union{Symbol, AbstractString}, <:Any}, rest::Pair{<:Union{Symbol, AbstractString}, <:Any}...; skip=nothing) =
-    throw(ArgumentError("Multiple sheets require a filename as the first argument.\nUsage: write_encrypted_xlsx(\"filename\", \"Sheet 1\" => query_1(), \"Sheet 2\" => query_2())"))
-
-funsql_write_encrypted_xlsx(::Union{Symbol, AbstractString}, args...; skip=nothing) =
-    throw(ArgumentError("write_encrypted_xlsx requires named sheet pairs.\nUsage: write_encrypted_xlsx(\"filename\", \"Sheet 1\" => query_1(), \"Sheet 2\" => query_2())"))
+funsql_write_encrypted_xlsx(args...; skip=nothing) = _xlsx_dispatch(true, args...; skip)
 
 function make_password()
     valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz0123456789"
@@ -158,3 +146,4 @@ function run(db, spec::WriteXLSXSpecification)
         """)
     end
 end
+
