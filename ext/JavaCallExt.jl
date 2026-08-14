@@ -65,7 +65,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
             for (i, c) in enumerate(cols)
                 cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
-                header = TRDW.XLSX.sanitize_for_xlsx(TRDW.XLSX.decode_funsql_label(string(c)))
+                header = TRDW.XLSX.sanitize_for_xlsx(string(c))
                 jcall(cell, "setCellValue", Nothing, (JString,), header)
             end
             for (k, r) in enumerate(Tables.rows(table))

@@ -11,11 +11,10 @@ The multi-sheet form accepts a vector of `name => table` pairs.
 function write
 end
 
-"""Characters that FunSQL percent-encodes in column labels.
-Period (`.`) is the qualifier separator; percent (`%`) is the escape character.
-Column headers from FunSQL queries contain `%2E` for period and `%25` for percent,
-and must be decoded for display via `decode_funsql_label`."""
-const FUNSQL_ENCODED_CHARS = ('.', '%')
+"""Characters forbidden in column headers for XLSX output.
+Period and percent conflict with FunSQL's internal label encoding
+and must not appear in output column names."""
+const HEADER_FORBIDDEN_CHARS = ('.', '%')
 
 """Maximum Unicode codepoint that JavaCall can correctly convert to a Java String.
 Characters above this threshold (supplementary plane, U+10000 and above) require
@@ -38,13 +37,14 @@ const DEFAULT_COLUMN_WIDTH = 50 * 256
 """XML control character ranges invalid in OOXML cell content.
 Includes C0 controls (U+0000..U+0008, U+000B, U+000C, U+000E..U+001F)
 but excludes tab (U+0009), newline (U+000A), and carriage return (U+000D)
-which are valid in XML text nodes. Referenced by `sanitize_for_xlsx`."""
+which are valid in XML text nodes."""
 const XML_INVALID_CONTROL_CHARS = ('\x00':'\x08', '\x0b':'\x0b', '\x0c':'\x0c', '\x0e':'\x1f')
 
-"""Characters invalid in Excel sheet names. Combines the OOXML specification
-(brackets, colon, star, question, slashes) with percent, which is restricted
-because sheet names may be used as filename prefixes in download URLs."""
-const INVALID_SHEET_NAME_CHARS = r"[\[\]:*?/\\%]"
+"""Characters allowed in sheet names. Only filesystem-safe printable ASCII is
+permitted because sheet names may be used as filename prefixes."""
+const ALLOWED_SHEET_NAME_CHARS = Set{Char}(
+    vcat(collect('A':'Z'), collect('a':'z'), collect('0':'9'),
+         [' ', '-', '_', ',', '(', ')']))
 
 const MAX_SHEET_NAME_LENGTH = 31
 
@@ -52,25 +52,31 @@ function validate_sheet_name(name::AbstractString)
     isempty(name) &&
         throw(ArgumentError("Sheet name cannot be empty"))
     length(name) > MAX_SHEET_NAME_LENGTH &&
-        throw(ArgumentError("Sheet name exceeds 31 characters: $(repr(name))"))
-    m = match(INVALID_SHEET_NAME_CHARS, name)
-    m !== nothing &&
-        throw(ArgumentError("Sheet name contains invalid character '$(m.match)': $(repr(name))"))
-    (startswith(name, "'") || endswith(name, "'")) &&
-        throw(ArgumentError("Sheet name cannot start or end with apostrophe: $(repr(name))"))
+        throw(ArgumentError("Sheet name exceeds $MAX_SHEET_NAME_LENGTH characters: $(repr(name))"))
+    for c in name
+        if c ∉ ALLOWED_SHEET_NAME_CHARS
+            throw(ArgumentError("Sheet name contains character '$(c)' which is not allowed: $(repr(name))"))
+        end
+    end
     check_javacall_compatible(name; context = "sheet name \"$name\"")
     name
 end
 
 """
-    decode_funsql_label(s) -> String
+    check_header_chars(s; context) -> s
 
-Decode FunSQL percent-encoded column labels for display.
-Converts `%2E` to `.`, `%25` to `%`, and any other valid `%XX` hex sequence.
-Invalid sequences (non-hex digits, incomplete, trailing `%`) pass through unchanged.
+Verify that column header `s` does not contain forbidden characters.
+Throws `ArgumentError` if period or percent is found.
 """
-decode_funsql_label(s::AbstractString) =
-    replace(s, r"%([0-9A-Fa-f]{2})" => m -> Char(parse(UInt8, m[2:3], base=16)))
+function check_header_chars(s::AbstractString; context::AbstractString)
+    for c in s
+        if c in HEADER_FORBIDDEN_CHARS
+            throw(ArgumentError(
+                "Column header '$s' contains '$c' which is not allowed"))
+        end
+    end
+    s
+end
 
 """
     check_javacall_compatible(s; context) -> s
@@ -198,8 +204,9 @@ function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFr
     for (name, df) in dataframes
         XLSX.validate_sheet_name(name)
         for c in Tables.columnnames(df)
-            header = XLSX.decode_funsql_label(string(c))
-            XLSX.check_javacall_compatible(header; context = "column header \"$(string(c))\"")
+            header = string(c)
+            XLSX.check_header_chars(header; context = "column header \"$header\"")
+            XLSX.check_javacall_compatible(header; context = "column header \"$header\"")
         end
         for (k, r) in enumerate(Tables.rows(df))
             for c in Tables.columnnames(r)
