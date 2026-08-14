@@ -11,10 +11,23 @@ The multi-sheet form accepts a vector of `name => table` pairs.
 function write
 end
 
-"""Characters forbidden in column headers for XLSX output.
-Period and percent conflict with FunSQL's internal label encoding
-and must not appear in output column names."""
-const HEADER_FORBIDDEN_CHARS = ('.', '%')
+"""Characters that FunSQL percent-encodes in column labels.
+Period (`.`) is the qualifier separator; percent (`%`) is the escape character.
+Column headers from FunSQL queries contain `%2E` for period and `%25` for percent,
+and must be decoded for display via `decode_funsql_label`."""
+const FUNSQL_ENCODED_CHARS = ('.', '%')
+
+"""
+    decode_funsql_label(s) -> String
+
+Decode a FunSQL percent-encoded column label back to its original form.
+Reverses the encoding where `.` becomes `%2E` and `%` becomes `%25`.
+"""
+function decode_funsql_label(s::AbstractString)
+    s = replace(s, "%2E" => ".")
+    s = replace(s, "%25" => "%")
+    s
+end
 
 """Maximum Unicode codepoint that JavaCall can correctly convert to a Java String.
 Characters above this threshold (supplementary plane, U+10000 and above) require
@@ -60,22 +73,6 @@ function validate_sheet_name(name::AbstractString)
     end
     check_javacall_compatible(name; context = "sheet name \"$name\"")
     name
-end
-
-"""
-    check_header_chars(s; context) -> s
-
-Verify that column header `s` does not contain forbidden characters.
-Throws `ArgumentError` if period or percent is found.
-"""
-function check_header_chars(s::AbstractString; context::AbstractString)
-    for c in s
-        if c in HEADER_FORBIDDEN_CHARS
-            throw(ArgumentError(
-                "Column header '$s' contains '$c' which is not allowed"))
-        end
-    end
-    s
 end
 
 """
@@ -205,7 +202,6 @@ function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFr
         XLSX.validate_sheet_name(name)
         for c in Tables.columnnames(df)
             header = string(c)
-            XLSX.check_header_chars(header; context = "column header \"$header\"")
             XLSX.check_javacall_compatible(header; context = "column header \"$header\"")
         end
         for (k, r) in enumerate(Tables.rows(df))
