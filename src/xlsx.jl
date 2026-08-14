@@ -123,6 +123,49 @@ Preserves tab (U+0009), newline (U+000A), and carriage return (U+000D).
 sanitize_for_xlsx(s::AbstractString) =
     map(c -> c in '\x00':'\x08' || c == '\x0b' || c == '\x0c' || c in '\x0e':'\x1f' ? ' ' : c, s)
 
+_is_hex(b::UInt8) =
+    (UInt8('0') <= b <= UInt8('9')) ||
+    (UInt8('A') <= b <= UInt8('F')) ||
+    (UInt8('a') <= b <= UInt8('f'))
+
+function _hex_val(b::UInt8)
+    if UInt8('0') <= b <= UInt8('9')
+        b - UInt8('0')
+    elseif UInt8('A') <= b <= UInt8('F')
+        b - UInt8('A') + 0x0A
+    else
+        b - UInt8('a') + 0x0A
+    end
+end
+
+"""
+    percent_decode(s) -> String
+
+Decode all percent-encoded sequences (`%XX`) in `s` back to their original bytes,
+then interpret the result as UTF-8. Used during validation to recover the original
+characters from FunSQL's percent-encoded column labels so that
+`check_javacall_compatible` can detect supplementary plane characters that would
+otherwise be hidden behind ASCII percent-encoding.
+"""
+function percent_decode(s::AbstractString)
+    bytes = UInt8[]
+    i = 1
+    while i <= ncodeunits(s)
+        if codeunit(s, i) == UInt8('%') && i + 2 <= ncodeunits(s)
+            hi = codeunit(s, i + 1)
+            lo = codeunit(s, i + 2)
+            if _is_hex(hi) && _is_hex(lo)
+                push!(bytes, _hex_val(hi) << 4 | _hex_val(lo))
+                i += 3
+                continue
+            end
+        end
+        push!(bytes, codeunit(s, i))
+        i += 1
+    end
+    String(bytes)
+end
+
 end # module XLSX
 
 struct WriteXLSXSpecification
@@ -205,8 +248,9 @@ function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFr
     for (name, df) in dataframes
         XLSX.validate_sheet_name(name)
         for c in Tables.columnnames(df)
-            header = string(c)
-            XLSX.check_javacall_compatible(header; context = "column header \"$header\"")
+            raw = string(c)
+            decoded = XLSX.percent_decode(raw)
+            XLSX.check_javacall_compatible(decoded; context = "column header \"$decoded\"")
         end
         for (k, r) in enumerate(Tables.rows(df))
             for c in Tables.columnnames(r)
