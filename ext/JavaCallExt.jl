@@ -51,21 +51,16 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         for (sheet_name, table) in sheets
             TRDW.XLSX.validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
+            jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
             cols = Tables.columnnames(table)
             types = Tables.schema(table).types
             for (i, (c, t)) in enumerate(zip(cols, types))
                 nt = Base.nonmissingtype(t)
-                type_width = if nt <: Dates.Date
+                if nt <: Dates.Date
                     jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, date_cell_style)
-                    11
                 elseif nt <: Dates.DateTime
                     jcall(sheet, "setDefaultColumnStyle", Nothing, (jint, CellStyle), i-1, datetime_cell_style)
-                    20
-                else
-                    0
                 end
-                w = max(type_width, length(string(c)) + 2)
-                jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, w * 256)
             end
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
             for (i, c) in enumerate(cols)
@@ -98,6 +93,9 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                         jcall(cell, "setCellValue", Nothing, (JString,), str)
                     end
                 end
+            end
+            for i in 1:length(cols)
+                jcall(sheet, "autoSizeColumn", Nothing, (jint,), i-1)
             end
         end
         if had_control_chars
@@ -204,4 +202,4 @@ function __init__()
     JavaCall.addClassPath(joinpath(artifact"SqlRender", "SqlRender-1.16.1/inst/java/*"))
 end
 
-end
+end #module JavaCallExt
