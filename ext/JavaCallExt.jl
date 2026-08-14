@@ -98,9 +98,11 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             for i in 1:length(cols)
                 jcall(sheet, "autoSizeColumn", Nothing, (jint,), i-1)
                 width = jcall(sheet, "getColumnWidth", jint, (jint,), i-1)
+                width = round(Int, width * TRDW.XLSX.AUTOSIZE_CORRECTION_FACTOR)
                 if width > TRDW.XLSX.MAX_COLUMN_WIDTH
-                    jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, TRDW.XLSX.DEFAULT_COLUMN_WIDTH)
+                    width = TRDW.XLSX.DEFAULT_COLUMN_WIDTH
                 end
+                jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, width)
             end
         end
         if had_control_chars

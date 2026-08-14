@@ -47,6 +47,10 @@ const MAX_COLUMN_WIDTH = 70 * 256
 MAX_COLUMN_WIDTH. The visible narrowing signals that content is truncated."""
 const DEFAULT_COLUMN_WIDTH = 50 * 256
 
+"""Correction factor applied to POI's auto-sized column width to compensate for
+font metric differences between Java AWT (used by POI) and Excel Online's renderer."""
+const AUTOSIZE_CORRECTION_FACTOR = 1.1
+
 """XML control character ranges invalid in OOXML cell content.
 Includes C0 controls (U+0000..U+0008, U+000B, U+000C, U+000E..U+001F)
 but excludes tab (U+0009), newline (U+000A), and carriage return (U+000D)
