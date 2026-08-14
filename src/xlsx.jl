@@ -137,6 +137,7 @@ function run(db, spec::WriteXLSXSpecification)
         @htl("<p>Not writing $summary to $filename: password not available</p>")
     else
         mkpath(dirname(filename))
+        assert_new_file(filename)
         TRDW.XLSX.write(filename, dataframes; password)
         if spec.encrypt && !is_production_schema_prefix()
             @info "password for $filename is $password"

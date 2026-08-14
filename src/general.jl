@@ -699,6 +699,9 @@ const omop_catalog = FunSQL.SQLCatalog(
         :cohort_initiation_date),
     dialect = :spark)
 
+assert_new_file(path) =
+    isfile(path) && error("File already exists: $path")
+
 struct WriteCSVSpecification
     prefix::String
     query::FunSQL.SQLQuery
@@ -726,6 +729,7 @@ function run(db, spec::WriteCSVSpecification)
         """)
     else
         mkpath(dirname(filename))
+        assert_new_file(filename)
         CSV.write(filename, dataframe)
         @htl("""
             <div>$(data)</div>
