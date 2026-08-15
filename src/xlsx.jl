@@ -11,12 +11,6 @@ The multi-sheet form accepts a vector of `name => table` pairs.
 function write
 end
 
-"""Characters that FunSQL percent-encodes in column labels.
-Period (`.`) is the qualifier separator; percent (`%`) is the escape character.
-Column headers from FunSQL queries contain `%2E` for period and `%25` for percent,
-and must be decoded for display via `decode_funsql_label`."""
-const FUNSQL_ENCODED_CHARS = ('.', '%')
-
 """
     decode_funsql_label(s) -> String
 
