@@ -48,12 +48,13 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         jcall(datetime_cell_style, "setDataFormat", Nothing, (jshort,), datetime_format_idx)
         wrap_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
         jcall(wrap_cell_style, "setWrapText", Nothing, (jboolean,), true)
-        had_control_chars = false
+        control_char_locations = Tuple{String, Symbol, Int}[]
         for (sheet_name, table) in sheets
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
             jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
+            sch = Tables.schema(table)
             cols = Tables.columnnames(table)
-            types = Tables.schema(table).types
+            types = sch.types
             for (i, (c, t)) in enumerate(zip(cols, types))
                 nt = Base.nonmissingtype(t)
                 if nt <: Dates.Date
@@ -92,7 +93,9 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                         TRDW.XLSX.check_javacall_compatible(raw; context = ctx)
                         TRDW.XLSX.check_cell_length(raw; context = ctx)
                         str = TRDW.XLSX.sanitize_for_xlsx(raw)
-                        had_control_chars = had_control_chars || str !== raw
+                        if str !== raw
+                            push!(control_char_locations, (sheet_name, c, k))
+                        end
                         if contains(str, '\n')
                             jcall(cell, "setCellStyle", Nothing, (CellStyle,), wrap_cell_style)
                         end
@@ -100,6 +103,10 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     end
                 end
             end
+            # The fallback width is less than the maximum so that capped columns
+            # are visibly narrower than uncapped ones. The gap acts as a flexible
+            # range: columns never appear just slightly too narrow, and the visible
+            # narrowing signals that content is visually truncated.
             for i in 1:length(cols)
                 jcall(sheet, "autoSizeColumn", Nothing, (jint,), i-1)
                 width = jcall(sheet, "getColumnWidth", jint, (jint,), i-1)
@@ -110,8 +117,12 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 jcall(sheet, "setColumnWidth", Nothing, (jint, jint), i-1, width)
             end
         end
-        if had_control_chars
-            @warn "Control characters were replaced with spaces"
+        if !isempty(control_char_locations)
+            n = length(control_char_locations)
+            examples = control_char_locations[1:min(3, n)]
+            detail = join(["sheet \"$(s)\", column \"$(col)\", row $(r)" for (s, col, r) in examples], "; ")
+            suffix = n > 3 ? " (and $(n - 3) more)" : ""
+            @warn "Control characters were replaced with spaces: $detail$suffix"
         end
         if password !== nothing
             buffer = ByteArrayOutputStream(())
@@ -128,16 +139,20 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
                 bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
                 input_stream = ByteArrayInputStream((Vector{jbyte},), bytes)
-                package = jcall(OPCPackage, "open", OPCPackage, (InputStream,), input_stream)
                 try
-                    encrypted_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
+                    package = jcall(OPCPackage, "open", OPCPackage, (InputStream,), input_stream)
                     try
-                        jcall(package, "save", Nothing, (OutputStream,), encrypted_stream)
+                        encrypted_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
+                        try
+                            jcall(package, "save", Nothing, (OutputStream,), encrypted_stream)
+                        finally
+                            jcall(encrypted_stream, "close", Nothing, ())
+                        end
                     finally
-                        jcall(encrypted_stream, "close", Nothing, ())
+                        jcall(package, "close", Nothing, ())
                     end
                 finally
-                    jcall(package, "close", Nothing, ())
+                    jcall(input_stream, "close", Nothing, ())
                 end
                 file_output_stream = FileOutputStream((JString,), file)
                 try
