@@ -34,6 +34,7 @@ function TRDW.XLSX.write(file, table; password = nothing)
 end
 
 function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}}; password = nothing)
+    TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
     workbook = SXSSFWorkbook(())
     try
         creation_helper = jcall(workbook, "getCreationHelper", CreationHelper, ())
@@ -49,7 +50,6 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         jcall(wrap_cell_style, "setWrapText", Nothing, (jboolean,), true)
         had_control_chars = false
         for (sheet_name, table) in sheets
-            TRDW.XLSX.validate_sheet_name(sheet_name)
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
             jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
             cols = Tables.columnnames(table)
@@ -65,7 +65,9 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             row = jcall(sheet, "createRow", SXSSFRow, (jint,), 0)
             for (i, c) in enumerate(cols)
                 cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
-                header = TRDW.XLSX.sanitize_for_xlsx(TRDW.XLSX.decode_funsql_label(string(c)))
+                header = TRDW.XLSX.decode_funsql_label(string(c))
+                TRDW.XLSX.check_javacall_compatible(header; context = "column header \"$header\"")
+                header = TRDW.XLSX.sanitize_for_xlsx(header)
                 jcall(cell, "setCellValue", Nothing, (JString,), header)
             end
             for (k, r) in enumerate(Tables.rows(table))
@@ -86,6 +88,9 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                         jcall(cell, "setCellValue", Nothing, (jdouble,), val)
                     else
                         raw = string(val)
+                        ctx = "column \"$(string(c))\", row $k"
+                        TRDW.XLSX.check_javacall_compatible(raw; context = ctx)
+                        TRDW.XLSX.check_cell_length(raw; context = ctx)
                         str = TRDW.XLSX.sanitize_for_xlsx(raw)
                         had_control_chars = had_control_chars || str !== raw
                         if contains(str, '\n')
