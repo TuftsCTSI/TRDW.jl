@@ -22,6 +22,12 @@ const FUNSQL_ENCODED_CHARS = ('.', '%')
 
 Decode a FunSQL percent-encoded column label back to its original form.
 Reverses the encoding where `.` becomes `%2E` and `%` becomes `%25`.
+
+This performs a minimal two-sequence decode sufficient for display purposes.
+For full single-pass percent-decoding used during validation (to recover
+multi-byte UTF-8 characters hidden behind `%XX` encoding), see `percent_decode`.
+Both functions produce identical results on FunSQL-generated labels because
+FunSQL encodes only `.` and `%`.
 """
 function decode_funsql_label(s::AbstractString)
     s = replace(s, "%2E" => ".")
@@ -80,6 +86,25 @@ function validate_sheet_name(name::AbstractString)
 end
 
 """
+    validate_sheet_names(names) -> names
+
+Validate each sheet name individually and check for case-insensitive duplicates.
+Excel treats sheet names as case-insensitive for uniqueness.
+"""
+function validate_sheet_names(names)
+    seen = Set{String}()
+    for name in names
+        validate_sheet_name(name)
+        key = lowercase(name)
+        if key in seen
+            throw(ArgumentError("Duplicate sheet name (case-insensitive): $(repr(name))"))
+        end
+        push!(seen, key)
+    end
+    names
+end
+
+"""
     check_javacall_compatible(s; context) -> s
 
 Verify that all characters in `s` have codepoints within the Basic Multilingual Plane
@@ -121,7 +146,7 @@ Replace XML-invalid control characters with spaces.
 Preserves tab (U+0009), newline (U+000A), and carriage return (U+000D).
 """
 sanitize_for_xlsx(s::AbstractString) =
-    map(c -> c in '\x00':'\x08' || c == '\x0b' || c == '\x0c' || c in '\x0e':'\x1f' ? ' ' : c, s)
+    map(c -> any(r -> c in r, XML_INVALID_CONTROL_CHARS) ? ' ' : c, s)
 
 _is_hex(b::UInt8) =
     (UInt8('0') <= b <= UInt8('9')) ||
@@ -142,10 +167,14 @@ end
     percent_decode(s) -> String
 
 Decode all percent-encoded sequences (`%XX`) in `s` back to their original bytes,
-then interpret the result as UTF-8. Used during validation to recover the original
-characters from FunSQL's percent-encoded column labels so that
-`check_javacall_compatible` can detect supplementary plane characters that would
-otherwise be hidden behind ASCII percent-encoding.
+then interpret the result as UTF-8. This is a full single-pass decode used during
+validation to recover the original characters from FunSQL's percent-encoded column
+labels so that `check_javacall_compatible` can detect supplementary plane characters
+that would otherwise be hidden behind ASCII percent-encoding.
+
+For display purposes (column headers written to cells), use `decode_funsql_label`
+instead, which decodes only the two sequences FunSQL produces (`%2E` and `%25`).
+Both functions yield identical results on FunSQL-generated labels.
 """
 function percent_decode(s::AbstractString)
     bytes = UInt8[]
@@ -236,17 +265,16 @@ function get_password()
         @assert length(password) > 10
     else
         password = make_password()
-        f = open(pwfile, "w")
-        write(f, password * "\n")
-        flush(f)
-        close(f)
+        open(pwfile, "w") do f
+            write(f, password * "\n")
+        end
     end
     return password
 end
 
 function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFrame}})
+    XLSX.validate_sheet_names(first.(dataframes))
     for (name, df) in dataframes
-        XLSX.validate_sheet_name(name)
         for c in Tables.columnnames(df)
             raw = string(c)
             decoded = XLSX.percent_decode(raw)
