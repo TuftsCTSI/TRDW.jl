@@ -39,6 +39,14 @@ const JAVACALL_MAX_CODEPOINT = 0xFFFF
 truncated when the file is opened in Excel."""
 const EXCEL_MAX_CELL_LENGTH = 32767
 
+"""Maximum rows in an Excel worksheet (including the header row).
+Sheets with more rows than this cannot be opened correctly in Excel."""
+const EXCEL_MAX_ROWS = 1_048_576
+
+"""Maximum columns in an Excel worksheet.
+Sheets with more columns than this cannot be opened correctly in Excel."""
+const EXCEL_MAX_COLUMNS = 16_384
+
 """Column auto-size threshold in Apache POI units (1/256th of a character width).
 Columns wider than this after auto-sizing are set to DEFAULT_COLUMN_WIDTH instead."""
 const MAX_COLUMN_WIDTH = 70 * 256
@@ -269,6 +277,18 @@ end
 function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFrame}})
     XLSX.validate_sheet_names(first.(dataframes))
     for (name, df) in dataframes
+        nrows = size(df, 1)
+        ncols = size(df, 2)
+        if nrows + 1 > XLSX.EXCEL_MAX_ROWS
+            throw(ArgumentError(
+                "Sheet \"$name\" exceeds Excel's row limit of $(XLSX.EXCEL_MAX_ROWS) " *
+                "(header + $nrows data rows)"))
+        end
+        if ncols > XLSX.EXCEL_MAX_COLUMNS
+            throw(ArgumentError(
+                "Sheet \"$name\" has $ncols columns, exceeding Excel's maximum " *
+                "of $(XLSX.EXCEL_MAX_COLUMNS) columns per sheet"))
+        end
         for c in Tables.columnnames(df)
             raw = string(c)
             decoded = XLSX.percent_decode(raw)
