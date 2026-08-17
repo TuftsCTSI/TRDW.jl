@@ -103,10 +103,6 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     end
                 end
             end
-            # The fallback width is less than the maximum so that capped columns
-            # are visibly narrower than uncapped ones. The gap acts as a flexible
-            # range: columns never appear just slightly too narrow, and the visible
-            # narrowing signals that content is visually truncated.
             for i in 1:length(cols)
                 jcall(sheet, "autoSizeColumn", Nothing, (jint,), i-1)
                 width = jcall(sheet, "getColumnWidth", jint, (jint,), i-1)
@@ -126,18 +122,14 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         end
         if password !== nothing
             buffer = ByteArrayOutputStream(())
-            try
-                jcall(workbook, "write", Nothing, (OutputStream,), buffer)
-            finally
-                jcall(buffer, "close", Nothing, ())
-            end
+            jcall(workbook, "write", Nothing, (OutputStream,), buffer)
+            bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
             filesystem = POIFSFileSystem(())
             try
                 agile_encryption_mode = jfield(EncryptionMode, "agile", EncryptionMode)
                 encryption_info = EncryptionInfo((EncryptionMode,), agile_encryption_mode)
                 encryptor = jcall(encryption_info, "getEncryptor", Encryptor, ())
                 jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
-                bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
                 input_stream = ByteArrayInputStream((Vector{jbyte},), bytes)
                 try
                     package = jcall(OPCPackage, "open", OPCPackage, (InputStream,), input_stream)
