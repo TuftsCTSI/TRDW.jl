@@ -122,8 +122,12 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         end
         if password !== nothing
             buffer = ByteArrayOutputStream(())
-            jcall(workbook, "write", Nothing, (OutputStream,), buffer)
-            bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
+            bytes = try
+                jcall(workbook, "write", Nothing, (OutputStream,), buffer)
+                jcall(buffer, "toByteArray", Vector{jbyte}, ())
+            finally
+                jcall(buffer, "close", Nothing, ())
+            end
             filesystem = POIFSFileSystem(())
             try
                 agile_encryption_mode = jfield(EncryptionMode, "agile", EncryptionMode)
