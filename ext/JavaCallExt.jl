@@ -48,7 +48,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         jcall(datetime_cell_style, "setDataFormat", Nothing, (jshort,), datetime_format_idx)
         wrap_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
         jcall(wrap_cell_style, "setWrapText", Nothing, (jboolean,), true)
-        control_char_locations = Tuple{String, Symbol, Int}[]
+        control_char_locations = Tuple{String, Symbol, Int, Vector{Char}}[]
         for (sheet_name, table) in sheets
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
             jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
@@ -94,7 +94,8 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                         TRDW.XLSX.check_cell_length(raw; context = ctx)
                         str = TRDW.XLSX.sanitize_for_xlsx(raw)
                         if str !== raw
-                            push!(control_char_locations, (sheet_name, c, k))
+                            chars = TRDW.XLSX.find_invalid_control_chars(raw)
+                            push!(control_char_locations, (sheet_name, c, k, chars))
                         end
                         if contains(str, '\n')
                             jcall(cell, "setCellStyle", Nothing, (CellStyle,), wrap_cell_style)
@@ -116,7 +117,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         if !isempty(control_char_locations)
             n = length(control_char_locations)
             examples = control_char_locations[1:min(3, n)]
-            detail = join(["sheet \"$(s)\", column \"$(col)\", row $(r)" for (s, col, r) in examples], "; ")
+            detail = join(["sheet \"$(s)\", column \"$(col)\", row $(r) ($(TRDW.XLSX.describe_codepoints(chars)))" for (s, col, r, chars) in examples], "; ")
             suffix = n > 3 ? " (and $(n - 3) more)" : ""
             @warn "Control characters were replaced with spaces: $detail$suffix"
         end

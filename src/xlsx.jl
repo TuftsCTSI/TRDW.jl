@@ -166,6 +166,31 @@ function _hex_val(b::UInt8)
 end
 
 """
+    find_invalid_control_chars(s) -> Vector{Char}
+
+Return the distinct XML-invalid control characters found in `s`, in order of
+first occurrence. Used to report which characters `sanitize_for_xlsx` replaced.
+"""
+function find_invalid_control_chars(s::AbstractString)
+    found = Char[]
+    for c in s
+        if any(r -> c in r, XML_INVALID_CONTROL_CHARS) && c ∉ found
+            push!(found, c)
+        end
+    end
+    found
+end
+
+"""
+    describe_codepoints(chars) -> String
+
+Format a collection of characters as a comma-separated list of Unicode
+codepoints (e.g. "U+0000, U+001F") for use in diagnostic messages.
+"""
+describe_codepoints(chars) =
+    join(["U+$(uppercase(string(codepoint(c), base=16, pad=4)))" for c in chars], ", ")
+
+"""
     percent_decode(s) -> String
 
 Decode all percent-encoded sequences (`%XX`) in `s` back to their original bytes,
