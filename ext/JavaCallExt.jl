@@ -35,6 +35,7 @@ function TRDW.XLSX.write(file, table; password = nothing)
 end
 
 function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}}; password = nothing)
+    jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), Int32(-1))
     TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
     workbook = SXSSFWorkbook(())
     try
@@ -225,7 +226,6 @@ function __init__()
     JavaCall.addClassPath(joinpath(artifact"csv2xlsx", "*"))
     JavaCall.addClassPath(joinpath(artifact"CirceR", "CirceR-1.3.2/inst/java/*"))
     JavaCall.addClassPath(joinpath(artifact"SqlRender", "SqlRender-1.16.1/inst/java/*"))
-    jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), Int32(-1))
 end
 
 end #module JavaCallExt
