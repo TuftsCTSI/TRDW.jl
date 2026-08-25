@@ -19,6 +19,7 @@ const Encryptor = @jimport org.apache.poi.poifs.crypt.Encryptor
 const File = @jimport java.io.File
 const FileOutputStream = @jimport java.io.FileOutputStream
 const InputStream = @jimport java.io.InputStream
+const IOUtils = @jimport org.apache.poi.util.IOUtils
 const LocalDateTime = @jimport java.time.LocalDateTime
 const OPCPackage = @jimport org.apache.poi.openxml4j.opc.OPCPackage
 const OutputStream = @jimport java.io.OutputStream
@@ -224,6 +225,7 @@ function __init__()
     JavaCall.addClassPath(joinpath(artifact"csv2xlsx", "*"))
     JavaCall.addClassPath(joinpath(artifact"CirceR", "CirceR-1.3.2/inst/java/*"))
     JavaCall.addClassPath(joinpath(artifact"SqlRender", "SqlRender-1.16.1/inst/java/*"))
+    jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), Int32(-1))
 end
 
 end #module JavaCallExt
