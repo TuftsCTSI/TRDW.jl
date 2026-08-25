@@ -35,7 +35,7 @@ function TRDW.XLSX.write(file, table; password = nothing)
 end
 
 function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}}; password = nothing)
-    jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), Int32(-1))
+    jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), typemax(Int32))
     TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
     workbook = SXSSFWorkbook(())
     try
