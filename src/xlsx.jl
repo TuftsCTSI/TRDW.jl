@@ -319,17 +319,6 @@ function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFr
             decoded = XLSX.percent_decode(raw)
             XLSX.check_javacall_compatible(decoded; context = "column header \"$decoded\"")
         end
-        for (k, r) in enumerate(Tables.rows(df))
-            for c in Tables.columnnames(r)
-                val = Tables.getcolumn(r, c)
-                if !ismissing(val) && !(val isa Bool) && !(val isa Dates.Date) && !(val isa Dates.DateTime) && !(val isa Number)
-                    s = string(val)
-                    ctx = "column \"$(string(c))\", row $k"
-                    XLSX.check_javacall_compatible(s; context = ctx)
-                    XLSX.check_cell_length(s; context = ctx)
-                end
-            end
-        end
     end
 end
 
