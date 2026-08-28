@@ -70,6 +70,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 cell = jcall(row, "createCell", SXSSFCell, (jint,), i-1)
                 header = TRDW.XLSX.decode_funsql_label(string(c))
                 TRDW.XLSX.check_javacall_compatible(header; context = "column header \"$header\"")
+                TRDW.XLSX.check_cell_length(header; context = "column header \"$header\"")
                 header = TRDW.XLSX.sanitize_for_xlsx(header)
                 jcall(cell, "setCellValue", Nothing, (JString,), header)
             end
