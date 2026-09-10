@@ -38,17 +38,96 @@ const SXSSFWorkbook = @jimport org.apache.poi.xssf.streaming.SXSSFWorkbook
 # ------------------------------------------------------------
 macro with_java(resource_expr, close_call, body)
     quote
-        local __res = $(esc(resource_expr))
+        local __java_res = $(esc(resource_expr))
         try
             $(esc(body))
         finally
-            $(close_call)(__res)
+            $(close_call)(__java_res)
         end
     end
 end
 
 # Simple close helper (uses JavaCall.jcall internally)
 _close_java_resource(r) = jcall(r, "close", Nothing, ())
+
+# ------------------------------------------------------------
+# Reusable style creation helpers
+# ------------------------------------------------------------
+function _create_style(workbook::JavaObject, fmt_idx::jshort)
+    style = jcall(workbook, "createCellStyle", CellStyle, ())
+    jcall(style, "setDataFormat", Nothing, (jshort,), fmt_idx)
+    style
+end
+
+function _setup_styles(workbook::JavaObject)
+    ch = jcall(workbook, "getCreationHelper", CreationHelper, ())
+
+    date_fmt = jcall(ch, "createDataFormat", DataFormat, ())
+    date_idx = jshort(jcall(date_fmt, "getFormat", jshort, (JString,), "yyyy-MM-dd"))
+
+    datetime_fmt = jcall(ch, "createDataFormat", DataFormat, ())
+    datetime_idx = jshort(jcall(datetime_fmt, "getFormat", jshort, (JString,), "yyyy-MM-dd HH:mm:ss"))
+
+    date_style = _create_style(workbook, date_idx)
+    datetime_style = _create_style(workbook, datetime_idx)
+
+    wrap_style = jcall(workbook, "createCellStyle", CellStyle, ())
+    jcall(wrap_style, "setWrapText", Nothing, (jboolean,), true)
+
+    (date_style = date_style,
+     datetime_style = datetime_style,
+     wrap_style = wrap_style)
+end
+
+# ------------------------------------------------------------
+# Cell‑value writing helper
+# ------------------------------------------------------------
+function _write_cell!(
+        cell::JavaObject,
+        val,
+        col_sym::Symbol,
+        row_idx::Int,
+        sheet_name::String,
+        control_char_locations::Vector{Tuple{String, Symbol, Int, Vector{Char}}},
+        styles::NamedTuple)
+    if val === missing
+        return
+    elseif val isa Bool
+        jcall(cell, "setCellValue", Nothing, (jboolean,), val)
+    elseif val isa Dates.Date
+        java_date = jcall(
+            LocalDate, "of", LocalDate,
+            (jint, jint, jint),
+            jint(year(val)), jint(month(val)), jint(day(val))
+        )
+        jcall(cell, "setCellValue", Nothing, (LocalDate,), java_date)
+    elseif val isa Dates.DateTime
+        nano = jlong(millisecond(val)) * 1_000_000
+        java_dt = jcall(
+            LocalDateTime, "of", LocalDateTime,
+            (jint, jint, jint, jint, jint, jint, jlong),
+            jint(year(val)), jint(month(val)), jint(day(val)),
+            jint(hour(val)), jint(minute(val)), jint(second(val)), nano
+        )
+        jcall(cell, "setCellValue", Nothing, (LocalDateTime,), java_dt)
+    elseif val isa Number
+        jcall(cell, "setCellValue", Nothing, (jdouble,), Float64(val))
+    else
+        raw = string(val)
+        ctx = "column \"$(string(col_sym))\", row $row_idx"
+        TRDW.XLSX.check_javacall_compatible(raw; context = ctx)
+        TRDW.XLSX.check_cell_length(raw; context = ctx)
+        str = TRDW.XLSX.sanitize_for_xlsx(raw)
+        if str !== raw
+            chars = TRDW.XLSX.find_invalid_control_chars(raw)
+            push!(control_char_locations, (sheet_name, col_sym, row_idx, chars))
+        end
+        if contains(str, '\n')
+            jcall(cell, "setCellStyle", Nothing, (CellStyle,), styles.wrap_style)
+        end
+        jcall(cell, "setCellValue", Nothing, (JString,), str)
+    end
+end
 
 # ------------------------------------------------------------
 # XLSX writer
@@ -58,36 +137,24 @@ function TRDW.XLSX.write(file, table; password = nothing)
 end
 
 function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}}; password = nothing)
+    # ------------------------------------------------------------
+    # Validation – performed before any heavy Java allocation
+    # ------------------------------------------------------------
     jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), typemax(Int32))
     TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
 
     workbook = SXSSFWorkbook(())
     try
-        # ----------------------------------------------------------------
+        # ------------------------------------------------------------
         # Create reusable helpers (formats, styles, etc.)
-        # ----------------------------------------------------------------
-        creation_helper = jcall(workbook, "getCreationHelper", CreationHelper, ())
-
-        date_format = jcall(creation_helper, "createDataFormat", DataFormat, ())
-        date_fmt_idx = jshort(jcall(date_format, "getFormat", jshort, (JString,), "yyyy-MM-dd"))
-
-        datetime_format = jcall(creation_helper, "createDataFormat", DataFormat, ())
-        datetime_fmt_idx = jshort(jcall(datetime_format, "getFormat", jshort, (JString,), "yyyy-MM-dd HH:mm:ss"))
-
-        date_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
-        jcall(date_cell_style, "setDataFormat", Nothing, (jshort,), date_fmt_idx)
-
-        datetime_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
-        jcall(datetime_cell_style, "setDataFormat", Nothing, (jshort,), datetime_fmt_idx)
-
-        wrap_cell_style = jcall(workbook, "createCellStyle", CellStyle, ())
-        jcall(wrap_cell_style, "setWrapText", Nothing, (jboolean,), true)
+        # ------------------------------------------------------------
+        styles = _setup_styles(workbook)
 
         control_char_locations = Tuple{String, Symbol, Int, Vector{Char}}[]
 
-        # ----------------------------------------------------------------
+        # ------------------------------------------------------------
         # Process each sheet
-        # ----------------------------------------------------------------
+        # ------------------------------------------------------------
         for (sheet_name, table) in sheets
             sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
             jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
@@ -97,14 +164,14 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             types = sch.types
 
             # Set column defaults based on Julia type
-            for (i, (c, t)) in enumerate(zip(cols, types))
+            for (i, (_, t)) in enumerate(zip(cols, types))
                 nt = Base.nonmissingtype(t)
                 if nt <: Dates.Date
                     jcall(sheet, "setDefaultColumnStyle", Nothing,
-                          (jint, CellStyle), jint(i-1), date_cell_style)
+                          (jint, CellStyle), jint(i-1), styles.date_style)
                 elseif nt <: Dates.DateTime
                     jcall(sheet, "setDefaultColumnStyle", Nothing,
-                          (jint, CellStyle), jint(i-1), datetime_cell_style)
+                          (jint, CellStyle), jint(i-1), styles.datetime_style)
                 end
             end
 
@@ -125,40 +192,10 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 for (i, c) in enumerate(Tables.columnnames(r))
                     val = Tables.getcolumn(r, c)
                     cell = jcall(row, "createCell", SXSSFCell, (jint,), jint(i-1))
-
-                    if val === missing
-                        continue
-                    elseif val isa Bool
-                        jcall(cell, "setCellValue", Nothing, (jboolean,), val)
-                    elseif val isa Dates.Date
-                        # Use java.time.LocalDate for pure dates
-                        java_date = jcall(LocalDate, "of", LocalDate,
-                                          (jint, jint, jint), jint(year(val)), jint(month(val)), jint(day(val)))
-                        jcall(cell, "setCellValue", Nothing, (LocalDate,), java_date)
-                    elseif val isa Dates.DateTime
-                        java_dt = jcall(LocalDateTime, "of", LocalDateTime,
-                                        (jint, jint, jint, jint, jint, jint, jint),
-                                        jint(year(val)), jint(month(val)), jint(day(val)),
-                                        jint(hour(val)), jint(minute(val)), jint(second(val)),
-                                        jint(millisecond(val)) * 1_000_000)  # nanoseconds
-                        jcall(cell, "setCellValue", Nothing, (LocalDateTime,), java_dt)
-                    elseif val isa Number
-                        jcall(cell, "setCellValue", Nothing, (jdouble,), Float64(val))
-                    else
-                        raw = string(val)
-                        ctx = "column \"$(string(c))\", row $k"
-                        TRDW.XLSX.check_javacall_compatible(raw; context = ctx)
-                        TRDW.XLSX.check_cell_length(raw; context = ctx)
-                        str = TRDW.XLSX.sanitize_for_xlsx(raw)
-                        if str !== raw
-                            chars = TRDW.XLSX.find_invalid_control_chars(raw)
-                            push!(control_char_locations, (sheet_name, c, k, chars))
-                        end
-                        if contains(str, '\n')
-                            jcall(cell, "setCellStyle", Nothing, (CellStyle,), wrap_cell_style)
-                        end
-                        jcall(cell, "setCellValue", Nothing, (JString,), str)
-                    end
+                    _write_cell!(
+                        cell, val, c, k, sheet_name,
+                        control_char_locations, styles
+                    )
                 end
             end
 
@@ -174,12 +211,17 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
             end
         end
 
+        # ------------------------------------------------------------
         # Warn about control‑character sanitisation
+        # ------------------------------------------------------------
         if !isempty(control_char_locations)
             n = length(control_char_locations)
             examples = control_char_locations[1:min(3, n)]
-            detail = join(["sheet \"$(s)\", column \"$(col)\", row $(r) ($(TRDW.XLSX.describe_codepoints(chars)))"
-                           for (s, col, r, chars) in examples], "; ")
+            detail = join(
+                ["sheet \"$(s)\", column \"$(col)\", row $(r) ($(TRDW.XLSX.describe_codepoints(chars)))"
+                 for (s, col, r, chars) in examples],
+                "; "
+            )
             suffix = n > 3 ? " (and $(n - 3) more)" : ""
             @warn "Control characters were replaced with spaces: $detail$suffix"
         end
@@ -189,12 +231,12 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         # ------------------------------------------------------------
         if password !== nothing
             @with_java ByteArrayOutputStream() _close_java_resource begin
-                buffer = __res
+                buffer = __java_res
                 jcall(workbook, "write", Nothing, (OutputStream,), buffer)
                 bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
 
                 @with_java POIFSFileSystem() _close_java_resource begin
-                    fs = __res
+                    fs = __java_res
                     agile_mode = jfield(EncryptionMode, "agile", EncryptionMode)
                     enc_info = EncryptionInfo((EncryptionMode,), agile_mode)
                     encryptor = jcall(enc_info, "getEncryptor", Encryptor, ())
@@ -202,25 +244,25 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
 
                     @with_java ByteArrayInputStream((Vector{jbyte},), bytes) _close_java_resource begin
-                        bais = __res
+                        bais = __java_res
                         @with_java OPCPackage.open((InputStream,), bais) _close_java_resource begin
-                            pkg = __res
+                            pkg = __java_res
                             @with_java encryptor.getDataStream((POIFSFileSystem,), fs) _close_java_resource begin
-                                enc_stream = __res
+                                enc_stream = __java_res
                                 jcall(pkg, "save", Nothing, (OutputStream,), enc_stream)
                             end
                         end
                     end
 
                     @with_java FileOutputStream((JString,), file) _close_java_resource begin
-                        fos = __res
+                        fos = __java_res
                         jcall(fs, "writeFilesystem", Nothing, (OutputStream,), fos)
                     end
                 end
             end
         else
             @with_java FileOutputStream((JString,), file) _close_java_resource begin
-                fos = __res
+                fos = __java_res
                 jcall(workbook, "write", Nothing, (OutputStream,), fos)
             end
         end
