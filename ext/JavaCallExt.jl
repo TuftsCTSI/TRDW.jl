@@ -261,7 +261,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
         rethrow()
     finally
         # Ensure temporary files created by SXSSFWorkbook are cleaned up
-        success = jcall(workbook, "dispose", jboolean, ())
+        success = Bool(jcall(workbook, "dispose", jboolean, ()))
         success || @warn "SXSSFWorkbook.dispose() failed; temporary files may remain in $(tempdir())"
     end
 
