@@ -94,7 +94,7 @@ function _write_cell!(
             jcall(cell, "setCellValue", Nothing, (LocalDate,), java_date)
 
         elseif val isa Dates.DateTime
-	    nano = jlong(millisecond(val)) * 1_000_000
+            nano = jlong(millisecond(val)) * 1_000_000
             java_dt = jcall(
                 LocalDateTime, "of", LocalDateTime,
                 (jint, jint, jint, jint, jint, jint, jint),
@@ -104,11 +104,8 @@ function _write_cell!(
             jcall(cell, "setCellValue", Nothing, (LocalDateTime,), java_dt)
 
         elseif val isa Integer
-            if typemin(Int32) <= val <= typemax(Int32)
-                jcall(cell, "setCellValue", Nothing, (jint,), jint(val))
-            else
-                jcall(cell, "setCellValue", Nothing, (jlong,), jlong(val))
-            end
+            # POI expects a double for numeric cells
+            jcall(cell, "setCellValue", Nothing, (jdouble,), jdouble(val))
 
         elseif val isa AbstractFloat
             jcall(cell, "setCellValue", Nothing, (jdouble,), Float64(val))
