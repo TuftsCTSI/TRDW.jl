@@ -34,13 +34,13 @@ const SqlRender = @jimport org.ohdsi.sql.SqlRender
 const SqlTranslate = @jimport org.ohdsi.sql.SqlTranslate
 const SqlSplit = @jimport org.ohdsi.sql.SqlSplit
 
-macro with_java(resource_expr, close_method_sym, body)
+macro with_java(resource_expr, close_method, body)
     quote
         local __java_res = $(esc(resource_expr))
         try
             $(esc(body))
         finally
-            jcall(__java_res, $(QuoteNode(close_method_sym)), Nothing, ())
+            jcall(__java_res, $(esc(close_method)), Nothing, ())
         end
     end
 end
@@ -219,12 +219,12 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
 
         # Write final workbook
         if password !== nothing
-            @with_java ByteArrayOutputStream() :close begin
+            @with_java ByteArrayOutputStream() "close" begin
                 buffer = __java_res
                 jcall(workbook, "write", Nothing, (OutputStream,), buffer)
                 bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
 
-                @with_java POIFSFileSystem() :close begin
+                @with_java POIFSFileSystem() "close" begin
                     fs = __java_res
                     agile_mode = jfield(EncryptionMode, "agile", EncryptionMode)
                     enc_info = EncryptionInfo((EncryptionMode,), agile_mode)
@@ -232,25 +232,25 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
 
                     jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
 
-                    @with_java ByteArrayInputStream((Vector{jbyte},), bytes) :close begin
+                    @with_java ByteArrayInputStream((Vector{jbyte},), bytes) "close" begin
                         bais = __java_res
-                        @with_java OPCPackage.open((InputStream,), bais) :close begin
+                        @with_java OPCPackage.open((InputStream,), bais) "close" begin
                             pkg = __java_res
-                            @with_java encryptor.getDataStream((POIFSFileSystem,), fs) :close begin
+                            @with_java encryptor.getDataStream((POIFSFileSystem,), fs) "close" begin
                                 enc_stream = __java_res
                                 jcall(pkg, "save", Nothing, (OutputStream,), enc_stream)
                             end
                         end
                     end
 
-                    @with_java FileOutputStream((JString,), file) :close begin
+                    @with_java FileOutputStream((JString,), file) "close" begin
                         fos = __java_res
                         jcall(fs, "writeFilesystem", Nothing, (OutputStream,), fos)
                     end
                 end
             end
         else
-            @with_java FileOutputStream((JString,), file) :close begin
+            @with_java FileOutputStream((JString,), file) "close" begin
                 fos = __java_res
                 jcall(workbook, "write", Nothing, (OutputStream,), fos)
             end
