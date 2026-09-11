@@ -151,7 +151,21 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
     jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), typemax(Int32))
     TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
 
-    workbook = SXSSFWorkbook(())
+    try
+        workbook = SXSSFWorkbook(())
+    catch e
+        @error "Failed to create SXSSFWorkbook" exception=(e,)
+        if e isa JavaCall.JavaError
+            @error "JavaCall error details" classname=JavaCall.jclassname(JavaCall.jexception(e)) jmsg=JavaCall.jerrmsg(e)
+            try
+                JavaCall.jcall(JavaCall.jexception(e), "printStackTrace", Nothing, ())
+            catch
+                # ignore secondary errors while printing stack trace
+            end
+        end
+        rethrow()
+    end
+
     try
         # Global helpers (formats, styles, etc.)
         styles = _setup_styles(workbook)
