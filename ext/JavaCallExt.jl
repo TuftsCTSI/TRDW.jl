@@ -131,6 +131,14 @@ function _write_cell!(
         end
     catch e
         @error "Failed to write cell (sheet=$(sheet_name), column=$(col_sym), row=$(row_idx))" exception=(e,)
+        if e isa JavaCall.JavaError
+            @error "JavaCall error details" classname=JavaCall.jclassname(JavaCall.jexception(e)) jmsg=JavaCall.jerrmsg(e)
+            try
+                JavaCall.jcall(JavaCall.jexception(e), "printStackTrace", Nothing, ())
+            catch
+                # ignore secondary errors while printing stack trace
+            end
+        end
         rethrow()
     end
 end
