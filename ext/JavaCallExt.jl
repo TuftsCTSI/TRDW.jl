@@ -151,22 +151,11 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
     jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), typemax(Int32))
     TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
 
-    try
-        workbook = SXSSFWorkbook(())
-    catch e
-        @error "Failed to create SXSSFWorkbook" exception=(e,)
-        if e isa JavaCall.JavaError
-            @error "JavaCall error details" classname=JavaCall.jclassname(JavaCall.jexception(e)) jmsg=JavaCall.jerrmsg(e)
-            try
-                JavaCall.jcall(JavaCall.jexception(e), "printStackTrace", Nothing, ())
-            catch
-                # ignore secondary errors while printing stack trace
-            end
-        end
-        rethrow()
-    end
+    workbook = nothing
 
     try
+        workbook = SXSSFWorkbook(())
+
         # Global helpers (formats, styles, etc.)
         styles = _setup_styles(workbook)
         control_char_locations = Tuple{String, Symbol, Int, Vector{Char}}[]
@@ -281,11 +270,23 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
     catch e
         # Remove any partially written file on failure
         isfile(file) && rm(file; force=true)
+
+        if e isa JavaCall.JavaError
+            @error "JavaCall error details" classname=JavaCall.jclassname(JavaCall.jexception(e)) jmsg=JavaCall.jerrmsg(e)
+            try
+                JavaCall.jcall(JavaCall.jexception(e), "printStackTrace", Nothing, ())
+            catch
+                # ignore secondary errors while printing stack trace
+            end
+        end
+
         rethrow()
     finally
         # Ensure temporary files created by SXSSFWorkbook are cleaned up
-        success = Bool(jcall(workbook, "dispose", jboolean, ()))
-        success || @warn "SXSSFWorkbook.dispose() failed; temporary files may remain in $(tempdir())"
+	if workbook !== nothing
+            success = Bool(jcall(workbook, "dispose", jboolean, ()))
+            success || @warn "SXSSFWorkbook.dispose() failed; temporary files may remain in $(tempdir())"
+        end
     end
 
     return nothing
