@@ -255,6 +255,10 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                 jcall(workbook, "write", Nothing, (OutputStream,), fos)
             end
         end
+    catch e
+        # Remove any partially written file on failure
+        isfile(file) && rm(file; force=true)
+        rethrow()
     finally
         # Ensure temporary files created by SXSSFWorkbook are cleaned up
         success = jcall(workbook, "dispose", jboolean, ())
