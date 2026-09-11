@@ -78,6 +78,7 @@ function _write_cell!(
         row_idx::Int,
         sheet_name::String,
         control_char_locations::Vector{Tuple{String, Symbol, Int, Vector{Char}}},
+        workbook::JavaObject,
         styles::NamedTuple)
     try
         if val === missing
@@ -187,7 +188,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
                     val = Tables.getcolumn(r, c)
                     cell = jcall(row, "createCell", SXSSFCell, (jint,), jint(i - 1))
                     _write_cell!(cell, val, c, k, sheet_name,
-                                 control_char_locations, styles)
+                                 control_char_locations, workbook, styles)
                 end
             end
 
