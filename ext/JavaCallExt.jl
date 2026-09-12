@@ -34,13 +34,16 @@ const SqlRender = @jimport org.ohdsi.sql.SqlRender
 const SqlTranslate = @jimport org.ohdsi.sql.SqlTranslate
 const SqlSplit = @jimport org.ohdsi.sql.SqlSplit
 
-function with_java(resource_expr::Function, close_method::String, body::Function)
+function with_java(resource_expr::Function, close_method::AbstractString, body::Function)
     __java_res = resource_expr()
     try
         body(__java_res)
     finally
         jcall(__java_res, close_method, Nothing, ())
     end
+end
+function with_java(resource_expr::Function, close_method::Function, body::Function)
+    with_java(resource_expr, close_method(), body)
 end
 
 function _create_style(workbook::JavaObject, fmt_idx::jshort)
