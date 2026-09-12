@@ -34,18 +34,6 @@ const SqlRender = @jimport org.ohdsi.sql.SqlRender
 const SqlTranslate = @jimport org.ohdsi.sql.SqlTranslate
 const SqlSplit = @jimport org.ohdsi.sql.SqlSplit
 
-function with_java(resource_expr::Function, close_method::AbstractString, body::Function)
-    __java_res = resource_expr()
-    try
-        body(__java_res)
-    finally
-        jcall(__java_res, close_method, Nothing, ())
-    end
-end
-function with_java(resource_expr::Function, close_method::Function, body::Function)
-    with_java(resource_expr, close_method(), body)
-end
-
 function _create_style(workbook::JavaObject, fmt_idx::jshort)
     style = jcall(workbook, "createCellStyle", CellStyle, ())
     jcall(style, "setDataFormat", Nothing, (jshort,), fmt_idx)
@@ -219,46 +207,59 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
 
     # Write final workbook
     if password !== nothing
-        with_java(() -> ByteArrayOutputStream(), "close") do __java_res
-            buffer = __java_res
+        buffer = ByteArrayOutputStream(())
+        try
             jcall(workbook, "write", Nothing, (OutputStream,), buffer)
             bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
+        finally
+            jcall(buffer, "close", Nothing, ())
+        end
 
-            with_java(() -> POIFSFileSystem(), "close") do __java_res
-                fs = __java_res
-                agile_mode = jfield(EncryptionMode, "agile", EncryptionMode)
-                enc_info = EncryptionInfo((EncryptionMode,), agile_mode)
-                encryptor = jcall(enc_info, "getEncryptor", Encryptor, ())
+        filesystem = POIFSFileSystem(())
+        try
+            agile_mode = jfield(EncryptionMode, "agile", EncryptionMode)
+            enc_info = EncryptionInfo((EncryptionMode,), agile_mode)
+            encryptor = jcall(enc_info, "getEncryptor", Encryptor, ())
 
-                jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
+            jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
 
-                with_java(() -> ByteArrayInputStream((Vector{jbyte},), bytes), "close") do __java_res
-                    bais = __java_res
-                    with_java(() -> OPCPackage.open((InputStream,), bais), "close") do __java_res
-                        pkg = __java_res
-                        with_java(() -> encryptor.getDataStream((POIFSFileSystem,), fs), "close") do __java_res
-                            enc_stream = __java_res
-                            jcall(pkg, "save", Nothing, (OutputStream,), enc_stream)
-                        end
+            input_stream = ByteArrayInputStream((Vector{jbyte},), bytes)
+            try
+                pkg = OPCPackage.open((InputStream,), input_stream)
+                try
+                    enc_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
+                    try
+                        jcall(pkg, "save", Nothing, (OutputStream,), enc_stream)
+                    finally
+                        jcall(enc_stream, "close", Nothing, ())
                     end
+                finally
+                    jcall(pkg, "close", Nothing, ())
                 end
-
-                with_java(() -> FileOutputStream((JString,), file), "close") do __java_res
-                    fos = __java_res
-                    jcall(fs, "writeFilesystem", Nothing, (OutputStream,), fos)
-                end
+            finally
+                jcall(input_stream, "close", Nothing, ())
             end
+
+            fos = FileOutputStream((JString,), file)
+            try
+                jcall(filesystem, "writeFilesystem", Nothing, (OutputStream,), fos)
+            finally
+                jcall(fos, "close", Nothing, ())
+            end
+        finally
+            jcall(filesystem, "close", Nothing, ())
         end
     else
-        with_java(() -> FileOutputStream((JString,), file), "close") do __java_res
-            fos = __java_res
+        fos = FileOutputStream((JString,), file)
+        try
             jcall(workbook, "write", Nothing, (OutputStream,), fos)
+        finally
+            jcall(fos, "close", Nothing, ())
         end
     end
 
     success = Bool(jcall(workbook, "dispose", jboolean, ()))
     success || @warn "SXSSFWorkbook.dispose() failed; temporary files may remain in $(tempdir())"
-
     return nothing
 end
 
