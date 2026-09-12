@@ -67,8 +67,8 @@ function _setup_styles(workbook::JavaObject)
     jcall(wrap_style, "setWrapText", Nothing, (jboolean,), true)
 
     (date_style = date_style,
-        datetime_style = datetime_style,
-        wrap_style = wrap_style)
+     datetime_style = datetime_style,
+     wrap_style = wrap_style)
 end
 
 function _write_cell!(
@@ -121,7 +121,7 @@ function _write_cell!(
             if str !== raw
                 chars = TRDW.XLSX.find_invalid_control_chars(raw)
                 push!(control_char_locations,
-                    (sheet_name, col_sym, row_idx, chars))
+                      (sheet_name, col_sym, row_idx, chars))
             end
 
             if contains(str, '\n')
@@ -142,121 +142,133 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
     jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), typemax(Int32))
     TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
 
-    workbook = SXSSFWorkbook(())
+    workbook = nothing
 
-    # Global helpers (formats, styles, etc.)
-    styles = _setup_styles(workbook)
-    control_char_locations = Tuple{String, Symbol, Int, Vector{Char}}[]
+    try
+        workbook = SXSSFWorkbook(())
 
-    # Process each sheet
-    for (sheet_name, table) in sheets
-        sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
-        jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
+        # Global helpers (formats, styles, etc.)
+        styles = _setup_styles(workbook)
+        control_char_locations = Tuple{String, Symbol, Int, Vector{Char}}[]
 
-        sch   = Tables.schema(table)
-        cols  = Tables.columnnames(table)
-        types = sch.types
+        # Process each sheet
+        for (sheet_name, table) in sheets
+            sheet = jcall(workbook, "createSheet", SXSSFSheet, (JString,), sheet_name)
+            jcall(sheet, "trackAllColumnsForAutoSizing", Nothing, ())
 
-        # Set column defaults based on Julia type
-        for (i, (_, t)) in enumerate(zip(cols, types))
-            nt = Base.nonmissingtype(t)
-            if nt <: Dates.Date
-                jcall(sheet, "setDefaultColumnStyle", Nothing,
-                    (jint, CellStyle), jint(i - 1), styles.date_style)
-            elseif nt <: Dates.DateTime
-                jcall(sheet, "setDefaultColumnStyle", Nothing,
-                    (jint, CellStyle), jint(i - 1), styles.datetime_style)
+            sch   = Tables.schema(table)
+            cols  = Tables.columnnames(table)
+            types = sch.types
+
+            # Set column defaults based on Julia type
+            for (i, (_, t)) in enumerate(zip(cols, types))
+                nt = Base.nonmissingtype(t)
+                if nt <: Dates.Date
+                    jcall(sheet, "setDefaultColumnStyle", Nothing,
+                          (jint, CellStyle), jint(i - 1), styles.date_style)
+                elseif nt <: Dates.DateTime
+                    jcall(sheet, "setDefaultColumnStyle", Nothing,
+                          (jint, CellStyle), jint(i - 1), styles.datetime_style)
+                end
+            end
+
+            # Header row
+            header_row = jcall(sheet, "createRow", SXSSFRow, (jint,), jint(0))
+            for (i, c) in enumerate(cols)
+                cell = jcall(header_row, "createCell", SXSSFCell, (jint,), jint(i - 1))
+                header = TRDW.XLSX.decode_funsql_label(string(c))
+                TRDW.XLSX.check_javacall_compatible(header; context = "column header \"$header\"")
+                TRDW.XLSX.check_cell_length(header; context = "column header \"$header\"")
+                header = TRDW.XLSX.sanitize_for_xlsx(header)
+                jcall(cell, "setCellValue", Nothing, (JString,), header)
+            end
+
+            # Data rows
+            for (k, r) in enumerate(Tables.rows(table))
+                row = jcall(sheet, "createRow", SXSSFRow, (jint,), jint(k))
+                for (i, c) in enumerate(Tables.columnnames(r))
+                    val = Tables.getcolumn(r, c)
+                    cell = jcall(row, "createCell", SXSSFCell, (jint,), jint(i - 1))
+                    _write_cell!(cell, val, c, k, sheet_name,
+                                 control_char_locations, workbook, styles)
+                end
+            end
+
+            # Auto‑size columns
+            for i in 1:length(cols)
+                jcall(sheet, "autoSizeColumn", Nothing, (jint,), jint(i - 1))
+                width = jcall(sheet, "getColumnWidth", jint, (jint,), jint(i - 1))
+                width = round(Int, width * TRDW.XLSX.AUTOSIZE_CORRECTION_FACTOR)
+                if width > TRDW.XLSX.MAX_COLUMN_WIDTH
+                    width = TRDW.XLSX.DEFAULT_COLUMN_WIDTH
+                end
+                jcall(sheet, "setColumnWidth", Nothing, (jint, jint),
+                      jint(i - 1), jint(width))
             end
         end
 
-        # Header row
-        header_row = jcall(sheet, "createRow", SXSSFRow, (jint,), jint(0))
-        for (i, c) in enumerate(cols)
-            cell = jcall(header_row, "createCell", SXSSFCell, (jint,), jint(i - 1))
-            header = TRDW.XLSX.decode_funsql_label(string(c))
-            TRDW.XLSX.check_javacall_compatible(header; context = "column header \"$header\"")
-            TRDW.XLSX.check_cell_length(header; context = "column header \"$header\"")
-            header = TRDW.XLSX.sanitize_for_xlsx(header)
-            jcall(cell, "setCellValue", Nothing, (JString,), header)
+        # Warn about control‑character sanitisation
+        if !isempty(control_char_locations)
+            n = length(control_char_locations)
+            examples = control_char_locations[1:min(3, n)]
+            detail = join(
+                ["sheet \"$(s)\", column \"$(col)\", row $(r) ($(TRDW.XLSX.describe_codepoints(chars)))"
+                 for (s, col, r, chars) in examples],
+                "; "
+            )
+            suffix = n > 3 ? " (and $(n - 3) more)" : ""
+            @warn "Control characters were replaced with spaces: $detail$suffix"
         end
 
-        # Data rows
-        for (k, r) in enumerate(Tables.rows(table))
-            row = jcall(sheet, "createRow", SXSSFRow, (jint,), jint(k))
-            for (i, c) in enumerate(Tables.columnnames(r))
-                val = Tables.getcolumn(r, c)
-                cell = jcall(row, "createCell", SXSSFCell, (jint,), jint(i - 1))
-                _write_cell!(cell, val, c, k, sheet_name,
-                    control_char_locations, workbook, styles)
-            end
-        end
+        # Write final workbook
+        if password !== nothing
+            @with_java ByteArrayOutputStream() "close" begin
+                buffer = __java_res
+                jcall(workbook, "write", Nothing, (OutputStream,), buffer)
+                bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
 
-        # Auto‑size columns
-        for i in 1:length(cols)
-            jcall(sheet, "autoSizeColumn", Nothing, (jint,), jint(i - 1))
-            width = jcall(sheet, "getColumnWidth", jint, (jint,), jint(i - 1))
-            width = round(Int, width * TRDW.XLSX.AUTOSIZE_CORRECTION_FACTOR)
-            if width > TRDW.XLSX.MAX_COLUMN_WIDTH
-                width = TRDW.XLSX.DEFAULT_COLUMN_WIDTH
-            end
-            jcall(sheet, "setColumnWidth", Nothing, (jint, jint),
-                jint(i - 1), jint(width))
-        end
-    end
+                @with_java POIFSFileSystem() "close" begin
+                    fs = __java_res
+                    agile_mode = jfield(EncryptionMode, "agile", EncryptionMode)
+                    enc_info = EncryptionInfo((EncryptionMode,), agile_mode)
+                    encryptor = jcall(enc_info, "getEncryptor", Encryptor, ())
 
-    # Warn about control‑character sanitisation
-    if !isempty(control_char_locations)
-        n = length(control_char_locations)
-        examples = control_char_locations[1:min(3, n)]
-        detail = join(
-            ["sheet \"$(s)\", column \"$(col)\", row $(r) ($(TRDW.XLSX.describe_codepoints(chars)))"
-                for (s, col, r, chars) in examples],
-            "; "
-        )
-        suffix = n > 3 ? " (and $(n - 3) more)" : ""
-        @warn "Control characters were replaced with spaces: $detail$suffix"
-    end
+                    jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
 
-    # Write final workbook
-    if password !== nothing
-        @with_java ByteArrayOutputStream() "close" begin
-            buffer = __java_res
-            jcall(workbook, "write", Nothing, (OutputStream,), buffer)
-            bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
-
-            @with_java POIFSFileSystem() "close" begin
-                fs = __java_res
-                agile_mode = jfield(EncryptionMode, "agile", EncryptionMode)
-                enc_info = EncryptionInfo((EncryptionMode,), agile_mode)
-                encryptor = jcall(enc_info, "getEncryptor", Encryptor, ())
-
-                jcall(encryptor, "confirmPassword", Nothing, (JString,), password)
-
-                @with_java ByteArrayInputStream((Vector{jbyte},), bytes) "close" begin
-                    bais = __java_res
-                    @with_java OPCPackage.open((InputStream,), bais) "close" begin
-                        pkg = __java_res
-                        @with_java encryptor.getDataStream((POIFSFileSystem,), fs) "close" begin
-                            enc_stream = __java_res
-                            jcall(pkg, "save", Nothing, (OutputStream,), enc_stream)
+                    @with_java ByteArrayInputStream((Vector{jbyte},), bytes) "close" begin
+                        bais = __java_res
+                        @with_java OPCPackage.open((InputStream,), bais) "close" begin
+                            pkg = __java_res
+                            @with_java encryptor.getDataStream((POIFSFileSystem,), fs) "close" begin
+                                enc_stream = __java_res
+                                jcall(pkg, "save", Nothing, (OutputStream,), enc_stream)
+                            end
                         end
                     end
-                end
 
-                @with_java FileOutputStream((JString,), file) "close" begin
-                    fos = __java_res
-                    jcall(fs, "writeFilesystem", Nothing, (OutputStream,), fos)
+                    @with_java FileOutputStream((JString,), file) "close" begin
+                        fos = __java_res
+                        jcall(fs, "writeFilesystem", Nothing, (OutputStream,), fos)
+                    end
                 end
             end
+        else
+            @with_java FileOutputStream((JString,), file) "close" begin
+                fos = __java_res
+                jcall(workbook, "write", Nothing, (OutputStream,), fos)
+            end
         end
-    else
-        @with_java FileOutputStream((JString,), file) "close" begin
-            fos = __java_res
-            jcall(workbook, "write", Nothing, (OutputStream,), fos)
+    catch e
+        # Remove any partially written file on failure
+        isfile(file) && rm(file; force=true)
+	rethrow(e)
+    finally
+        # Ensure temporary files created by SXSSFWorkbook are cleaned up
+	if workbook !== nothing
+            success = Bool(jcall(workbook, "dispose", jboolean, ()))
+            success || @warn "SXSSFWorkbook.dispose() failed; temporary files may remain in $(tempdir())"
         end
     end
-    success = Bool(jcall(workbook, "dispose", jboolean, ()))
-    success || @warn "SXSSFWorkbook.dispose() failed; temporary files may remain in $(tempdir())"
 
     return nothing
 end
@@ -279,24 +291,24 @@ end
 function TRDW.OHDSI.cohort_definition_to_sql_template(str)
     builder = CohortExpressionQueryBuilder(())
     jcall(builder, "buildExpressionQuery", JString,
-        (JString, BuildExpressionQueryOptions), str, nothing)
+          (JString, BuildExpressionQueryOptions), str, nothing)
 end
 
 function TRDW.OHDSI.render_sql(template, params = (;))
     jcall(SqlRender, "renderSql", JString,
-        (JString, Vector{JString}, Vector{JString}),
-        template,
-        collect(String, string.(keys(params))),
-        collect(String, string.(values(params))))
+          (JString, Vector{JString}, Vector{JString}),
+          template,
+          collect(String, string.(keys(params))),
+          collect(String, string.(values(params))))
 end
 
 function TRDW.OHDSI.translate_sql(sql; dialect = "spark", session_id = nothing,
-        temp_emulation_schema = nothing)
+                                 temp_emulation_schema = nothing)
     jcall(SqlTranslate, "translateSql", JString,
-        (JString, JString, JString, JString),
-        sql, dialect,
-        session_id !== nothing ? string(session_id) : nothing,
-        temp_emulation_schema !== nothing ? string(temp_emulation_schema) : nothing)
+          (JString, JString, JString, JString),
+          sql, dialect,
+          session_id !== nothing ? string(session_id) : nothing,
+          temp_emulation_schema !== nothing ? string(temp_emulation_schema) : nothing)
 end
 
 function TRDW.OHDSI.split_sql(sql)
