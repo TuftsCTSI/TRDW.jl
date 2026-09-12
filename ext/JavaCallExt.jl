@@ -261,6 +261,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
     catch e
         # Remove any partially written file on failure
         isfile(file) && rm(file; force=true)
+	rethrow(e)
     finally
         # Ensure temporary files created by SXSSFWorkbook are cleaned up
 	if workbook !== nothing
