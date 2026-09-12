@@ -38,7 +38,7 @@ macro with_java(resource_expr, close_method, body)
     quote
         local __java_res = $(esc(resource_expr))
         try
-            $(body)
+            $(esc(body))
         finally
             jcall(__java_res, $(esc(close_method)), Nothing, ())
         end
