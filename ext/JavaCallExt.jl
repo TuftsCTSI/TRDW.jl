@@ -208,6 +208,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
     # Write final workbook
     if password !== nothing
         buffer = ByteArrayOutputStream(())
+        bytes = Vector{jbyte}()
         try
             jcall(workbook, "write", Nothing, (OutputStream,), buffer)
             bytes = jcall(buffer, "toByteArray", Vector{jbyte}, ())
