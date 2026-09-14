@@ -148,13 +148,8 @@ Replace XML-invalid control characters with spaces.
 Preserves tab (U+0009), newline (U+000A), and carriage return (U+000D).
 Returns `s` unchanged when no invalid characters are present.
 """
-function sanitize_for_xlsx(s::AbstractString)
-    if _needs_sanitization(s)
-        return String(map(c -> any(r -> c in r, XML_INVALID_CONTROL_CHARS) ? ' ' : c, s))
-    else
-        return s
-    end
-end
+sanitize_for_xlsx(s::AbstractString) =
+    _needs_sanitization(s) ? map(c -> any(r -> c in r, XML_INVALID_CONTROL_CHARS) ? ' ' : c, s) : s
 
 _needs_sanitization(s::AbstractString) =
     any(c -> any(r -> c in r, XML_INVALID_CONTROL_CHARS), s)
