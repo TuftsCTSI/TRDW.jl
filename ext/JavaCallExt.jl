@@ -69,51 +69,51 @@ function _write_cell!(
         control_char_locations::Vector{Tuple{String, Symbol, Int, Vector{Char}}},
         workbook::JavaObject,
         styles::NamedTuple)
-        if val === missing
-            return
-        elseif val isa Bool
-            jcall(cell, "setCellValue", Nothing, (jboolean,), val)
+    if val === missing
+        return
+    elseif val isa Bool
+        jcall(cell, "setCellValue", Nothing, (jboolean,), val)
 
-        elseif val isa Dates.Date
-            java_date = jcall(
-                LocalDate, "of", LocalDate,
-                (jint, jint, jint),
-                jint(year(val)), jint(month(val)), jint(day(val))
-            )
-            jcall(cell, "setCellValue", Nothing, (LocalDate,), java_date)
+    elseif val isa Dates.Date
+        java_date = jcall(
+            LocalDate, "of", LocalDate,
+            (jint, jint, jint),
+            jint(year(val)), jint(month(val)), jint(day(val))
+        )
+        jcall(cell, "setCellValue", Nothing, (LocalDate,), java_date)
 
-        elseif val isa Dates.DateTime
-            nano = jlong(millisecond(val)) * 1_000_000
-            java_dt = jcall(
-                LocalDateTime, "of", LocalDateTime,
-                (jint, jint, jint, jint, jint, jint, jint),
-                jint(year(val)), jint(month(val)), jint(day(val)),
-                jint(hour(val)), jint(minute(val)), jint(second(val)), nano
-            )
-            jcall(cell, "setCellValue", Nothing, (LocalDateTime,), java_dt)
+    elseif val isa Dates.DateTime
+        nano = jlong(millisecond(val)) * 1_000_000
+        java_dt = jcall(
+            LocalDateTime, "of", LocalDateTime,
+            (jint, jint, jint, jint, jint, jint, jint),
+            jint(year(val)), jint(month(val)), jint(day(val)),
+            jint(hour(val)), jint(minute(val)), jint(second(val)), nano
+        )
+        jcall(cell, "setCellValue", Nothing, (LocalDateTime,), java_dt)
 
-        elseif val isa Integer
-            jcall(cell, "setCellValue", Nothing, (jdouble,), jdouble(val))
+    elseif val isa Integer
+        jcall(cell, "setCellValue", Nothing, (jdouble,), jdouble(val))
 
-        elseif val isa AbstractFloat
-            jcall(cell, "setCellValue", Nothing, (jdouble,), Float64(val))
+    elseif val isa AbstractFloat
+        jcall(cell, "setCellValue", Nothing, (jdouble,), Float64(val))
 
-        else
-            raw = string(val)
-            ctx = "column \"$(string(col_sym))\", row $row_idx"
-            str = TRDW.XLSX.sanitize_for_xlsx(raw)
+    else
+        raw = string(val)
+        ctx = "column \"$(string(col_sym))\", row $row_idx"
+        str = TRDW.XLSX.sanitize_for_xlsx(raw)
 
-            if str !== raw
-                chars = TRDW.XLSX.find_invalid_control_chars(raw)
-                push!(control_char_locations,
-                    (sheet_name, col_sym, row_idx, chars))
-            end
-
-            if contains(str, '\n')
-                jcall(cell, "setCellStyle", Nothing, (CellStyle,), styles.wrap_style)
-            end
-            jcall(cell, "setCellValue", Nothing, (JString,), str)
+        if str !== raw
+            chars = TRDW.XLSX.find_invalid_control_chars(raw)
+            push!(control_char_locations,
+                (sheet_name, col_sym, row_idx, chars))
         end
+
+        if contains(str, '\n')
+            jcall(cell, "setCellStyle", Nothing, (CellStyle,), styles.wrap_style)
+        end
+        jcall(cell, "setCellValue", Nothing, (JString,), str)
+    end
 end
 
 function TRDW.XLSX.write(file, table; password = nothing)
