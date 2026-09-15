@@ -69,7 +69,6 @@ function _write_cell!(
         control_char_locations::Vector{Tuple{String, Symbol, Int, Vector{Char}}},
         workbook::JavaObject,
         styles::NamedTuple)
-    try
         if val === missing
             return
         elseif val isa Bool
@@ -102,8 +101,6 @@ function _write_cell!(
         else
             raw = string(val)
             ctx = "column \"$(string(col_sym))\", row $row_idx"
-            TRDW.XLSX.check_javacall_compatible(raw; context = ctx)
-            TRDW.XLSX.check_cell_length(raw; context = ctx)
             str = TRDW.XLSX.sanitize_for_xlsx(raw)
 
             if str !== raw
@@ -117,9 +114,6 @@ function _write_cell!(
             end
             jcall(cell, "setCellValue", Nothing, (JString,), str)
         end
-    catch e
-        @error "Failed to write cell (sheet=$(sheet_name), column=$(col_sym), row=$(row_idx))" exception=(e,)
-    end
 end
 
 function TRDW.XLSX.write(file, table; password = nothing)
@@ -129,6 +123,21 @@ end
 function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}}; password = nothing)
     jcall(IOUtils, "setByteArrayMaxOverride", Nothing, (jint,), typemax(Int32))
     TRDW.XLSX.validate_sheet_names([first(p) for p in sheets])
+
+    # Assert cell length and codepoint constraints before writing
+    for (sheet_name, table) in sheets
+        for (row_idx, r) in enumerate(Tables.rows(table))
+            for col in Tables.columnnames(r)
+                val = Tables.getcolumn(r, col)
+                if val !== missing && (val isa AbstractString || val isa Symbol)
+                    raw = string(val)
+                    ctx = "sheet \"$(sheet_name)\", column \"$(string(col))\", row $(row_idx)"
+                    TRDW.XLSX.check_javacall_compatible(raw; context = ctx)
+                    TRDW.XLSX.check_cell_length(raw; context = ctx)
+                end
+            end
+        end
+    end
 
     workbook = SXSSFWorkbook(())
 
