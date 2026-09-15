@@ -699,6 +699,9 @@ const omop_catalog = FunSQL.SQLCatalog(
         :cohort_initiation_date),
     dialect = :spark)
 
+assert_new_file(path) =
+    isfile(path) && error("File already exists: $path")
+
 struct WriteCSVSpecification
     prefix::String
     query::FunSQL.SQLQuery
@@ -726,6 +729,7 @@ function run(db, spec::WriteCSVSpecification)
         """)
     else
         mkpath(dirname(filename))
+        assert_new_file(filename)
         CSV.write(filename, dataframe)
         @htl("""
             <div>$(data)</div>
@@ -735,76 +739,3 @@ function run(db, spec::WriteCSVSpecification)
     end
 end
 
-function make_password()
-    valid_characters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwzyz0123456789"
-    return join(rand(valid_characters, 13))
-end
-
-function get_password()
-    if !haskey(ENV, "CACHE_DIR")
-        return nothing
-    end
-    pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
-    if isfile(pwfile)
-        password = strip(read(open(pwfile), String))
-        @assert length(password) > 10
-    else
-        password = make_password()
-        f = open(pwfile, "w")
-        write(f, password * "\n")
-        flush(f)
-        close(f)
-    end
-    return password
-end
-
-struct WriteXLSXSpecification
-    prefix::String
-    query::FunSQL.SQLQuery
-    skip::Bool
-end
-
-""" @query write_encrypted_xlsx(prefix => content())
-
-For this to work, include this boilerplate in your notebook:
-```
-    using JavaCall
-    JavaCall.isloaded() ? nothing : JavaCall.init()
-    JavaCall.assertroottask_or_goodenv()
-```
-"""
-funsql_write_encrypted_xlsx((prefix, query)::Pair{<:Union{Symbol, AbstractString}, <:Any}; skip=nothing) =
-    WriteXLSXSpecification(string(prefix), query, something(skip, get(ENV, "CI", nothing) != "true"))
-
-function run(db, spec::WriteXLSXSpecification)
-    @assert length(methods(TRDW.XLSX.write)) > 0 """To use write_encrypt you need:
-      import JavaCall
-      # then, after TRDW is imported
-      JavaCall.isloaded() ? nothing : JavaCall.init()
-    """
-    data = run(db, spec.query)
-    dataframe = DataFrame(data)
-    password = get_password()
-    dataframe = DataFrame(data)
-    n_rows = size(dataframe)[1]
-    when =
-        let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
-            t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
-        end
-    suffix = Dates.format(when, "yyyymmddtHHMM")
-    filename = "download/$(spec.prefix)_$(suffix).xlsx"
-    if spec.skip
-        @htl("<p>Not writing $n_rows rows to $filename: not production schema</p>")
-    elseif isnothing(password) || password == ""
-        @htl("<p>Not writing $n_rows rows to $filename: password not available</p>")
-    else
-        mkpath(dirname(filename))
-        TRDW.XLSX.write(filename, dataframe; password)
-        if !is_production_schema_prefix()
-            @info "password for $filename is $password"
-        end
-        @htl("""
-            <p>$n_rows rows written. Download <a href="$filename">$filename</a>.</p>
-        """)
-    end
-end
