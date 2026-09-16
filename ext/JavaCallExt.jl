@@ -231,7 +231,7 @@ function TRDW.XLSX.write(file, sheets::AbstractVector{<:Pair{<:AbstractString}};
 
             input_stream = ByteArrayInputStream((Vector{jbyte},), bytes)
             try
-                pkg = OPCPackage.open((InputStream,), input_stream)
+                pkg = jcall(OPCPackage, "open", OPCPackage, (InputStream,), input_stream)
                 try
                     enc_stream = jcall(encryptor, "getDataStream", OutputStream, (POIFSFileSystem,), filesystem)
                     try
