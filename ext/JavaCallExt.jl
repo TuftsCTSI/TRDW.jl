@@ -69,24 +69,28 @@ function _write_cell!(
         control_char_locations::Vector{Tuple{String, Symbol, Int, Vector{Char}}},
         workbook::JavaObject,
         styles::NamedTuple)
-
     if val === missing
         return
     elseif val isa Bool
-        txt = string(val)
-        jcall(cell, "setCellValue", Nothing, (JString,), txt)
+        jcall(cell, "setCellValue", Nothing, (jboolean,), val)
 
     elseif val isa Dates.Date
-        txt = Dates.format(val, dateformat"yyyy-mm-dd")
-        jcall(cell, "setCellValue", Nothing, (JString,), txt)
+        java_date = jcall(
+            LocalDate, "of", LocalDate,
+            (jint, jint, jint),
+            jint(year(val)), jint(month(val)), jint(day(val))
+        )
+        jcall(cell, "setCellValue", Nothing, (LocalDate,), java_date)
 
     elseif val isa Dates.DateTime
-        if millisecond(val) != 0
-            txt = Dates.format(val, dateformat"yyyy-mm-dd HH:MM:SS.sss")
-        else
-            txt = Dates.format(val, dateformat"yyyy-mm-dd HH:MM:SS")
-        end
-        jcall(cell, "setCellValue", Nothing, (JString,), txt)
+        nano = jlong(millisecond(val)) * 1_000_000
+        java_dt = jcall(
+            LocalDateTime, "of", LocalDateTime,
+            (jint, jint, jint, jint, jint, jint, jint),
+            jint(year(val)), jint(month(val)), jint(day(val)),
+            jint(hour(val)), jint(minute(val)), jint(second(val)), nano
+        )
+        jcall(cell, "setCellValue", Nothing, (LocalDateTime,), java_dt)
 
     elseif val isa Integer
         jcall(cell, "setCellValue", Nothing, (jdouble,), jdouble(val))
