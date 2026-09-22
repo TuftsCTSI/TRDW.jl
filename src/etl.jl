@@ -403,10 +403,11 @@ struct CreateSchemaSpecification
     name::Symbol
     etl::AbstractTransform
     drop_tmp::Bool
+    tag::Symbol
 end
 
-funsql_create_schema((name, etl)::Pair{<:Union{Symbol, AbstractString}, <:AbstractTransform}; drop_tmp::Bool = true) =
-    CreateSchemaSpecification(Symbol(name), etl, drop_tmp)
+funsql_create_schema((name, etl)::Pair{<:Union{Symbol, AbstractString}, <:AbstractTransform}; drop_tmp::Bool = true, tag::Symbol = :default) =
+    CreateSchemaSpecification(Symbol(name), etl, drop_tmp, tag)
 
 struct ConnectionPool
     size::Int
@@ -492,6 +493,14 @@ function run(db, spec::CreateSchemaSpecification)
         [FunSQL.render(db, FunSQL.ID(t.qualifiers[end:end], t.name)) => (let m = get_metadata(t); @assert m !== nothing; m; end)
          for t in _introspect_schema(pool.default_catalog, string(spec.name))])
     matches = Set{String}()
+    for (name_sql, m) in existing_tables
+        if @something(m.etl_tag, :default) !== spec.tag
+            if name_sql ∈ keys(schema_def.defs)
+                error("$(name_sql) already exists, but not tagged '$(spec.tag)'")
+            end
+            push!(matches, name_sql)
+        end
+    end
     for def in reverse!(collect(values(schema_def.defs)))
         m = get(existing_tables, def.name_sql, nothing)
         if m !== nothing && m.etl_hash == def.etl_hash && m.etl_time == def.etl_time
@@ -500,6 +509,7 @@ function run(db, spec::CreateSchemaSpecification)
             push!(matches, def.name_sql)
         end
     end
+    tag_sql = FunSQL.render(db, FunSQL.LIT(string(spec.tag)))
     sec = @elapsed @sync begin
         task0 = nothing
         if isempty(matches)
@@ -510,6 +520,7 @@ function run(db, spec::CreateSchemaSpecification)
         else
             for (name_sql, m) in existing_tables
                 name_sql ∉ keys(schema_def.defs) || continue
+                @something(m.etl_tag, :default) === spec.tag || continue
                 cur_obj_sql = m.is_view ? "VIEW" : "TABLE"
                 sql = "DROP $cur_obj_sql $name_sql"
                 Threads.@spawn execute_ddl($pool, $sql)
@@ -533,7 +544,7 @@ function run(db, spec::CreateSchemaSpecification)
                 drop_task = Threads.@spawn execute_ddl($pool, $sql)
             end
             obj_sql = def.is_view ? "VIEW" : "TABLE"
-            tblproperties = "TBLPROPERTIES ('trdw.etl_hash' = '$(def.etl_hash)', 'trdw.etl_time' = $(def.etl_time))"
+            tblproperties = "TBLPROPERTIES ('trdw.etl_hash' = '$(def.etl_hash)', 'trdw.etl_time' = $(def.etl_time), 'trdw.etl_tag' = $(tag_sql))"
             sql = "$cmd $obj_sql $(def.name_sql)\n$tblproperties AS\n$(def.body_sql)"
             req_tasks = drop_task !== nothing ? [drop_task] : Task[]
             for req in def.reqs

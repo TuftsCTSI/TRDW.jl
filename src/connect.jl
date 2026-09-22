@@ -63,6 +63,7 @@ struct TableMetadata
     is_view::Bool
     etl_hash::Union{String, Nothing}
     etl_time::Union{Int, Nothing}
+    etl_tag::Union{Symbol, Nothing}
 end
 
 function get_metadata(t::FunSQL.SQLTable)
@@ -120,10 +121,13 @@ end
 struct TableProperties
     etl_hash::Union{String, Nothing}
     etl_time::Union{String, Nothing}
+    etl_tag::Union{String, Nothing}
 end
 
 StructTypes.names(::Type{TableProperties}) =
-    ((:etl_hash, Symbol("trdw.etl_hash")), (:etl_time, Symbol("trdw.etl_time")))
+    ((:etl_hash, Symbol("trdw.etl_hash")),
+     (:etl_time, Symbol("trdw.etl_time")),
+     (:etl_tag, Symbol("trdw.etl_tag")))
 
 struct Table
     table_type::Symbol
@@ -169,7 +173,8 @@ function _introspect_schema(catalog, schema)
         is_view = t.table_type === :VIEW
         etl_hash = t.properties.etl_hash
         etl_time = t.properties.etl_time isa String ? tryparse(Int, t.properties.etl_time) : nothing
-        metadata = (; trdw = TableMetadata(ctime, is_view, etl_hash, etl_time))
+        etl_tag = t.properties.etl_tag isa String ? Symbol(t.properties.etl_tag) : nothing
+        metadata = (; trdw = TableMetadata(ctime, is_view, etl_hash, etl_time, etl_tag))
         push!(tables, FunSQL.SQLTable(; qualifiers, name, columns, metadata))
     end
     tables
