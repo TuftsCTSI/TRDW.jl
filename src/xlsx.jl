@@ -231,6 +231,9 @@ function percent_decode(s::AbstractString)
     String(bytes)
 end
 
+to_excel_double(x::Float64) = x
+to_excel_double(x::AbstractFloat) = parse(Float64, string(x))
+
 end # module XLSX
 
 struct WriteXLSXSpecification

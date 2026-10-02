@@ -92,7 +92,7 @@ function _write_cell!(
         jcall(cell, "setCellValue", Nothing, (jdouble,), jdouble(val))
 
     elseif val isa AbstractFloat
-        jcall(cell, "setCellValue", Nothing, (jdouble,), Float64(val))
+        jcall(cell, "setCellValue", Nothing, (jdouble,), TRDW.XLSX.to_excel_double(val))
 
     else
         raw = string(val)
