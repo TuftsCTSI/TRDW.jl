@@ -307,7 +307,7 @@ function _summary_switch(branches)
 end
 
 @funsql _summary_approx_top(q, k, i) =
-    `[]`(agg(`transform(approx_top_k(?, ?) FILTER (WHERE ? IS NOT NULL), el -> concat(el.item, ' (', floor(100 * el.count / count(?), 1), '%)'))`, $q, $k, $q, $q), $i)
+    `[]`(agg(`transform(approx_top_k(CAST(? AS STRING), ?) FILTER (WHERE ? IS NOT NULL), el -> concat(el.item, ' (', floor(100 * el.count / count(?), 1), '%)'))`, $q, $k, $q, $q), $i)
 
 mutable struct CountAllNode <: FunSQL.TabularNode
     include::Union{Regex, Nothing}
