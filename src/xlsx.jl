@@ -295,10 +295,10 @@ function make_password()
 end
 
 function get_password()
-    if !haskey(ENV, "CACHE_DIR")
+    if !haskey(ENV, "PASSWORD_FILE")
         return nothing
     end
-    pwfile = joinpath(ENV["CACHE_DIR"], "password.txt")
+    pwfile = ENV["PASSWORD_FILE"]
     if isfile(pwfile)
         password = strip(read(pwfile, String))
         @assert length(password) > 10
@@ -344,7 +344,6 @@ function run(db, spec::WriteXLSXSpecification)
         push!(dataframes, name => df)
     end
     _validate_xlsx_content(dataframes)
-    password = spec.encrypt ? get_password() : nothing
     when =
         let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
             t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
@@ -355,23 +354,26 @@ function run(db, spec::WriteXLSXSpecification)
     summary = n_sheets == 1 ? "$total_rows rows" : "$n_sheets sheets ($total_rows rows)"
     if spec.skip
         @htl("<p>Not writing $summary to $filename: not production schema</p>")
-    elseif spec.encrypt && (isnothing(password) || password == "")
-        @htl("<p>Not writing $summary to $filename: password not available</p>")
     else
-        @assert length(methods(TRDW.XLSX.write)) > 0 """To use XLSX writing you need:
-          import JavaCall
-          # then, after TRDW is imported
-          JavaCall.isloaded() ? nothing : JavaCall.init()
-        """
-        mkpath(dirname(filename))
-        assert_new_file(filename)
-        TRDW.XLSX.write(filename, dataframes; password)
-        if spec.encrypt && !is_production_schema_prefix()
-            @info "password for $filename is $password"
+        password = spec.encrypt ? get_password() : nothing
+        if spec.encrypt && (isnothing(password) || password == "")
+            @htl("<p>Not writing $summary to $filename: password not available</p>")
+        else
+            @assert length(methods(TRDW.XLSX.write)) > 0 """To use XLSX writing you need:
+              import JavaCall
+              # then, after TRDW is imported
+              JavaCall.isloaded() ? nothing : JavaCall.init()
+            """
+            mkpath(dirname(filename))
+            assert_new_file(filename)
+            TRDW.XLSX.write(filename, dataframes; password)
+            if spec.encrypt && !is_production_schema_prefix()
+                @info "password for $filename is $password"
+            end
+            @htl("""
+                <p>$summary written. Download <a href="$filename">$filename</a>.</p>
+            """)
         end
-        @htl("""
-            <p>$summary written. Download <a href="$filename">$filename</a>.</p>
-        """)
     end
 end
 
