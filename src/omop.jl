@@ -1618,7 +1618,11 @@ end
 """
 @funsql person() = begin
     from(person)
+    define(birth_date => date(birth_datetime), before = birth_datetime)
+    define(death_date => date(death_datetime), before = death_datetime)
     define(
+        birth_date,
+        death_date,
         location_id,
         care_site_id,
         person_source_value,
@@ -1648,12 +1652,16 @@ end
 """
 @funsql observation_period() = begin
     from(observation_period)
-    define(datetime => timestamp(observation_period_start_date), after = observation_period_start_date)
-    define(end_datetime => timestamp(observation_period_end_date), after = observation_period_end_date)
+    define(date => observation_period_start_date, after = observation_period_start_date)
+    define(end_date => observation_period_end_date, after = observation_period_end_date)
+    define(datetime => timestamp(observation_period_start_date), after = date)
+    define(end_datetime => timestamp(observation_period_end_date), after = end_date)
     define(provenance_concept_id => period_type_concept_id, after = period_type_concept_id)
     define(
         observation_period_start_date,
+        date,
         observation_period_end_date,
+        end_date,
         period_type_concept_id,
         private = true)
 end
@@ -1683,15 +1691,19 @@ end
 @funsql visit() = begin
     from(visit_occurrence)
     define(concept_id => visit_concept_id, after = visit_concept_id)
+    define(date => visit_start_date, after = visit_start_date)
     define(datetime => visit_start_datetime, after = visit_start_datetime)
+    define(end_date => visit_end_date, after = visit_end_date)
     define(end_datetime => visit_end_datetime, after = visit_end_datetime)
     define(provenance_concept_id => visit_type_concept_id, after = visit_type_concept_id)
     define(source_concept_id => visit_source_concept_id, after = visit_source_concept_id)
     define(
         visit_concept_id,
         visit_start_date,
+        date,
         visit_start_datetime,
         visit_end_date,
+        end_date,
         visit_end_datetime,
         visit_type_concept_id,
         visit_source_value,
@@ -1735,15 +1747,19 @@ end
 @funsql visit_detail() = begin
     from(visit_detail)
     define(concept_id => visit_detail_concept_id, after = visit_detail_concept_id)
+    define(date => visit_detail_start_date, after = visit_detail_start_date)
     define(datetime => visit_detail_start_datetime, after = visit_detail_start_datetime)
+    define(end_date => visit_detail_end_date, after = visit_detail_end_date)
     define(end_datetime => visit_detail_end_datetime, after = visit_detail_end_datetime)
     define(provenance_concept_id => visit_detail_type_concept_id, after = visit_detail_type_concept_id)
     define(source_concept_id => visit_detail_source_concept_id, after = visit_detail_source_concept_id)
     define(
         visit_detail_concept_id,
         visit_detail_start_date,
+        date,
         visit_detail_start_datetime,
         visit_detail_end_date,
+        end_date,
         visit_detail_end_datetime,
         visit_detail_type_concept_id,
         provider_id,
@@ -1800,7 +1816,9 @@ end
 @funsql condition() = begin
     from(condition_occurrence)
     define(concept_id => condition_concept_id, after = condition_concept_id)
+    define(date => condition_start_date, after = condition_start_date)
     define(datetime => condition_start_datetime, after = condition_start_datetime)
+    define(end_date => condition_end_date, after = condition_end_date)
     define(end_datetime => condition_end_datetime, after = condition_end_datetime)
     define(provenance_concept_id => condition_type_concept_id, after = condition_type_concept_id)
     define(status_concept_id => condition_status_concept_id, after = condition_status_concept_id)
@@ -1809,8 +1827,10 @@ end
     define(
         condition_concept_id,
         condition_start_date,
+        date,
         condition_start_datetime,
         condition_end_date,
+        end_date,
         condition_end_datetime,
         condition_type_concept_id,
         condition_status_concept_id,
@@ -1856,7 +1876,9 @@ end
 @funsql drug() = begin
     from(drug_exposure)
     define(concept_id => drug_concept_id, after = drug_concept_id)
+    define(date => drug_exposure_start_date, after = drug_exposure_start_date)
     define(datetime => drug_exposure_start_datetime, after = drug_exposure_start_datetime)
+    define(end_date => drug_exposure_end_date, after = drug_exposure_end_date)
     define(end_datetime => drug_exposure_end_datetime, after = drug_exposure_end_datetime)
     define(provenance_concept_id => drug_type_concept_id, after = drug_type_concept_id)
     define(mode_concept_id => drug_mode_concept_id, after = drug_mode_concept_id)
@@ -1864,8 +1886,10 @@ end
     define(
         drug_concept_id,
         drug_exposure_start_date,
+        date,
         drug_exposure_start_datetime,
         drug_exposure_end_date,
+        end_date,
         drug_exposure_end_datetime,
         verbatim_end_date,
         drug_type_concept_id,
@@ -1918,15 +1942,19 @@ end
 @funsql procedure() = begin
     from(procedure_occurrence)
     define(concept_id => procedure_concept_id, after = procedure_concept_id)
+    define(date => procedure_date, after = procedure_date)
     define(datetime => procedure_datetime, after = procedure_datetime)
+    define(end_date => procedure_end_date, after = procedure_end_date)
     define(end_datetime => procedure_end_datetime, after = procedure_end_datetime)
     define(provenance_concept_id => procedure_type_concept_id, after = procedure_type_concept_id)
     define(source_concept_id => procedure_source_concept_id, after = procedure_source_concept_id)
     define(
         procedure_concept_id,
         procedure_date,
+        date,
         procedure_datetime,
         procedure_end_date,
+        end_date,
         procedure_end_datetime,
         procedure_type_concept_id,
         modifier_concept_id,
@@ -1971,15 +1999,19 @@ end
 @funsql device() = begin
     from(device_exposure)
     define(concept_id => device_concept_id, after = device_concept_id)
+    define(date => device_exposure_start_date, after = device_exposure_start_date)
     define(datetime => device_exposure_start_datetime, after = device_exposure_start_datetime)
+    define(end_date => device_exposure_end_date, after = device_exposure_end_date)
     define(end_datetime => device_exposure_end_datetime, after = device_exposure_end_datetime)
     define(provenance_concept_id => device_type_concept_id, after = device_type_concept_id)
     define(source_concept_id => device_source_concept_id, after = device_source_concept_id)
     define(
         device_concept_id,
         device_exposure_start_date,
+        date,
         device_exposure_start_datetime,
         device_exposure_end_date,
+        end_date,
         device_exposure_end_datetime,
         device_type_concept_id,
         unique_device_id,
@@ -2027,6 +2059,7 @@ end
 @funsql measurement() = begin
     from(measurement)
     define(concept_id => measurement_concept_id, after = measurement_concept_id)
+    define(date => measurement_date, after = measurement_date)
     define(datetime => measurement_datetime, after = measurement_datetime)
     define(provenance_concept_id => measurement_type_concept_id, after = measurement_type_concept_id)
     define(mode_concept_id => measurement_mode_concept_id, after = measurement_mode_concept_id)
@@ -2034,6 +2067,7 @@ end
     define(
         measurement_concept_id,
         measurement_date,
+        date,
         measurement_datetime,
         measurement_time,
         measurement_type_concept_id,
@@ -2081,12 +2115,14 @@ end
 @funsql observation() = begin
     from(observation)
     define(concept_id => observation_concept_id, after = observation_concept_id)
+    define(date => observation_date, after = observation_date)
     define(datetime => observation_datetime, after = observation_datetime)
     define(provenance_concept_id => observation_type_concept_id, after = observation_type_concept_id)
     define(source_concept_id => observation_source_concept_id, after = observation_source_concept_id)
     define(
         observation_concept_id,
         observation_date,
+        date,
         observation_datetime,
         observation_type_concept_id,
         value_as_number,
