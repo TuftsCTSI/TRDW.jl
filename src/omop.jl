@@ -1714,6 +1714,67 @@ export funsql_visit
 
 
 """
+    @funsql visit_detail()
+    @funsql visit_detail(concept_set)
+
+Return records from the `VISIT_DETAIL` table:
+- Without arguments, return all records;
+- With a given concept set, return all matching records.
+
+For clarity, some `VISIT_DETAIL` columns are renamed or omitted from the output.
+
+# Examples
+
+```julia
+@funsql visit_detail(Visit("Observation Room"))
+```
+"""
+function funsql_visit_detail
+end
+
+@funsql visit_detail() = begin
+    from(visit_detail)
+    define(concept_id => visit_detail_concept_id, after = visit_detail_concept_id)
+    define(datetime => visit_detail_start_datetime, after = visit_detail_start_datetime)
+    define(end_datetime => visit_detail_end_datetime, after = visit_detail_end_datetime)
+    define(provenance_concept_id => visit_detail_type_concept_id, after = visit_detail_type_concept_id)
+    define(source_concept_id => visit_detail_source_concept_id, after = visit_detail_source_concept_id)
+    define(
+        visit_detail_concept_id,
+        visit_detail_start_date,
+        visit_detail_start_datetime,
+        visit_detail_end_date,
+        visit_detail_end_datetime,
+        visit_detail_type_concept_id,
+        provider_id,
+        visit_detail_source_value,
+        visit_detail_source_concept_id,
+        admitted_from_concept_id,
+        admitted_from_source_value,
+        admitted_from_source_concept_id,
+        discharged_to_concept_id,
+        discharged_to_source_value,
+        discharged_to_source_concept_id,
+        preceding_visit_detail_id,
+        parent_visit_detail_id,
+        private = true)
+    as(visit)
+end
+
+@funsql visit_detail(concept_set) = begin
+    visit_detail()
+    filter(
+        concept_id in $concept_set ||
+            base_class_source_concept_id in $concept_set ||
+            class_source_concept_id in $concept_set ||
+            service_source_concept_id in $concept_set ||
+            lvl_of_care_source_concept_id in $concept_set)
+end
+
+export funsql_visit_detail
+
+
+"""
     @funsql condition()
     @funsql condition(concept_set)
 
