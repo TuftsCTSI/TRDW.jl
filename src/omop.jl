@@ -699,7 +699,7 @@ Return all concepts representing the visit type in TRDW.
 
 Return a concept representing the visit type.
 
-Arguments must refer to a standard concept in the OMOP *Visit* vocabulary.
+Arguments must refer to a standard concept in the OMOP *Visit* domain.
 
 # Examples
 
@@ -716,7 +716,7 @@ end
             concept()
             filter(
                 assert_valid_concept(
-                    vocabulary_id == "Visit" &&
+                    domain_id == "Visit" &&
                         is_not_null(standard_concept) &&
                         matches_concept($code_or_name, $name),
                     $(:(Visit($code_or_name, $name)))))
