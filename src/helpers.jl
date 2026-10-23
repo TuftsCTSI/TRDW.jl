@@ -32,7 +32,7 @@ deduplicate(keys...; order_by=[]) = begin
     filter(deduplicate.row_number() <= 1)
 end
 
-antijoin(q, lhs, rhs=lhs) = begin
+antijoin(q, lhs, rhs=$lhs) = begin
      left_join(_antijoin => $q, $lhs == _antijoin.$rhs)
      filter(isnull(_antijoin.$rhs))
      undefine(_antijoin)
