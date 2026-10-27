@@ -10,7 +10,7 @@ const DRAWIO_NEW_SVG =
 
 const DRAWIO_ORIGIN = "https://embed.diagrams.net"
 
-const DRAWIO_URL = "https://embed.diagrams.net/?proto=json&libraries=1&configure=1&noSaveBtn=1"
+const DRAWIO_URL = "https://embed.diagrams.net/?proto=json&libraries=1&configure=1&embed=1&noSaveBtn=1"
 
 const DRAWIO_CONFIG =
     (
