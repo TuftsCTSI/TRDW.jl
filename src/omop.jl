@@ -2146,3 +2146,54 @@ end
 end
 
 export funsql_observation
+
+
+"""
+    @funsql note()
+    @funsql note(concept_set)
+
+Return records from the `NOTE` table:
+- Without arguments, return all records;
+- With a given concept set, return all matching records.
+
+For clarity, some `NOTE` columns are renamed or omitted from the output.
+
+# Examples
+
+```julia
+@funsql note(LOINC("18842-5", "Discharge summary"))
+```
+"""
+function funsql_note
+end
+
+@funsql note() = begin
+    from(note)
+    define(note_class_concept_id, after = person_id)
+    define(concept_id => note_class_concept_id, after = note_class_concept_id)
+    define(date => note_date, after = note_date)
+    define(datetime => note_datetime, after = note_datetime)
+    define(provenance_concept_id => note_type_concept_id, after = note_type_concept_id)
+    define(source_concept_id => note_source_concept_id, after = note_source_concept_id)
+    define(
+        note_class_concept_id,
+        note_date,
+        date,
+        note_datetime,
+        note_type_concept_id,
+        visit_detail_id,
+        note_source_value,
+        note_source_concept_id,
+        note_event_id,
+        note_event_field_concept_id,
+        private = true)
+end
+
+@funsql note(concept_set) = begin
+    note()
+    filter(
+        concept_id in $concept_set ||
+        source_concept_id in $concept_set)
+end
+
+export funsql_note
