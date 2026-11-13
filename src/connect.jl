@@ -1,15 +1,16 @@
 build_dsn(; kws...) =
     join(["$key=$val" for (key, val) in pairs(kws)], ';')
 
-function connect_to_databricks(; catalog = nothing, schema = nothing, allowed_local_paths = ["."], driver = nothing)
+function connect_to_databricks(; catalog = nothing, schema = nothing, allowed_local_paths = ["."])
     DATABRICKS_SERVER_HOSTNAME = ENV["DATABRICKS_SERVER_HOSTNAME"]
     DATABRICKS_HTTP_PATH = ENV["DATABRICKS_HTTP_PATH"]
     DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
+    DATABRICKS_DRIVER = get(ENV, "DATABRICKS_DRIVER", nothing)
 
     DATABRICKS_DRIVERS =
-        if driver !== nothing
-            [driver]
+        if DATABRICKS_DRIVER !== nothing
+            [DATABRICKS_DRIVER]
         else
             [
                 "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
@@ -77,10 +78,10 @@ function get_metadata(t::FunSQL.SQLTable)
     m
 end
 
-function connect(specs...; catalog = nothing, exclude = nothing, allowed_local_paths = ["."], driver = nothing)
+function connect(specs...; catalog = nothing, exclude = nothing, allowed_local_paths = ["."])
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
     catalog = something(catalog, DATABRICKS_CATALOG)
-    conn = connect_to_databricks(catalog = catalog, allowed_local_paths = allowed_local_paths, driver = driver)
+    conn = connect_to_databricks(catalog = catalog, allowed_local_paths = allowed_local_paths)
     table_map = Dict{Symbol, FunSQL.SQLTable}()
     for spec in specs
         prefix, (catalogname, schemaname) = _unpack_spec(spec)
