@@ -1,17 +1,22 @@
 build_dsn(; kws...) =
     join(["$key=$val" for (key, val) in pairs(kws)], ';')
 
-function connect_to_databricks(; catalog = nothing, schema = nothing, allowed_local_paths = ["."])
+function connect_to_databricks(; catalog = nothing, schema = nothing, allowed_local_paths = ["."], driver = nothing)
     DATABRICKS_SERVER_HOSTNAME = ENV["DATABRICKS_SERVER_HOSTNAME"]
     DATABRICKS_HTTP_PATH = ENV["DATABRICKS_HTTP_PATH"]
     DATABRICKS_ACCESS_TOKEN = ENV["DATABRICKS_ACCESS_TOKEN"]
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
 
-    DATABRICKS_DRIVERS = [
-        "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
-        "/Library/simba/spark/lib/libsparkodbc_sb64-universal.dylib",
-        "C:\\Program Files\\Simba Spark ODBC Driver\\lib\\SparkODBC_sb64.dll",
-    ]
+    DATABRICKS_DRIVERS =
+        if driver !== nothing
+            [driver]
+        else
+            [
+                "/opt/simba/spark/lib/64/libsparkodbc_sb64.so",
+                "/Library/simba/spark/lib/libsparkodbc_sb64-universal.dylib",
+                "C:\\Program Files\\Simba Spark ODBC Driver\\lib\\SparkODBC_sb64.dll",
+            ]
+        end
     if !any(isfile, DATABRICKS_DRIVERS)
         error("Cannot find Databricks ODBC driver")
     end
@@ -72,10 +77,10 @@ function get_metadata(t::FunSQL.SQLTable)
     m
 end
 
-function connect(specs...; catalog = nothing, exclude = nothing, allowed_local_paths = ["."])
+function connect(specs...; catalog = nothing, exclude = nothing, allowed_local_paths = ["."], driver = nothing)
     DATABRICKS_CATALOG = get(ENV, "DATABRICKS_CATALOG", "ctsi")
     catalog = something(catalog, DATABRICKS_CATALOG)
-    conn = connect_to_databricks(catalog = catalog, allowed_local_paths = allowed_local_paths)
+    conn = connect_to_databricks(catalog = catalog, allowed_local_paths = allowed_local_paths, driver = driver)
     table_map = Dict{Symbol, FunSQL.SQLTable}()
     for spec in specs
         prefix, (catalogname, schemaname) = _unpack_spec(spec)
