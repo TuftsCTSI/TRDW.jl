@@ -118,12 +118,6 @@ end
 
 Write query results to an unencrypted XLSX workbook.
 When the filename is omitted, it defaults to the first sheet name.
-
-Requires JavaCall boilerplate in your notebook:
-
-    using JavaCall
-    JavaCall.isloaded() ? nothing : JavaCall.init()
-    JavaCall.assertroottask_or_goodenv()
 """
 funsql_write_xlsx(args...; skip=nothing) = _xlsx_dispatch(false, args...; skip)
 
@@ -132,12 +126,6 @@ funsql_write_xlsx(args...; skip=nothing) = _xlsx_dispatch(false, args...; skip)
 
 Write query results to a password-protected XLSX workbook.
 When the filename is omitted, it defaults to the first sheet name.
-
-Requires JavaCall boilerplate in your notebook:
-
-    using JavaCall
-    JavaCall.isloaded() ? nothing : JavaCall.init()
-    JavaCall.assertroottask_or_goodenv()
 """
 funsql_write_encrypted_xlsx(args...; skip=nothing) = _xlsx_dispatch(true, args...; skip)
 
@@ -163,29 +151,6 @@ function get_password()
     return password
 end
 
-function _validate_xlsx_content(dataframes::AbstractVector{<:Pair{String, DataFrame}})
-    XLSX.validate_sheet_names(first.(dataframes))
-    for (name, df) in dataframes
-        nrows = size(df, 1)
-        ncols = size(df, 2)
-        if nrows + 1 > XLSX.EXCEL_MAX_ROWS
-            throw(ArgumentError(
-                "Sheet \"$name\" exceeds Excel's row limit of $(XLSX.EXCEL_MAX_ROWS) " *
-                "(header + $nrows data rows)"))
-        end
-        if ncols > XLSX.EXCEL_MAX_COLUMNS
-            throw(ArgumentError(
-                "Sheet \"$name\" has $ncols columns, exceeding Excel's maximum " *
-                "of $(XLSX.EXCEL_MAX_COLUMNS) columns per sheet"))
-        end
-        for c in Tables.columnnames(df)
-            raw = string(c)
-            decoded = XLSX.percent_decode(raw)
-            XLSX.check_javacall_compatible(decoded; context = "column header \"$decoded\"")
-        end
-    end
-end
-
 function run(db, spec::WriteXLSXSpecification)
     dataframes = Pair{String, DataFrame}[]
     total_rows = 0
@@ -195,7 +160,6 @@ function run(db, spec::WriteXLSXSpecification)
         total_rows += size(df, 1)
         push!(dataframes, name => df)
     end
-    _validate_xlsx_content(dataframes)
     when =
         let t = tryparse(Int, get(ENV, "SOURCE_DATE_EPOCH", ""))
             t !== nothing ? Dates.unix2datetime(t) : Dates.now(UTC)
@@ -211,11 +175,6 @@ function run(db, spec::WriteXLSXSpecification)
         if spec.encrypt && (isnothing(password) || password == "")
             @htl("<p>Not writing $summary to $filename: password not available</p>")
         else
-            @assert length(methods(TRDW.XLSX.write)) > 0 """To use XLSX writing you need:
-              import JavaCall
-              # then, after TRDW is imported
-              JavaCall.isloaded() ? nothing : JavaCall.init()
-            """
             mkpath(dirname(filename))
             assert_new_file(filename)
             TRDW.XLSX.write(filename, dataframes; password)
