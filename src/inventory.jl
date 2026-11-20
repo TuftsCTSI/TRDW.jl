@@ -155,13 +155,21 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
         t = FunSQL.row_type(tail′)
         curr_t = t.fields[:current]
         prev_t = t.fields[:previous]
-        fields = collect(Base.keys(curr_t.fields))
+        curr_fields = collect(Base.keys(curr_t.fields))
+        prev_fields = collect(Base.keys(prev_t.fields))
+        fields = union(curr_fields, prev_fields)
+        states = String[]
         qs = FunSQL.SQLQuery[]
         for field in fields
-            if field in Base.keys(prev_t.fields)
+            if field in curr_fields && field in prev_fields
+                push!(states, "retained")
                 push!(qs, @funsql(count_if(previous.$field !== current.$field)))
+            elseif field in curr_fields
+                push!(states, "added")
+                push!(qs, @funsql(count()))
             else
-                push!(qs, @funsql(count(current.$field)))
+                push!(states, "dropped")
+                push!(qs, @funsql(count()))
             end
         end
         @funsql begin
@@ -169,6 +177,7 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
             group()
             cross_join(summary_case => from(explode(sequence(1, $(length(fields)))), columns = [index]), private = true)
             define(column => $(_summary_switch(string.(fields))))
+            define(state => $(_summary_switch(states)))
             define(n_changed => $(_summary_switch(qs)))
             define(pct_changed => floor(100 * n_changed / count(), 1))
         end
