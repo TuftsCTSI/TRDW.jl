@@ -182,11 +182,17 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
                 push!(qs, @funsql(count()))
             end
         end
+        retained_fields = intersect(curr_fields, prev_fields)
+        names = ["(any column)"; string.(fields)]
+        pushfirst!(states, "retained")
+        pushfirst!(types, @funsql(missing))
+        pushfirst!(types_changed, @funsql(missing))
+        pushfirst!(qs, @funsql(count_if(or(args = $[@funsql(previous.$field !== current.$field) for field in retained_fields]))))
         @funsql begin
             $tail′
             group()
-            cross_join(summary_case => from(explode(sequence(1, $(length(fields)))), columns = [index]), private = true)
-            define(column => $(_summary_switch(string.(fields))))
+            cross_join(summary_case => from(explode(sequence(1, $(length(names)))), columns = [index]), private = true)
+            define(column => $(_summary_switch(names)))
             define(state => $(_summary_switch(states)))
             define(type => $(_summary_switch(types)))
             define(type_changed => $(_summary_switch(types_changed)))
