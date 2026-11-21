@@ -149,7 +149,7 @@ end
     frequency(state => is_null(previous.is_present) ? "added" : is_null(current.is_present) ? "dropped" : "retained")
 end
 
-function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_table = Symbol("previous_$(table)"))
+function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_table = Symbol("previous_$(table)"); all = false)
     function custom_resolve(n, ctx)
         tail′ = FunSQL.resolve(ctx)
         t = FunSQL.row_type(tail′)
@@ -188,7 +188,7 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
         pushfirst!(types, @funsql(missing))
         pushfirst!(types_changed, @funsql(missing))
         pushfirst!(qs, @funsql(count_if(or(args = $[@funsql(previous.$field !== current.$field) for field in retained_fields]))))
-        @funsql begin
+        q = @funsql begin
             $tail′
             group()
             cross_join(summary_case => from(explode(sequence(1, $(length(names)))), columns = [index]), private = true)
@@ -199,6 +199,7 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
             define(n_changed => $(_summary_switch(qs)))
             define(pct_changed => floor(100 * n_changed / count(), 1))
         end
+        all ? q : @funsql($q.filter(state != "retained" || n_changed > 0 || type_changed))
     end
     @funsql begin
         from($table)
