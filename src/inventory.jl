@@ -188,7 +188,21 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
             define(n_changed => $(_summary_switch(qs)))
             define(pct_changed => floor(100 * n_changed / count(), 1))
         end
-        all ? q : @funsql($q.filter(is_not_null(state) || n_changed > 0))
+        if !all
+            q = @funsql $q.filter(is_not_null(state) || n_changed > 0)
+        end
+        @funsql begin
+            $q
+            order(
+                case(
+                    summary_case.index == 1, 0,
+                    state == "dropped", 1,
+                    contains(state, " → "), 2,
+                    state == "added", 3,
+                    4),
+                n_changed.desc(),
+                summary_case.index)
+        end
     end
     @funsql begin
         from($table)
