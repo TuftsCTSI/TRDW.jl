@@ -158,35 +158,25 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
         curr_fields = collect(Base.keys(curr_t.fields))
         prev_fields = collect(Base.keys(prev_t.fields))
         fields = union(curr_fields, prev_fields)
-        states = String[]
-        types = FunSQL.SQLQuery[]
-        types_changed = FunSQL.SQLQuery[]
+        states = FunSQL.SQLQuery[]
         qs = FunSQL.SQLQuery[]
         for field in fields
-            curr_type = @funsql(typeof(any_value(current.$field)))
-            prev_type = @funsql(typeof(any_value(previous.$field)))
             if field in curr_fields && field in prev_fields
-                push!(states, "retained")
-                push!(types, @funsql($prev_type == $curr_type ? $curr_type : concat($prev_type, " → ", $curr_type)))
-                push!(types_changed, @funsql($prev_type != $curr_type))
+                curr_type = @funsql(typeof(any_value(current.$field)))
+                prev_type = @funsql(typeof(any_value(previous.$field)))
+                push!(states, @funsql($prev_type == $curr_type ? missing : concat($prev_type, " → ", $curr_type)))
                 push!(qs, @funsql(count_if(previous.$field !== current.$field)))
             elseif field in curr_fields
-                push!(states, "added")
-                push!(types, curr_type)
-                push!(types_changed, @funsql(false))
+                push!(states, @funsql("added"))
                 push!(qs, @funsql(count()))
             else
-                push!(states, "dropped")
-                push!(types, prev_type)
-                push!(types_changed, @funsql(false))
+                push!(states, @funsql("dropped"))
                 push!(qs, @funsql(count()))
             end
         end
         retained_fields = intersect(curr_fields, prev_fields)
         names = ["(any column)"; string.(fields)]
-        pushfirst!(states, "retained")
-        pushfirst!(types, @funsql(missing))
-        pushfirst!(types_changed, @funsql(missing))
+        pushfirst!(states, @funsql(missing))
         pushfirst!(qs, @funsql(count_if(or(args = $[@funsql(previous.$field !== current.$field) for field in retained_fields]))))
         q = @funsql begin
             $tail′
@@ -194,12 +184,10 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
             cross_join(summary_case => from(explode(sequence(1, $(length(names)))), columns = [index]), private = true)
             define(column => $(_summary_switch(names)))
             define(state => $(_summary_switch(states)))
-            define(type => $(_summary_switch(types)))
-            define(type_changed => $(_summary_switch(types_changed)))
             define(n_changed => $(_summary_switch(qs)))
             define(pct_changed => floor(100 * n_changed / count(), 1))
         end
-        all ? q : @funsql($q.filter(state != "retained" || n_changed > 0 || type_changed))
+        all ? q : @funsql($q.filter(is_not_null(state) || n_changed > 0))
     end
     @funsql begin
         from($table)
