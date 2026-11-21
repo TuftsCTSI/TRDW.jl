@@ -184,6 +184,7 @@ function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_tab
             cross_join(summary_case => from(explode(sequence(1, $(length(names)))), columns = [index]), private = true)
             define(column => $(_summary_switch(names)))
             define(state => $(_summary_switch(states)))
+            define(col_unchanged => is_null(state), before = state)
             define(n_changed => $(_summary_switch(qs)))
             define(pct_changed => floor(100 * n_changed / count(), 1))
         end
