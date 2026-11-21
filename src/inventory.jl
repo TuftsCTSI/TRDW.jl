@@ -149,28 +149,59 @@ end
     frequency(state => is_null(previous.is_present) ? "added" : is_null(current.is_present) ? "dropped" : "retained")
 end
 
-function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_table = Symbol("previous_$(table)"))
+function funsql_column_delta(table, keys = [Symbol("$(table)_id")], previous_table = Symbol("previous_$(table)"); all = false)
     function custom_resolve(n, ctx)
         tail′ = FunSQL.resolve(ctx)
         t = FunSQL.row_type(tail′)
         curr_t = t.fields[:current]
         prev_t = t.fields[:previous]
-        fields = collect(Base.keys(curr_t.fields))
+        curr_fields = collect(Base.keys(curr_t.fields))
+        prev_fields = collect(Base.keys(prev_t.fields))
+        fields = union(curr_fields, prev_fields)
+        states = FunSQL.SQLQuery[]
         qs = FunSQL.SQLQuery[]
         for field in fields
-            if field in Base.keys(prev_t.fields)
+            if field in curr_fields && field in prev_fields
+                curr_type = @funsql(typeof(any_value(current.$field)))
+                prev_type = @funsql(typeof(any_value(previous.$field)))
+                push!(states, @funsql($prev_type == $curr_type ? missing : concat($prev_type, " → ", $curr_type)))
                 push!(qs, @funsql(count_if(previous.$field !== current.$field)))
+            elseif field in curr_fields
+                push!(states, @funsql("added"))
+                push!(qs, @funsql(count()))
             else
-                push!(qs, @funsql(count(current.$field)))
+                push!(states, @funsql("dropped"))
+                push!(qs, @funsql(count()))
             end
         end
-        @funsql begin
+        retained_fields = intersect(curr_fields, prev_fields)
+        names = ["(any column)"; string.(fields)]
+        pushfirst!(states, @funsql(missing))
+        pushfirst!(qs, @funsql(count_if(or(args = $[@funsql(previous.$field !== current.$field) for field in retained_fields]))))
+        q = @funsql begin
             $tail′
             group()
-            cross_join(summary_case => from(explode(sequence(1, $(length(fields)))), columns = [index]), private = true)
-            define(column => $(_summary_switch(string.(fields))))
+            cross_join(summary_case => from(explode(sequence(1, $(length(names)))), columns = [index]), private = true)
+            define(column => $(_summary_switch(names)))
+            define(state => $(_summary_switch(states)))
+            define(col_unchanged => is_null(state), before = state)
             define(n_changed => $(_summary_switch(qs)))
             define(pct_changed => floor(100 * n_changed / count(), 1))
+        end
+        if !all
+            q = @funsql $q.filter(is_not_null(state) || n_changed > 0)
+        end
+        @funsql begin
+            $q
+            order(
+                case(
+                    summary_case.index == 1, 0,
+                    state == "dropped", 1,
+                    contains(state, " → "), 2,
+                    state == "added", 3,
+                    4),
+                n_changed.desc(),
+                summary_case.index)
         end
     end
     @funsql begin
