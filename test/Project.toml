@@ -1,0 +1,14 @@
+[deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
+TRDW = "0719a0bd-20d8-4d8e-abe7-d82c18a4d09f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+FunSQL = {rev = "private-fields", url = "https://github.com/MechanicalRabbit/FunSQL.jl.git"}
+TRDW = {path = ".."}
+
+[compat]
+julia = "1.11"
