@@ -7,6 +7,8 @@ using Test
 using TRDW
 
 include("support/mock_catalog.jl")
+include("support/environment.jl")
+include("support/render.jl")
 
 @testset "TRDW" begin
     @testset "loads" begin
@@ -14,5 +16,6 @@ include("support/mock_catalog.jl")
     end
     @testset "render" begin
         include("render/mock_catalog.jl")
+        include("render/support.jl")
     end
 end
