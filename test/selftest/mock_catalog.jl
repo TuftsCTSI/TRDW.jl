@@ -1,9 +1,3 @@
-const TABLE_QUERIES = [
-    :person, :observation_period, :visit, :visit_detail, :condition,
-    :procedure, :drug, :device, :measurement, :observation, :note,
-    :provider, :care_site, :concept,
-]
-
 table_query(name) = getfield(TRDW, Symbol("funsql_", name))()
 
 function catalog_without(table, column)
@@ -31,12 +25,9 @@ const EXTRA_COLUMN_QUERIES = Dict(
         @test Set(keys(EXTRA_COLUMN_QUERIES)) == Set(keys(EXTRA_COLUMNS))
     end
 
-    @testset "$name() renders" for name in TABLE_QUERIES
-        @test FunSQL.render(MOCK_CATALOG, table_query(name)) isa FunSQL.SQLString
-    end
-
     @testset "$table.$column is needed" for (table, cols) in EXTRA_COLUMNS, column in cols
-        cat = catalog_without(table, column)
-        @test_throws FunSQL.ReferenceError FunSQL.render(cat, table_query(EXTRA_COLUMN_QUERIES[table]))
+        q = table_query(EXTRA_COLUMN_QUERIES[table])
+        @test FunSQL.render(MOCK_CATALOG, q) isa FunSQL.SQLString
+        @test_throws FunSQL.ReferenceError FunSQL.render(catalog_without(table, column), q)
     end
 end

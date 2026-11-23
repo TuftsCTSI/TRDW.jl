@@ -47,12 +47,12 @@ const NOT_ZERO_ARG = Pair{Symbol, String}[
 
     :funsql_custom_resolve => "ill-formed without arguments",
 
-    :funsql_config_file => "returns a DataFrame; test/render/support.jl",
+    :funsql_config_file => "returns a DataFrame; test/selftest/environment.jl",
     :funsql_export => "exports TRDW's funsql_ names; returns nothing",
-    :funsql_is_during_irb_date_range => "returns a name => condition pair; test/render/support.jl",
-    :funsql_project_schema => "returns a String; test/render/support.jl",
-    :funsql_user_project_schema => "returns a String; test/render/support.jl",
-    :funsql_subject_table => "returns a SQLTable; test/render/support.jl",
+    :funsql_is_during_irb_date_range => "returns a name => condition pair; test/selftest/environment.jl",
+    :funsql_project_schema => "returns a String; test/selftest/environment.jl",
+    :funsql_user_project_schema => "returns a String; test/selftest/environment.jl",
+    :funsql_subject_table => "returns a SQLTable; test/selftest/environment.jl",
     :funsql_truncate_subject_table => "returns a run() specification",
     :funsql_noop => "returns an ETL transform",
     :funsql_set => "returns an ETL transform",

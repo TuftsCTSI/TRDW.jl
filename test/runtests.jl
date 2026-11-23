@@ -14,9 +14,12 @@ include("support/render.jl")
     @testset "loads" begin
         @test isdefined(TRDW, :funsql_person)
     end
+    @testset "test helpers" begin
+        include("selftest/mock_catalog.jl")
+        include("selftest/environment.jl")
+        include("selftest/render.jl")
+    end
     @testset "render" begin
-        include("render/mock_catalog.jl")
-        include("render/support.jl")
         include("render/zero_args.jl")
     end
 end
