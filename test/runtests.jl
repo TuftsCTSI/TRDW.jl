@@ -17,5 +17,6 @@ include("support/render.jl")
     @testset "render" begin
         include("render/mock_catalog.jl")
         include("render/support.jl")
+        include("render/zero_args.jl")
     end
 end
