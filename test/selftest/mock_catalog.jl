@@ -1,5 +1,3 @@
-table_query(name) = getfield(TRDW, Symbol("funsql_", name))()
-
 function catalog_without(table, column)
     tables = Dict(
         name => FunSQL.SQLTable(name, columns = filter(!=(column), cols))
@@ -10,10 +8,15 @@ function catalog_without(table, column)
     FunSQL.SQLCatalog(tables = tables, dialect = MOCK_CATALOG.dialect, metadata = MOCK_CATALOG.metadata)
 end
 
+# For each table in EXTRA_COLUMNS, a query that reads all of its extra columns.
 const EXTRA_COLUMN_QUERIES = Dict(
-    :person => :person, :care_site => :care_site,
-    :condition_occurrence => :condition, :drug_exposure => :drug,
-    :measurement => :measurement, :note => :note, :visit_detail => :visit_detail,
+    :person => () -> @funsql(person()),
+    :care_site => () -> @funsql(care_site()),
+    :condition_occurrence => () -> @funsql(condition()),
+    :drug_exposure => () -> @funsql(drug()),
+    :measurement => () -> @funsql(measurement()),
+    :note => () -> @funsql(note()),
+    :visit_detail => () -> @funsql(visit_detail(Visit("Observation Room"))),
 )
 
 @testset "mock catalog" begin
@@ -26,7 +29,7 @@ const EXTRA_COLUMN_QUERIES = Dict(
     end
 
     @testset "$table.$column is needed" for (table, cols) in EXTRA_COLUMNS, column in cols
-        q = table_query(EXTRA_COLUMN_QUERIES[table])
+        q = EXTRA_COLUMN_QUERIES[table]()
         @test FunSQL.render(MOCK_CATALOG, q) isa FunSQL.SQLString
         @test_throws FunSQL.ReferenceError FunSQL.render(catalog_without(table, column), q)
     end

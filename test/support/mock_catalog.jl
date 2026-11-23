@@ -20,8 +20,12 @@ const EXTRA_COLUMNS = Dict{Symbol, Vector{Symbol}}(
     :measurement => [:measurement_mode_concept_id],
     # note() (src/omop.jl)
     :note => [:note_source_concept_id],
-    # visit_detail() (src/omop.jl)
-    :visit_detail => [:admitted_from_source_concept_id, :discharged_to_source_concept_id],
+    # visit_detail() (src/omop.jl); visit_detail(concept_set) also filters
+    # on the four *_source_concept_id columns after them
+    :visit_detail => [
+        :admitted_from_source_concept_id, :discharged_to_source_concept_id,
+        :base_class_source_concept_id, :class_source_concept_id,
+        :service_source_concept_id, :lvl_of_care_source_concept_id],
 )
 
 # Table name => column names, in the CDM file's order, plus EXTRA_COLUMNS.
